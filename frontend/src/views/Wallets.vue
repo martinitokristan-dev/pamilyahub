@@ -1,0 +1,159 @@
+<script setup>
+import { ref, computed } from 'vue'
+import { useWalletsStore } from '@/stores/wallets.js'
+import { useRegisterAddAction } from '@/composables/usePageAction.js'
+import { Plus, Pencil, Trash2, X, Wallet } from 'lucide-vue-next'
+import UiButton from '@/components/ui/Button.vue'
+import UiInput from '@/components/ui/Input.vue'
+import UiLabel from '@/components/ui/Label.vue'
+import UiCard from '@/components/ui/Card.vue'
+import UiCardContent from '@/components/ui/CardContent.vue'
+
+const store = useWalletsStore()
+useRegisterAddAction(openCreate)
+
+const showForm = ref(false)
+const editingId = ref(null)
+const form = ref({ name: '', type: 'cash', balance: '', color: '' })
+
+const walletTypes = [
+  { id: 'cash',        label: 'Cash',        emoji: '💵', bg: 'from-green-500 to-emerald-600' },
+  { id: 'gcash',       label: 'GCash',       emoji: '📱', bg: 'from-blue-500 to-blue-700' },
+  { id: 'maya',        label: 'Maya',        emoji: '💚', bg: 'from-emerald-400 to-teal-600' },
+  { id: 'bpi',         label: 'BPI',         emoji: '🏦', bg: 'from-red-600 to-red-800' },
+  { id: 'bdo',         label: 'BDO',         emoji: '🏦', bg: 'from-blue-800 to-indigo-900' },
+  { id: 'unionbank',   label: 'UnionBank',   emoji: '🏦', bg: 'from-orange-500 to-orange-700' },
+  { id: 'metrobank',   label: 'Metrobank',   emoji: '🏦', bg: 'from-green-700 to-green-900' },
+  { id: 'credit_card', label: 'Credit Card', emoji: '💳', bg: 'from-violet-600 to-purple-800' },
+  { id: 'debit_card',  label: 'Debit Card',  emoji: '🏧', bg: 'from-slate-500 to-slate-700' },
+  { id: 'shopeepay',   label: 'ShopeePay',   emoji: '🛍️', bg: 'from-orange-400 to-red-500' },
+  { id: 'coins_ph',    label: 'Coins.ph',    emoji: '🪙', bg: 'from-yellow-400 to-amber-600' },
+  { id: 'custom',      label: 'Custom',      emoji: '👛', bg: 'from-pink-500 to-rose-600' },
+]
+
+function typeInfo(type) {
+  return walletTypes.find(w => w.id === type) ?? walletTypes.find(w => w.id === 'custom')
+}
+
+function openCreate() {
+  editingId.value = null
+  form.value = { name: '', type: 'cash', balance: '0', color: '' }
+  showForm.value = true
+}
+
+function openEdit(wallet) {
+  editingId.value = wallet.id
+  form.value = { name: wallet.name, type: wallet.type, balance: wallet.balance, color: wallet.color ?? '' }
+  showForm.value = true
+}
+
+async function submit() {
+  if (editingId.value) {
+    await store.update(editingId.value, form.value)
+  } else {
+    await store.create(form.value)
+  }
+  showForm.value = false
+}
+
+const netWorth = computed(() =>
+  store.wallets.reduce((s, w) => s + parseFloat(w.balance), 0).toFixed(2)
+)
+</script>
+
+<template>
+  <div class="p-4 md:p-6 max-w-2xl mx-auto animate-fade-in">
+    <div class="mb-5 flex items-center justify-between">
+      <div>
+        <h1 class="text-2xl font-bold tracking-tight">Wallets</h1>
+        <p class="text-sm text-muted-foreground mt-0.5">Net worth: <span class="font-semibold text-foreground">₱{{ netWorth }}</span></p>
+      </div>
+      <UiButton @click="openCreate" class="hidden sm:flex">
+        <Plus class="h-4 w-4" /> Add Wallet
+      </UiButton>
+    </div>
+
+    <div v-if="store.loading && store.wallets.length === 0" class="text-sm text-muted-foreground">Loading…</div>
+
+    <div v-else-if="store.wallets.length === 0" class="flex flex-col items-center justify-center py-24 text-center border rounded-2xl border-dashed bg-muted/20">
+      <Wallet class="h-10 w-10 text-muted-foreground/40 mb-3" />
+      <p class="text-sm text-muted-foreground">No wallets yet. Add your first one!</p>
+    </div>
+
+    <div v-else class="grid grid-cols-2 gap-3">
+      <div
+        v-for="wallet in store.wallets"
+        :key="wallet.id"
+        class="relative rounded-2xl p-5 text-white shadow-md overflow-hidden bg-gradient-to-br"
+        :class="typeInfo(wallet.type).bg"
+      >
+        <div class="flex items-start justify-between mb-4">
+          <span class="text-3xl leading-none">{{ typeInfo(wallet.type).emoji }}</span>
+          <div class="flex gap-1">
+            <button @click="openEdit(wallet)" class="rounded-lg bg-white/20 p-1.5 hover:bg-white/30 transition-colors">
+              <Pencil class="h-3.5 w-3.5 text-white" />
+            </button>
+            <button @click="store.remove(wallet.id)" class="rounded-lg bg-white/20 p-1.5 hover:bg-white/30 transition-colors">
+              <Trash2 class="h-3.5 w-3.5 text-white" />
+            </button>
+          </div>
+        </div>
+        <p class="text-2xl font-bold leading-none mb-1">₱{{ parseFloat(wallet.balance).toLocaleString('en-PH', { minimumFractionDigits: 2 }) }}</p>
+        <p class="text-sm text-white/80 font-medium">{{ wallet.name }}</p>
+        <p class="text-[11px] text-white/60 mt-0.5">{{ typeInfo(wallet.type).label }}</p>
+        <div class="absolute -bottom-4 -right-4 h-20 w-20 rounded-full bg-white/10" />
+        <div class="absolute -bottom-8 -right-8 h-28 w-28 rounded-full bg-white/5" />
+      </div>
+    </div>
+
+    <!-- Modal -->
+    <Teleport to="body">
+      <div v-if="showForm" class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm" @mousedown.self="showForm = false">
+        <UiCard class="w-full sm:max-w-md shadow-xl animate-fade-in rounded-t-2xl sm:rounded-2xl max-h-[90vh] overflow-y-auto">
+          <div class="flex items-center justify-between p-5 pb-4 sticky top-0 bg-card border-b border-border">
+            <h2 class="text-lg font-semibold">{{ editingId ? 'Edit Wallet' : 'New Wallet' }}</h2>
+            <UiButton variant="ghost" size="icon" @click="showForm = false"><X class="h-4 w-4" /></UiButton>
+          </div>
+          <UiCardContent class="p-5">
+            <form @submit.prevent="submit" class="space-y-5">
+
+              <div class="space-y-1.5">
+                <UiLabel>Wallet Name</UiLabel>
+                <UiInput v-model="form.name" placeholder="e.g. My GCash, BDO Savings" required />
+              </div>
+
+              <div class="space-y-2">
+                <UiLabel>Type</UiLabel>
+                <div class="grid grid-cols-4 gap-2">
+                  <button
+                    v-for="wt in walletTypes"
+                    :key="wt.id"
+                    type="button"
+                    @click="form.type = wt.id"
+                    class="flex flex-col items-center gap-1 rounded-xl border-2 p-2.5 transition-all duration-150"
+                    :class="form.type === wt.id ? 'border-primary bg-primary/5 scale-105' : 'border-border hover:border-muted-foreground/30'"
+                  >
+                    <span class="text-xl leading-none">{{ wt.emoji }}</span>
+                    <span class="text-[10px] font-medium text-center leading-none">{{ wt.label }}</span>
+                  </button>
+                </div>
+              </div>
+
+              <div class="space-y-1.5">
+                <UiLabel>Current Balance (₱)</UiLabel>
+                <UiInput v-model="form.balance" type="number" min="0" step="0.01" placeholder="0.00" required />
+              </div>
+
+              <div class="flex justify-end gap-2 pt-1">
+                <UiButton type="button" variant="outline" @click="showForm = false">Cancel</UiButton>
+                <UiButton type="submit" :disabled="store.loading">
+                  {{ store.loading ? 'Saving…' : (editingId ? 'Save changes' : 'Add wallet') }}
+                </UiButton>
+              </div>
+            </form>
+          </UiCardContent>
+        </UiCard>
+      </div>
+    </Teleport>
+  </div>
+</template>

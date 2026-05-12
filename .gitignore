@@ -1,0 +1,49 @@
+# Root .gitignore for PamilyaHub
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env
+
+# Dependencies
+node_modules/
+vendor/
+
+# Build outputs
+backend/public/build
+backend/public/hot
+backend/public/storage
+frontend/dist/
+
+# Logs
+*.log
+backend/storage/logs/*.log
+
+# IDEs and Editors
+.vscode/
+.idea/
+.fleet/
+.nova/
+.zed/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Laravel specific (if not covered by backend/.gitignore)
+backend/storage/*.key
+backend/auth.json
+backend/.phpunit.result.cache
+backend/.phpunit.cache
+
+# Misc
+.phpunit.result.cache
+/storage/pail
