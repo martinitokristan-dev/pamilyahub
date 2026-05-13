@@ -103,7 +103,7 @@ export const useNotesStore = defineStore('notes', () => {
   }
 
   return { 
-    notes, folders, loading, error, fetched, 
+    notes, folders, loading, error, fetched, cacheTime,
     fetchAll, create, update, remove, 
     createFolder, removeFolder 
   }

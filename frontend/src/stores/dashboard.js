@@ -33,5 +33,5 @@ export const useDashboardStore = defineStore('dashboard', () => {
     fetched.value = false
   }
 
-  return { stats, loading, fetched, error, fetchStats, invalidate }
+  return { stats, loading, fetched, error, cacheTime, fetchStats, invalidate }
 })

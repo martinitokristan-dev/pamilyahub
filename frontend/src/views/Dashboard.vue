@@ -24,11 +24,10 @@ const handleDepositSuccess = async () => {
 }
 
 onMounted(async () => {
-  await Promise.all([
-    dashboard.fetchStats(),
-    notes.fetchAll(),
-    expenses.fetchAll(),
-  ])
+  const fetches = [dashboard.fetchStats()]
+  if (!notes.fetched) fetches.push(notes.fetchAll())
+  // Don't fetch full expense list on dashboard — stats already has the total
+  await Promise.all(fetches)
 })
 
 const stats = computed(() => {

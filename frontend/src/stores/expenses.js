@@ -9,8 +9,15 @@ export const useExpensesStore = defineStore("expenses", () => {
   const loading = ref(false);
   const error = ref(null);
   const fetched = ref(false);
+  const cacheTime = ref(0);
+  const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+  function isCacheValid() {
+    return Date.now() - cacheTime.value < CACHE_TTL;
+  }
 
   async function fetchAll(page = 1, filters = {}) {
+    if (fetched.value && isCacheValid() && Object.keys(filters).length === 0) return;
     loading.value = true;
     try {
       const res = await expenseService.getAll({ page, ...filters });
@@ -22,6 +29,7 @@ export const useExpensesStore = defineStore("expenses", () => {
         expenses.value = [];
       }
       fetched.value = true;
+      cacheTime.value = Date.now();
     } catch (e) {
       error.value = e.response?.data?.message ?? "Failed to load expenses";
     } finally {
@@ -73,6 +81,7 @@ export const useExpensesStore = defineStore("expenses", () => {
     loading,
     error,
     fetched,
+    cacheTime,
     fetchAll,
     create,
     update,

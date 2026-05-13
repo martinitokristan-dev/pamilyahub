@@ -3,6 +3,9 @@ import { ref } from 'vue'
 import { authService } from '@/services/authService.js'
 import router from '@/router/index.js'
 import { getActivePinia } from 'pinia'
+import { useDashboardStore } from './dashboard.js'
+import { useWalletsStore } from './wallets.js'
+import { useNotesStore } from './notes.js'
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref(null)
@@ -36,6 +39,7 @@ export const useAuthStore = defineStore('auth', () => {
       const dashboardStore = useDashboardStore()
       dashboardStore.stats = res.data.data.dashboard
       dashboardStore.fetched = true
+      dashboardStore.cacheTime = Date.now()
 
       const walletsStore = useWalletsStore()
       walletsStore.wallets = res.data.data.wallets
@@ -46,6 +50,7 @@ export const useAuthStore = defineStore('auth', () => {
       notesStore.notes = res.data.data.notes
       notesStore.folders = res.data.data.folders
       notesStore.fetched = true
+      notesStore.cacheTime = Date.now()
 
       router.push({ name: 'dashboard' })
     } catch (e) {
