@@ -79,15 +79,25 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       await authService.logout()
     } finally {
-      localStorage.removeItem('token')
-      user.value = null
-      // Reset all store caches so next login gets fresh data
+      // Clear all localStorage and sessionStorage
+      localStorage.clear()
+      sessionStorage.clear()
+      
+      // Reset all Pinia stores
       const pinia = getActivePinia()
       if (pinia) {
         Object.values(pinia.state.value).forEach((storeState) => {
-          if ('fetched' in storeState) storeState.fetched = false
+          if ('$reset' in storeState) {
+            storeState.$reset()
+          } else {
+            // Fallback: reset individual properties
+            if ('fetched' in storeState) storeState.fetched = false
+            if ('user' in storeState) storeState.user = null
+          }
         })
       }
+      
+      user.value = null
       router.push({ name: 'login' })
     }
   }

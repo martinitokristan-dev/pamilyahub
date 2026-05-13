@@ -83,6 +83,7 @@ export const useFilesStore = defineStore("files", () => {
       });
       files.value.unshift(res.data.data);
       useDashboardStore().invalidate();
+      invalidate();
       useToast().success("File uploaded successfully");
       return res.data.data;
     } catch (e) {
@@ -101,10 +102,15 @@ export const useFilesStore = defineStore("files", () => {
       await fileService.delete(id);
       files.value = files.value.filter((f) => f.id !== id);
       useDashboardStore().invalidate();
+      invalidate();
       useToast().success("File deleted");
     } finally {
       loading.value = false;
     }
+  }
+
+  function invalidate() {
+    fetched.value = false;
   }
 
   return {
@@ -119,5 +125,6 @@ export const useFilesStore = defineStore("files", () => {
     loadMore,
     upload,
     remove,
+    invalidate,
   };
 });

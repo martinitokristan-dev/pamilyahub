@@ -11,7 +11,7 @@ import UiLabel from '@/components/ui/Label.vue'
 import UiCard from '@/components/ui/Card.vue'
 import UiCardContent from '@/components/ui/CardContent.vue'
 import { incomeService } from '@/services/incomeService'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, parseCurrency } from '@/utils/format'
 
 const props = defineProps({
   show: Boolean
@@ -38,8 +38,7 @@ watch(() => props.show, async (newVal) => {
       amount: 0
     }))
 
-    // Force a fresh fetch of the dashboard stats every time the modal opens
-    dashboardStore.invalidate()
+    // Fetch fresh dashboard stats when modal opens
     await dashboardStore.fetchStats()
   }
 })
@@ -58,15 +57,16 @@ async function handleDeposit() {
 
   loading.value = true
   error.value = ''
-  
+
   try {
     const activeDeposits = deposits.value
       .filter(d => parseFloat(d.amount) > 0)
-      .map(d => ({ wallet_id: d.wallet_id, amount: parseFloat(d.amount) }))
-      
+      .map(d => ({ wallet_id: d.wallet_id, amount: parseCurrency(d.amount) }))
+
     await incomeService.depositSalary(activeDeposits)
-    await walletsStore.fetchAll(true) // Refresh wallet balances
-    await dashboardStore.fetchStats() // Re-fetch the remaining salary!
+    // Invalidate caches so next read fetches fresh data
+    walletsStore.invalidate()
+    dashboardStore.invalidate()
     useToast().success("Salary deposited successfully!")
     emit('success')
     emit('close')

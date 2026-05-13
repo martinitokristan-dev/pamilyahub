@@ -77,6 +77,7 @@ export const useDebtsStore = defineStore("debts", () => {
       const res = await debtService.create(data);
       debts.value.unshift(res.data.data);
       useDashboardStore().invalidate();
+      invalidate();
       useToast().success("Debt created");
       return res.data.data;
     } finally {
@@ -91,6 +92,7 @@ export const useDebtsStore = defineStore("debts", () => {
       const idx = debts.value.findIndex((d) => d.id === id);
       if (idx !== -1) debts.value[idx] = res.data.data;
       useDashboardStore().invalidate();
+      invalidate();
       useToast().success("Debt updated");
       return res.data.data;
     } finally {
@@ -105,6 +107,7 @@ export const useDebtsStore = defineStore("debts", () => {
       const idx = debts.value.findIndex((d) => d.id === id);
       if (idx !== -1) debts.value[idx] = res.data.data;
       useDashboardStore().invalidate();
+      invalidate();
       useToast().success("Debt marked as paid");
       return res.data.data;
     } finally {
@@ -119,6 +122,7 @@ export const useDebtsStore = defineStore("debts", () => {
       const idx = debts.value.findIndex((d) => d.id === id);
       if (idx !== -1) debts.value[idx] = res.data.data;
       useDashboardStore().invalidate();
+      invalidate();
       useToast().success("Partial payment recorded");
       return res.data.data;
     } finally {
@@ -132,10 +136,15 @@ export const useDebtsStore = defineStore("debts", () => {
       await debtService.delete(id);
       debts.value = debts.value.filter((d) => d.id !== id);
       useDashboardStore().invalidate();
+      invalidate();
       useToast().success("Debt deleted");
     } finally {
       loading.value = false;
     }
+  }
+
+  function invalidate() {
+    fetched.value = false;
   }
 
   return {
@@ -151,5 +160,6 @@ export const useDebtsStore = defineStore("debts", () => {
     markPaid,
     partialPay,
     remove,
+    invalidate,
   };
 });

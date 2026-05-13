@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth.js'
 import { useNotesStore } from '@/stores/notes.js'
 import { useExpensesStore } from '@/stores/expenses.js'
@@ -11,7 +11,7 @@ import UiCardTitle from '@/components/ui/CardTitle.vue'
 import UiCardContent from '@/components/ui/CardContent.vue'
 import UiButton from '@/components/ui/Button.vue'
 import DepositSalaryModal from '@/components/financial/DepositSalaryModal.vue'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency } from '@/utils/format'
 
 const auth = useAuthStore()
 const notes = useNotesStore()

@@ -43,6 +43,7 @@ export const useExpensesStore = defineStore("expenses", () => {
       const res = await expenseService.create(data);
       expenses.value.unshift(res.data.data);
       useDashboardStore().invalidate();
+      invalidate();
       useToast().success("Expense created");
       return res.data.data;
     } finally {
@@ -57,6 +58,7 @@ export const useExpensesStore = defineStore("expenses", () => {
       const idx = expenses.value.findIndex((e) => e.id === id);
       if (idx !== -1) expenses.value[idx] = res.data.data;
       useDashboardStore().invalidate();
+      invalidate();
       useToast().success("Expense updated");
       return res.data.data;
     } finally {
@@ -70,10 +72,15 @@ export const useExpensesStore = defineStore("expenses", () => {
       await expenseService.delete(id);
       expenses.value = expenses.value.filter((e) => e.id !== id);
       useDashboardStore().invalidate();
+      invalidate();
       useToast().success("Expense deleted");
     } finally {
       loading.value = false;
     }
+  }
+
+  function invalidate() {
+    fetched.value = false;
   }
 
   return {
@@ -86,5 +93,6 @@ export const useExpensesStore = defineStore("expenses", () => {
     create,
     update,
     remove,
+    invalidate,
   };
 });

@@ -12,7 +12,7 @@ import UiCard from '@/components/ui/Card.vue'
 import UiCardContent from '@/components/ui/CardContent.vue'
 import UiBadge from '@/components/ui/Badge.vue'
 import DatePicker from '@/components/ui/DatePicker.vue'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, parseCurrency } from '@/utils/format'
 
 const store = useExpensesStore()
 const walletsStore = useWalletsStore()
@@ -218,7 +218,7 @@ function openEdit(expense) {
   editingId.value = expense.id
   form.value = {
     title: expense.title,
-    amount: expense.amount,
+    amount: formatCurrency(expense.amount),
     category: expense.category ?? '',
     description: expense.description ?? '',
     date: typeof expense.date === 'string' ? expense.date.slice(0, 10) : expense.date,
@@ -233,7 +233,7 @@ async function submit() {
   const oldWalletId = oldExpense?.wallet_id ?? null
   const oldAmount = oldExpense ? parseFloat(oldExpense.amount) : 0
   const newWalletId = form.value.wallet_id
-  const newAmount = parseFloat(form.value.amount)
+  const newAmount = parseCurrency(form.value.amount)
 
   // Balance validation
   if (newWalletId) {
@@ -241,19 +241,20 @@ async function submit() {
     if (wallet) {
       const available = parseFloat(wallet.balance) + (oldWalletId === newWalletId ? oldAmount : 0)
       if (newAmount > available) {
-        balanceError.value = `Insufficient balance. ${wallet.name} only has ₱${parseFloat(wallet.balance).toFixed(2)}.`
+        balanceError.value = `Insufficient balance. ${wallet.name} only has ${formatCurrency(wallet.balance)}.`
         return
       }
     }
   }
 
+  const data = { ...form.value, amount: newAmount }
   if (editingId.value) {
-    await store.update(editingId.value, form.value)
+    await store.update(editingId.value, data)
     // Reflect balance in store optimistically
     if (oldWalletId) walletsStore.adjustBalance(oldWalletId, oldAmount)
     if (newWalletId) walletsStore.adjustBalance(newWalletId, -newAmount)
   } else {
-    await store.create(form.value)
+    await store.create(data)
     if (newWalletId) walletsStore.adjustBalance(newWalletId, -newAmount)
   }
   showForm.value = false

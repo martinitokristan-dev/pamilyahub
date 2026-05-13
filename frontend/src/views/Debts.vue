@@ -12,7 +12,7 @@ import UiCard from '@/components/ui/Card.vue'
 import UiCardContent from '@/components/ui/CardContent.vue'
 import UiBadge from '@/components/ui/Badge.vue'
 import DatePicker from '@/components/ui/DatePicker.vue'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, parseCurrency } from '@/utils/format'
 
 const store = useDebtsStore()
 const walletsStore = useWalletsStore()
@@ -54,7 +54,7 @@ function openEdit(debt) {
   editingId.value = debt.id
   form.value = {
     name: debt.name,
-    amount: debt.amount,
+    amount: formatCurrency(debt.amount),
     type: debt.type,
     description: debt.description ?? '',
     due_date: debt.due_date ?? '',
@@ -63,10 +63,14 @@ function openEdit(debt) {
 }
 
 async function submit() {
+  const data = {
+    ...form.value,
+    amount: parseCurrency(form.value.amount)
+  }
   if (editingId.value) {
-    await store.update(editingId.value, form.value)
+    await store.update(editingId.value, data)
   } else {
-    await store.create(form.value)
+    await store.create(data)
   }
   showForm.value = false
 }
@@ -83,12 +87,12 @@ function openPayModal(debt) {
 const effectivePayAmount = computed(() => {
   if (!payingDebt.value) return 0
   if (payMode.value === 'full') return parseFloat(payingDebt.value.amount)
-  return parseFloat(partialAmount.value) || 0
+  return parseCurrency(partialAmount.value) || 0
 })
 
 const partialAmountError = computed(() => {
   if (payMode.value !== 'partial') return ''
-  const amt = parseFloat(partialAmount.value) || 0
+  const amt = parseCurrency(partialAmount.value) || 0
   const total = parseFloat(payingDebt.value?.amount ?? 0)
   if (amt <= 0) return 'Enter a valid amount'
   if (amt >= total) return 'Amount must be less than the total. Use "Pay Full" instead.'

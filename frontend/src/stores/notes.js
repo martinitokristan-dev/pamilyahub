@@ -48,6 +48,7 @@ export const useNotesStore = defineStore('notes', () => {
       const res = await noteService.create(data)
       notes.value.unshift(res.data.data)
       useDashboardStore().invalidate()
+      invalidate()
       useToast().success('Note created')
       return res.data.data
     } finally {
@@ -62,6 +63,7 @@ export const useNotesStore = defineStore('notes', () => {
       const idx = notes.value.findIndex((n) => n.id === id)
       if (idx !== -1) notes.value[idx] = res.data.data
       useDashboardStore().invalidate()
+      invalidate()
       useToast().success('Note updated')
       return res.data.data
     } finally {
@@ -75,6 +77,7 @@ export const useNotesStore = defineStore('notes', () => {
       await noteService.delete(id)
       notes.value = notes.value.filter((n) => n.id !== id)
       useDashboardStore().invalidate()
+      invalidate()
       useToast().success('Note deleted')
     } finally {
       loading.value = false
@@ -108,9 +111,13 @@ export const useNotesStore = defineStore('notes', () => {
     }
   }
 
+  function invalidate() {
+    fetched.value = false
+  }
+
   return { 
     notes, folders, loading, error, fetched, cacheTime,
     fetchAll, create, update, remove, 
-    createFolder, removeFolder 
+    createFolder, removeFolder, invalidate 
   }
 })

@@ -2,6 +2,7 @@ import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import { walletService } from "@/services/walletService.js";
 import { useToast } from "@/composables/useToast.js";
+import { useDashboardStore } from "./dashboard.js";
 
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
@@ -42,6 +43,8 @@ export const useWalletsStore = defineStore("wallets", () => {
     try {
       const res = await walletService.create(data);
       wallets.value.push(res.data.data);
+      useDashboardStore().invalidate();
+      invalidate();
       useToast().success("Wallet created");
       return res.data.data;
     } finally {
@@ -55,6 +58,8 @@ export const useWalletsStore = defineStore("wallets", () => {
       const res = await walletService.update(id, data);
       const idx = wallets.value.findIndex((w) => w.id === id);
       if (idx !== -1) wallets.value[idx] = res.data.data;
+      useDashboardStore().invalidate();
+      invalidate();
       useToast().success("Wallet updated");
       return res.data.data;
     } finally {
@@ -67,6 +72,8 @@ export const useWalletsStore = defineStore("wallets", () => {
     try {
       await walletService.delete(id);
       wallets.value = wallets.value.filter((w) => w.id !== id);
+      useDashboardStore().invalidate();
+      invalidate();
       useToast().success("Wallet deleted");
     } finally {
       loading.value = false;
@@ -77,6 +84,10 @@ export const useWalletsStore = defineStore("wallets", () => {
   function adjustBalance(walletId, delta) {
     const w = wallets.value.find((w) => w.id === walletId);
     if (w) w.balance = (parseFloat(w.balance) + delta).toFixed(2);
+  }
+
+  function invalidate() {
+    fetched.value = false;
   }
 
   return {
@@ -90,5 +101,6 @@ export const useWalletsStore = defineStore("wallets", () => {
     update,
     remove,
     adjustBalance,
+    invalidate,
   };
 });

@@ -8,7 +8,7 @@ import UiInput from '@/components/ui/Input.vue'
 import UiLabel from '@/components/ui/Label.vue'
 import UiCard from '@/components/ui/Card.vue'
 import UiCardContent from '@/components/ui/CardContent.vue'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, parseCurrency } from '@/utils/format'
 
 const store = useWalletsStore()
 useRegisterAddAction(openCreate)
@@ -47,14 +47,22 @@ function openCreate() {
 function openEdit(wallet) {
   editingId.value = wallet.id
   form.value = { name: wallet.name, type: wallet.type, balance: wallet.balance, color: wallet.color ?? '', icon_url: wallet.icon_url ?? '' }
+  // Format balance for display
+  if (form.value.balance) {
+    form.value.balance = formatCurrency(wallet.balance)
+  }
   showForm.value = true
 }
 
 async function submit() {
+  const data = {
+    ...form.value,
+    balance: parseCurrency(form.value.balance)
+  }
   if (editingId.value) {
-    await store.update(editingId.value, form.value)
+    await store.update(editingId.value, data)
   } else {
-    await store.create(form.value)
+    await store.create(data)
   }
   showForm.value = false
 }

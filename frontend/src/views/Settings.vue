@@ -6,6 +6,7 @@ import { Moon, Sun, User, LogOut, ChevronRight, Bell, Shield, Palette, Banknote 
 import UiCard from '@/components/ui/Card.vue'
 import UiCardContent from '@/components/ui/CardContent.vue'
 import UiButton from '@/components/ui/Button.vue'
+import { parseCurrency } from '@/utils/format'
 
 const auth = useAuthStore()
 const { isDark, toggle } = useDarkMode()
@@ -21,10 +22,14 @@ const savingSalary = ref(false)
 async function saveSalary() {
   savingSalary.value = true
   try {
-    await auth.updateProfile({ monthly_salary: salaryInput.value })
+    await auth.updateProfile({ monthly_salary: parseCurrency(salaryInput.value) })
   } finally {
     savingSalary.value = false
   }
+}
+
+async function handleSignOut() {
+  await auth.logout()
 }
 </script>
 
@@ -162,7 +167,7 @@ async function saveSalary() {
     <UiCard class="overflow-hidden">
       <UiCardContent class="p-0">
         <button
-          @click="auth.logout()"
+          @click="handleSignOut"
           class="flex w-full items-center gap-3 px-5 py-4 text-destructive hover:bg-destructive/5 transition-colors"
         >
           <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-red-100 dark:bg-red-900/30">
