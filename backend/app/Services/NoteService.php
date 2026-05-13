@@ -23,6 +23,7 @@ class NoteService
         $data['user_id'] = $userId;
         $note = $this->repository->create($data);
         $this->stats->adjust($userId, 'notes_count', 1);
+        \App\Http\Controllers\DashboardController::invalidateCache($userId);
         return $note;
     }
 
@@ -47,6 +48,7 @@ class NoteService
 
         $this->repository->delete($note);
         $this->stats->adjust($userId, 'notes_count', -1);
+        \App\Http\Controllers\DashboardController::invalidateCache($userId);
         return true;
     }
 }

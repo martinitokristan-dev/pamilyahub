@@ -10,9 +10,15 @@ export const useNotesStore = defineStore('notes', () => {
   const loading = ref(false)
   const error = ref(null)
   const fetched = ref(false)
+  const cacheTime = ref(0)
+  const CACHE_TTL = 5 * 60 * 1000 // 5 minutes
+
+  function isCacheValid() {
+    return Date.now() - cacheTime.value < CACHE_TTL
+  }
 
   async function fetchAll(force = false) {
-    if (fetched.value && !force) return
+    if (fetched.value && !force && isCacheValid()) return
     loading.value = true
     try {
       const [notesRes, foldersRes] = await Promise.all([
@@ -22,6 +28,7 @@ export const useNotesStore = defineStore('notes', () => {
       notes.value = notesRes.data.data
       folders.value = foldersRes.data.data
       fetched.value = true
+      cacheTime.value = Date.now()
     } catch (e) {
       error.value = e.response?.data?.message ?? 'Failed to load notes'
     } finally {

@@ -28,9 +28,25 @@ export const useAuthStore = defineStore('auth', () => {
     loading.value = true
     error.value = null
     try {
-      const res = await authService.login(data)
+      const res = await authService.loginWithData(data)
       localStorage.setItem('token', res.data.data.token)
       user.value = res.data.data.user
+
+      // Pre-populate other stores from the combined response to avoid extra API calls
+      const dashboardStore = useDashboardStore()
+      dashboardStore.stats = res.data.data.dashboard
+      dashboardStore.fetched = true
+
+      const walletsStore = useWalletsStore()
+      walletsStore.wallets = res.data.data.wallets
+      walletsStore.fetched = true
+      walletsStore.cacheTime = Date.now()
+
+      const notesStore = useNotesStore()
+      notesStore.notes = res.data.data.notes
+      notesStore.folders = res.data.data.folders
+      notesStore.fetched = true
+
       router.push({ name: 'dashboard' })
     } catch (e) {
       error.value = e.response?.data?.message ?? 'Login failed'

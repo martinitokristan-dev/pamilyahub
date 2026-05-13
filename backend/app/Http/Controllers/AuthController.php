@@ -29,6 +29,20 @@ class AuthController extends Controller
         return $this->success($result, 'Logged in successfully');
     }
 
+    public function loginWithData(LoginRequest $request): JsonResponse
+    {
+        $result = $this->authService->login($request->validated());
+        $userId = $result['user']->id;
+
+        // Gather all initial data in one shot
+        $result['dashboard'] = app(\App\Services\UserStatsService::class)->get($userId);
+        $result['wallets'] = \App\Models\Wallet::where('user_id', $userId)->orderBy('created_at')->get();
+        $result['notes'] = \App\Models\Note::with('folder')->where('user_id', $userId)->latest()->limit(50)->get();
+        $result['folders'] = \App\Models\NoteFolder::where('user_id', $userId)->get();
+
+        return $this->success($result, 'Logged in successfully');
+    }
+
     public function logout(Request $request): JsonResponse
     {
         $this->authService->logout($request->user());

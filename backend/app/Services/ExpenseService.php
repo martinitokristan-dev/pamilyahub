@@ -32,6 +32,7 @@ class ExpenseService
             }
 
             $this->stats->adjust($userId, 'expenses_total', (float) $data['amount']);
+            \App\Http\Controllers\DashboardController::invalidateCache($userId);
             return $expense->load('wallet');
         });
     }
@@ -58,6 +59,7 @@ class ExpenseService
 
             $result = $this->repository->update($expense, $data);
             $this->stats->adjust($userId, 'expenses_total', $newAmount - $oldAmount);
+            \App\Http\Controllers\DashboardController::invalidateCache($userId);
             return $result->load('wallet');
         });
     }
@@ -75,6 +77,7 @@ class ExpenseService
 
             $this->repository->delete($expense);
             $this->stats->adjust($userId, 'expenses_total', -(float) $expense->amount);
+            \App\Http\Controllers\DashboardController::invalidateCache($userId);
             return true;
         });
     }

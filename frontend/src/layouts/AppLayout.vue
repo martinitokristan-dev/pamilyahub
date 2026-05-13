@@ -35,12 +35,13 @@ const { toasts } = useToast()
 
 onMounted(async () => {
   if (!auth.user) await auth.fetchMe()
-  
+
   // Load only critical stores on app init
+  // Skip if already populated from login-with-data response
   // Debts, files, and expenses are loaded when needed by their respective pages
-  await Promise.all([
-    wallets.fetchAll(),
-  ])
+  if (!wallets.fetched) {
+    await wallets.fetchAll()
+  }
 })
 
 const nav = [

@@ -28,6 +28,7 @@ class IncomeService
 
                 $this->walletRepository->adjustBalance($deposit['wallet_id'], (float)$deposit['amount']);
             }
+            \App\Http\Controllers\DashboardController::invalidateCache($userId);
         });
     }
 }

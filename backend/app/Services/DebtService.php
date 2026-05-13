@@ -35,6 +35,7 @@ class DebtService
         $debt = $this->repository->create($data);
         $field = $data['type'] === 'i_owe' ? 'debts_i_owe' : 'debts_owed_to_me';
         $this->stats->adjust($userId, $field, (float) $data['amount']);
+        \App\Http\Controllers\DashboardController::invalidateCache($userId);
         return $debt;
     }
 
@@ -49,6 +50,7 @@ class DebtService
         $result = $this->repository->update($debt, $data);
         // Recalculate since type or amount might have changed
         $this->stats->recalculate($userId);
+        \App\Http\Controllers\DashboardController::invalidateCache($userId);
         return $result;
     }
 
@@ -83,6 +85,7 @@ class DebtService
             // Subtract from the appropriate debt field
             $field = $debt->type === 'i_owe' ? 'debts_i_owe' : 'debts_owed_to_me';
             $this->stats->adjust($userId, $field, -(float) $debt->amount);
+            \App\Http\Controllers\DashboardController::invalidateCache($userId);
             return $result;
         });
     }
@@ -113,6 +116,7 @@ class DebtService
             // Adjust stats
             $field = $debt->type === 'i_owe' ? 'debts_i_owe' : 'debts_owed_to_me';
             $this->stats->adjust($userId, $field, -$amount);
+            \App\Http\Controllers\DashboardController::invalidateCache($userId);
 
             // If it's a debt I OWE, log partial payment as an expense
             if ($debt->type === 'i_owe') {
@@ -146,6 +150,7 @@ class DebtService
             $field = $debt->type === 'i_owe' ? 'debts_i_owe' : 'debts_owed_to_me';
             $this->stats->adjust($userId, $field, -(float) $debt->amount);
         }
+        \App\Http\Controllers\DashboardController::invalidateCache($userId);
         return true;
     }
 }

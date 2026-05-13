@@ -7,13 +7,21 @@ export const useDashboardStore = defineStore('dashboard', () => {
   const loading = ref(false)
   const fetched = ref(false)
   const error = ref(null)
+  const cacheTime = ref(0)
+  const CACHE_TTL = 2 * 60 * 1000 // 2 minutes
+
+  function isCacheValid() {
+    return Date.now() - cacheTime.value < CACHE_TTL
+  }
 
   async function fetchStats(filters = {}) {
+    if (fetched.value && isCacheValid() && Object.keys(filters).length === 0) return
     loading.value = true
     try {
       const res = await dashboardService.getStats(filters)
       stats.value = res.data.data
       fetched.value = true
+      cacheTime.value = Date.now()
     } catch (e) {
       error.value = e.response?.data?.message ?? 'Failed to load stats'
     } finally {

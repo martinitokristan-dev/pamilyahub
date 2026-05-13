@@ -6,6 +6,8 @@ use App\Services\UserStatsService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
@@ -19,34 +21,45 @@ class DashboardController extends Controller
         $month = $request->query('month', now()->month);
         $year = $request->query('year', now()->year);
 
-        $stats = $this->stats->get($userId);
-        $user = $request->user();
-        
-        // Calculate dynamic monthly totals
-        $stats->expenses_total = (float) \App\Models\Expense::where('user_id', $userId)
-            ->whereYear('date', $year)
-            ->whereMonth('date', $month)
-            ->sum('amount');
-            
-        $stats->income_total = (float) \App\Models\Income::where('user_id', $userId)
-            ->whereYear('date', $year)
-            ->whereMonth('date', $month)
-            ->sum('amount');
+        $cacheKey = "dashboard_stats_{$userId}_{$year}_{$month}";
 
-        $salaryDeposits = (float) \App\Models\Income::where('user_id', $userId)
-            ->where('source', 'Salary')
-            ->whereYear('date', $year)
-            ->whereMonth('date', $month)
-            ->sum('amount');
+        $data = Cache::remember($cacheKey, 120, function () use ($userId, $month, $year, $request) {
+            $stats = $this->stats->get($userId);
+            $user = $request->user();
 
-        $unallocatedExpenses = (float) \App\Models\Expense::where('user_id', $userId)
-            ->whereNull('wallet_id')
-            ->whereYear('date', $year)
-            ->whereMonth('date', $month)
-            ->sum('amount');
+            // ONE query for all expense aggregates
+            $monthly = DB::table('expenses')
+                ->selectRaw('COALESCE(SUM(amount), 0) as expenses_total')
+                ->selectRaw('COALESCE(SUM(CASE WHEN wallet_id IS NULL THEN amount ELSE 0 END), 0) as unallocated_expenses')
+                ->where('user_id', $userId)
+                ->whereYear('date', $year)
+                ->whereMonth('date', $month)
+                ->first();
 
-        $stats->remaining_salary = max(0, (float) $user->monthly_salary - $salaryDeposits - $unallocatedExpenses);
+            // ONE query for all income aggregates
+            $incomeData = DB::table('incomes')
+                ->selectRaw('COALESCE(SUM(amount), 0) as income_total')
+                ->selectRaw("COALESCE(SUM(CASE WHEN source = 'Salary' THEN amount ELSE 0 END), 0) as salary_deposits")
+                ->where('user_id', $userId)
+                ->whereYear('date', $year)
+                ->whereMonth('date', $month)
+                ->first();
 
-        return $this->success($stats);
+            $stats->expenses_total = (float) $monthly->expenses_total;
+            $stats->income_total = (float) $incomeData->income_total;
+            $stats->remaining_salary = max(0, (float) $user->monthly_salary - (float) $incomeData->salary_deposits - (float) $monthly->unallocated_expenses);
+
+            return $stats;
+        });
+
+        return $this->success($data);
+    }
+
+    public static function invalidateCache(int $userId, ?int $year = null, ?int $month = null): void
+    {
+        $year = $year ?? now()->year;
+        $month = $month ?? now()->month;
+        $cacheKey = "dashboard_stats_{$userId}_{$year}_{$month}";
+        Cache::forget($cacheKey);
     }
 }
