@@ -45,9 +45,9 @@ class DashboardController extends Controller
                 ->whereMonth('date', $month)
                 ->first();
 
-            $stats->expenses_total = (float) $monthly->expenses_total;
-            $stats->income_total = (float) $incomeData->income_total;
-            $stats->remaining_salary = max(0, (float) $user->monthly_salary - (float) $incomeData->salary_deposits - (float) $monthly->unallocated_expenses);
+            $stats->expenses_total   = (float) $monthly->expenses_total;
+            $stats->income_total     = (float) $user->monthly_salary; // Fix 1: Income Monthly = monthly_salary
+            $stats->remaining_salary = max(0, (float) $user->monthly_salary - (float) $stats->expenses_total);
 
             return $stats;
         });

@@ -192,6 +192,11 @@ const categoryColors = {
     badge: 'bg-stone-100 dark:bg-stone-900/40 text-stone-700 dark:text-stone-300 border-stone-200 dark:border-stone-800',
     emoji: '🏠',
   },
+  'already spent': {
+    border: 'border-l-[3px] border-l-slate-500',
+    badge: 'bg-slate-100 dark:bg-slate-900/40 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800',
+    emoji: '💸',
+  },
 }
 
 const defaultCategoryColor = {
