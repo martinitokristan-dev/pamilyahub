@@ -8,6 +8,7 @@ use App\Http\Controllers\FileController;
 use App\Http\Controllers\NoteController;
 use App\Http\Controllers\NoteFolderController;
 use App\Http\Controllers\IncomeController;
+use App\Http\Controllers\SalaryDepositController;
 use App\Http\Controllers\WalletController;
 use Illuminate\Support\Facades\Route;
 
@@ -37,4 +38,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::apiResource('wallets', WalletController::class)->only(['index', 'store', 'update', 'destroy']);
     Route::post('incomes/deposit-salary', [IncomeController::class, 'depositSalary']);
+
+    // Salary Deposits
+    Route::get('salary-deposits/current-month', [SalaryDepositController::class, 'currentMonth']);
+    Route::post('salary-deposits', [SalaryDepositController::class, 'store']);
 });

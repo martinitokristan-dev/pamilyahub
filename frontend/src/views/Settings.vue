@@ -22,7 +22,14 @@ const savingSalary = ref(false)
 async function saveSalary() {
   savingSalary.value = true
   try {
-    await auth.updateProfile({ monthly_salary: parseCurrency(salaryInput.value) })
+    // Since input is type="number", salaryInput.value is already a number
+    // No need for parseCurrency - just ensure it's a valid number
+    const salaryValue = parseFloat(salaryInput.value) || 0
+    await auth.updateProfile({ monthly_salary: salaryValue })
+    // Update the input to reflect the saved value
+    salaryInput.value = auth.user?.monthly_salary ?? 0
+  } catch (e) {
+    console.error('Failed to save salary:', e)
   } finally {
     savingSalary.value = false
   }

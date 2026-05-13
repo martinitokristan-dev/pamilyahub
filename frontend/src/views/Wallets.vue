@@ -160,8 +160,18 @@ const netWorth = computed(() =>
               </div>
 
               <div class="space-y-1.5">
-                <UiLabel>Current Balance (₱)</UiLabel>
-                <UiInput v-model="form.balance" type="number" min="0" step="0.01" placeholder="0.00" required />
+                <UiLabel class="font-semibold">Current Balance</UiLabel>
+                <UiInput
+                  v-model="form.balance"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="How much do you have in this wallet right now?"
+                  required
+                />
+                <p class="text-xs text-muted-foreground leading-relaxed">
+                  Enter your actual current balance. You can always update this later.
+                </p>
               </div>
 
               <div class="flex justify-between items-center pt-1">
