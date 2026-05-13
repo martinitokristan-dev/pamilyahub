@@ -66,21 +66,18 @@ const hasSalarySetup = computed(() => parseFloat(auth.user?.monthly_salary ?? 0)
 const stats = computed(() => {
   const baseStats = []
 
-  const salaryAmt    = parseFloat(auth.user?.monthly_salary ?? 0)
-  const incomeTotal  = parseFloat(dashboard.stats.income_total ?? 0)
+  const incomeTotal   = parseFloat(dashboard.stats.income_total ?? 0)
   const expensesTotal = parseFloat(dashboard.stats.expenses_total ?? 0)
+  const remaining     = parseFloat(dashboard.stats.remaining_salary ?? 0)
 
-  if (salaryAmt > 0) {
-    const remaining = salaryAmt - expensesTotal
-    baseStats.push({
-      label: 'Budget Left',
-      value: formatCurrency(remaining),
-      icon: Banknote,
-      bg: remaining < 0
-        ? 'bg-gradient-to-br from-rose-500 to-red-600'
-        : 'bg-gradient-to-br from-emerald-500 to-teal-600',
-    })
-  }
+  baseStats.push({
+    label: 'Budget Left',
+    value: formatCurrency(remaining),
+    icon: Banknote,
+    bg: remaining < 0
+      ? 'bg-gradient-to-br from-rose-500 to-red-600'
+      : 'bg-gradient-to-br from-emerald-500 to-teal-600',
+  })
 
   baseStats.push(
     {
@@ -91,7 +88,7 @@ const stats = computed(() => {
     },
     {
       label: 'Income (Monthly)',
-      value: formatCurrency(salaryAmt),
+      value: formatCurrency(incomeTotal),
       icon: TrendingUp,
       bg: 'bg-gradient-to-br from-emerald-400 to-teal-500',
     },

@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue'
 import { useRegisterAddAction } from '@/composables/usePageAction.js'
 import { useExpensesStore } from '@/stores/expenses.js'
 import { useWalletsStore } from '@/stores/wallets.js'
+import { useDashboardStore } from '@/stores/dashboard.js'
 import { Plus, Pencil, Trash2, X, Receipt, Search, TrendingUp, Calendar, ChevronDown } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth.js'
 import UiButton from '@/components/ui/Button.vue'
@@ -17,6 +18,7 @@ import { formatCurrency, parseCurrency } from '@/utils/format'
 const store = useExpensesStore()
 const walletsStore = useWalletsStore()
 const authStore = useAuthStore()
+const dashboard = useDashboardStore()
 useRegisterAddAction(openCreate)
 
 const selectedMonth = ref(new Date().getMonth() + 1)
@@ -60,6 +62,7 @@ const availableYears = computed(() => {
 
 watch([selectedMonth, selectedYear], () => {
   store.fetchAll({ month: selectedMonth.value, year: selectedYear.value })
+  dashboard.fetchStats({ month: selectedMonth.value, year: selectedYear.value })
 }, { immediate: true })
 
 const showForm = ref(false)
@@ -71,17 +74,17 @@ const total = computed(() =>
   store.expenses.reduce((sum, e) => sum + parseFloat(e.amount), 0).toFixed(2)
 )
 
-const salaryTarget = computed(() => parseFloat(authStore.user?.monthly_salary ?? 0))
-
-const effectiveLimit = computed(() => salaryTarget.value)
+const effectiveLimit = computed(() => parseFloat(dashboard.stats.income_total ?? 0))
 
 const remainingSalary = computed(() => {
   return effectiveLimit.value - parseFloat(total.value)
 })
 
 const spendingPercentage = computed(() => {
-  if (effectiveLimit.value <= 0) return 0
-  return Math.min((parseFloat(total.value) / effectiveLimit.value) * 100, 100)
+  if (effectiveLimit.value <= 0) {
+    return parseFloat(total.value) > 0 ? 100 : 0
+  }
+  return (parseFloat(total.value) / effectiveLimit.value) * 100
 })
 
 // Wallet type → emoji + color
@@ -340,7 +343,7 @@ async function remove(expense) {
     </div>
 
     <!-- Salary / Budget Tracking Card -->
-    <UiCard v-if="authStore.user?.monthly_salary > 0" class="mb-5 overflow-hidden border-primary/10 shadow-sm rounded-2xl bg-gradient-to-br from-card to-muted/20">
+    <UiCard class="mb-5 overflow-hidden border-primary/10 shadow-sm rounded-2xl bg-gradient-to-br from-card to-muted/20">
       <div class="p-4 sm:p-5">
         <div class="flex items-center justify-between mb-4">
           <div class="flex items-center gap-2">
@@ -350,7 +353,7 @@ async function remove(expense) {
             <h3 class="text-sm font-bold">Spending Power ({{ months[selectedMonth - 1] }})</h3>
           </div>
           <p class="text-xs font-bold" :class="remainingSalary < 0 ? 'text-destructive' : 'text-emerald-600'">
-            {{ formatCurrency(Math.abs(remainingSalary)) }} {{ remainingSalary < 0 ? 'over' : 'left' }}
+            {{ formatCurrency(Math.abs(remainingSalary)) }} {{ remainingSalary < 0 ? 'over budget' : 'left' }}
           </p>
         </div>
         
@@ -362,15 +365,15 @@ async function remove(expense) {
           <div class="h-2 w-full bg-muted rounded-full overflow-hidden flex">
              <div 
                class="h-full transition-all duration-700 ease-out" 
-               :style="{ width: `${spendingPercentage}%` }"
-               :class="spendingPercentage > 90 ? 'bg-destructive' : spendingPercentage > 75 ? 'bg-amber-500' : 'bg-emerald-500'"
+               :style="{ width: `${Math.min(spendingPercentage, 100)}%` }"
+               :class="spendingPercentage > 100 ? 'bg-destructive' : spendingPercentage > 90 ? 'bg-destructive' : spendingPercentage > 75 ? 'bg-amber-500' : 'bg-emerald-500'"
              />
           </div>
           <div class="flex justify-between items-center">
             <p class="text-[10px] text-muted-foreground italic">
                {{ spendingPercentage > 100 ? "You've exceeded your limit!" : `${(100 - spendingPercentage).toFixed(0)}% of budget remaining` }}
             </p>
-            <span class="text-[10px] font-black" :class="spendingPercentage > 90 ? 'text-destructive' : 'text-emerald-600'">
+            <span class="text-[10px] font-black" :class="spendingPercentage > 100 ? 'text-destructive' : spendingPercentage > 90 ? 'text-destructive' : 'text-emerald-600'">
               {{ spendingPercentage.toFixed(1) }}%
             </span>
           </div>

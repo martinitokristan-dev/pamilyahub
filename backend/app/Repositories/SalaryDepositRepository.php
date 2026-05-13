@@ -45,4 +45,15 @@ class SalaryDepositRepository
             ->where('year', $year)
             ->sum('already_spent');
     }
+
+    /**
+     * Sum of amount for a user in a given month/year (total income).
+     */
+    public function sumAmount(int $userId, int $month, int $year): float
+    {
+        return (float) SalaryDeposit::where('user_id', $userId)
+            ->where('month', $month)
+            ->where('year', $year)
+            ->sum('amount');
+    }
 }

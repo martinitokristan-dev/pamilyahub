@@ -36,18 +36,17 @@ class DashboardController extends Controller
                 ->whereMonth('date', $month)
                 ->first();
 
-            // ONE query for all income aggregates
-            $incomeData = DB::table('incomes')
-                ->selectRaw('COALESCE(SUM(amount), 0) as income_total')
-                ->selectRaw("COALESCE(SUM(CASE WHEN source = 'Salary' THEN amount ELSE 0 END), 0) as salary_deposits")
+            // ONE query for all income aggregates from salary_deposits table
+            $salaryData = DB::table('salary_deposits')
+                ->selectRaw('COALESCE(SUM(amount), 0) as total_deposited')
                 ->where('user_id', $userId)
-                ->whereYear('date', $year)
-                ->whereMonth('date', $month)
+                ->whereYear('deposited_at', $year)
+                ->whereMonth('deposited_at', $month)
                 ->first();
 
             $stats->expenses_total   = (float) $monthly->expenses_total;
-            $stats->income_total     = (float) $user->monthly_salary; // Fix 1: Income Monthly = monthly_salary
-            $stats->remaining_salary = max(0, (float) $user->monthly_salary - (float) $stats->expenses_total);
+            $stats->income_total     = (float) $salaryData->total_deposited;
+            $stats->remaining_salary = (float) $salaryData->total_deposited - (float) $stats->expenses_total;
 
             return $stats;
         });
