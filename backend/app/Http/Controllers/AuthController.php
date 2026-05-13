@@ -34,11 +34,29 @@ class AuthController extends Controller
         $result = $this->authService->login($request->validated());
         $userId = $result['user']->id;
 
-        // Gather all initial data in one shot
-        $result['dashboard'] = app(\App\Services\UserStatsService::class)->get($userId);
-        $result['wallets'] = \App\Models\Wallet::where('user_id', $userId)->orderBy('created_at')->get();
-        $result['notes'] = \App\Models\Note::with('folder')->where('user_id', $userId)->latest()->limit(50)->get();
-        $result['folders'] = \App\Models\NoteFolder::where('user_id', $userId)->get();
+        try {
+            $result['dashboard'] = app(\App\Services\UserStatsService::class)->get($userId);
+        } catch (\Throwable $e) {
+            $result['dashboard'] = null;
+        }
+
+        try {
+            $result['wallets'] = \App\Models\Wallet::where('user_id', $userId)->orderBy('created_at')->get();
+        } catch (\Throwable $e) {
+            $result['wallets'] = [];
+        }
+
+        try {
+            $result['notes'] = \App\Models\Note::with('folder')->where('user_id', $userId)->latest()->limit(50)->get();
+        } catch (\Throwable $e) {
+            $result['notes'] = [];
+        }
+
+        try {
+            $result['folders'] = \App\Models\NoteFolder::where('user_id', $userId)->get();
+        } catch (\Throwable $e) {
+            $result['folders'] = [];
+        }
 
         return $this->success($result, 'Logged in successfully');
     }

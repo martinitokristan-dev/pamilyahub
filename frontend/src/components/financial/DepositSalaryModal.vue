@@ -37,8 +37,9 @@ watch(() => props.show, async (newVal) => {
       name: w.name,
       amount: 0
     }))
-    
+
     // Force a fresh fetch of the dashboard stats every time the modal opens
+    dashboardStore.invalidate()
     await dashboardStore.fetchStats()
   }
 })

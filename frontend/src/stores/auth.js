@@ -31,26 +31,41 @@ export const useAuthStore = defineStore('auth', () => {
     loading.value = true
     error.value = null
     try {
-      const res = await authService.loginWithData(data)
+      let res
+      let usedCombined = false
+
+      // Try the optimized combined endpoint first
+      try {
+        res = await authService.loginWithData(data)
+        usedCombined = true
+      } catch {
+        // Fall back to regular login if loginWithData fails
+        res = await authService.login(data)
+      }
+
       localStorage.setItem('token', res.data.data.token)
       user.value = res.data.data.user
 
-      // Pre-populate other stores from the combined response to avoid extra API calls
-      const dashboardStore = useDashboardStore()
-      dashboardStore.stats = res.data.data.dashboard
-      dashboardStore.fetched = true
-      dashboardStore.cacheTime = Date.now()
+      // Pre-populate stores only if combined response succeeded and has data
+      // NOTE: Do NOT pre-populate dashboard — loginWithData returns all-time
+      // totals but the dashboard needs monthly-filtered stats with remaining_salary.
+      // Let Dashboard.vue fetch from /dashboard/stats which has the correct logic.
+      if (usedCombined) {
+        if (res.data.data.wallets?.length) {
+          const walletsStore = useWalletsStore()
+          walletsStore.wallets = res.data.data.wallets
+          walletsStore.fetched = true
+          walletsStore.cacheTime = Date.now()
+        }
 
-      const walletsStore = useWalletsStore()
-      walletsStore.wallets = res.data.data.wallets
-      walletsStore.fetched = true
-      walletsStore.cacheTime = Date.now()
-
-      const notesStore = useNotesStore()
-      notesStore.notes = res.data.data.notes
-      notesStore.folders = res.data.data.folders
-      notesStore.fetched = true
-      notesStore.cacheTime = Date.now()
+        if (res.data.data.notes) {
+          const notesStore = useNotesStore()
+          notesStore.notes = res.data.data.notes
+          notesStore.folders = res.data.data.folders ?? []
+          notesStore.fetched = true
+          notesStore.cacheTime = Date.now()
+        }
+      }
 
       router.push({ name: 'dashboard' })
     } catch (e) {

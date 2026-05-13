@@ -1,15 +1,17 @@
 #!/bin/sh
+set -e
 
-# Clear old caches first to prevent stale data
+# Run migrations FIRST — new tables must exist before route scanning
+php artisan migrate --force
+
+# Clear old caches
 php artisan config:clear
 php artisan route:clear
+php artisan view:clear
 
-# Rebuild caches
+# Rebuild caches (now aware of all tables and routes)
 php artisan config:cache
 php artisan route:cache
-
-# Run migrations (creates note_folders, incomes tables if missing)
-php artisan migrate --force
 
 # Ensure storage directories exist and are writable
 php artisan storage:link 2>/dev/null || true

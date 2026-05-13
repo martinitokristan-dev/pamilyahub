@@ -21,12 +21,18 @@ export const useNotesStore = defineStore('notes', () => {
     if (fetched.value && !force && isCacheValid()) return
     loading.value = true
     try {
-      const [notesRes, foldersRes] = await Promise.all([
+      const [notesResult, foldersResult] = await Promise.allSettled([
         noteService.getAll(),
         noteService.getFolders()
       ])
-      notes.value = notesRes.data.data
-      folders.value = foldersRes.data.data
+
+      if (notesResult.status === 'fulfilled') {
+        notes.value = notesResult.value.data.data
+      }
+      if (foldersResult.status === 'fulfilled') {
+        folders.value = foldersResult.value.data.data
+      }
+
       fetched.value = true
       cacheTime.value = Date.now()
     } catch (e) {

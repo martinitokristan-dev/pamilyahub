@@ -42,14 +42,16 @@ class DebtService
     public function update(int $userId, int $id, array $data): ?Debt
     {
         $debt = $this->repository->findByUser($id, $userId);
+        if (! $debt) return null;
 
-        if (! $debt) {
-            return null;
-        }
+        $amountChanged = isset($data['amount']) && (float)$data['amount'] !== (float)$debt->amount;
+        $typeChanged = isset($data['type']) && $data['type'] !== $debt->type;
 
         $result = $this->repository->update($debt, $data);
-        // Recalculate since type or amount might have changed
-        $this->stats->recalculate($userId);
+
+        if ($amountChanged || $typeChanged) {
+            $this->stats->recalculate($userId);
+        }
         \App\Http\Controllers\DashboardController::invalidateCache($userId);
         return $result;
     }
@@ -139,18 +141,16 @@ class DebtService
     public function delete(int $userId, int $id): bool
     {
         $debt = $this->repository->findByUser($id, $userId);
+        if (! $debt) return false;
 
-        if (! $debt) {
-            return false;
-        }
-
-        $this->repository->delete($debt);
-        // Only subtract if unpaid
-        if (! $debt->is_paid) {
-            $field = $debt->type === 'i_owe' ? 'debts_i_owe' : 'debts_owed_to_me';
-            $this->stats->adjust($userId, $field, -(float) $debt->amount);
-        }
-        \App\Http\Controllers\DashboardController::invalidateCache($userId);
-        return true;
+        return DB::transaction(function () use ($userId, $debt) {
+            $this->repository->delete($debt);
+            if (! $debt->is_paid) {
+                $field = $debt->type === 'i_owe' ? 'debts_i_owe' : 'debts_owed_to_me';
+                $this->stats->adjust($userId, $field, -(float) $debt->amount);
+            }
+            \App\Http\Controllers\DashboardController::invalidateCache($userId);
+            return true;
+        });
     }
 }
