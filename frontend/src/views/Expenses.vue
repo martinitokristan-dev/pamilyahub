@@ -271,8 +271,16 @@ const total = computed(() =>
         @click="openEdit(expense)"
         :class="getCategoryColor(expense.category).border"
       >
-        <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xl" :class="walletColor(expense.wallet)">
-          {{ getCategoryEmoji(expense.category) }}
+        <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xl overflow-hidden p-1.5" :class="walletColor(expense.wallet)">
+          <template v-if="expense.wallet">
+            <img 
+              :src="expense.wallet.icon_url || `/icons/wallets/${expense.wallet.type}.png`" 
+              class="w-full h-full object-contain" 
+              @error="$event.target.style.display='none'; $event.target.nextElementSibling.style.display='block'"
+            />
+            <span style="display:none">{{ walletEmoji(expense.wallet) }}</span>
+          </template>
+          <span v-else>{{ getCategoryEmoji(expense.category) }}</span>
         </div>
         <div class="min-w-0 flex-1">
           <p class="font-semibold text-sm truncate">{{ expense.title }}</p>
@@ -324,13 +332,30 @@ const total = computed(() =>
           >
             <td class="px-4 py-3 font-medium">
               <div class="flex items-center gap-2">
-                <span class="text-base">{{ getCategoryEmoji(expense.category) }}</span>
+                <template v-if="expense.wallet">
+                  <div class="w-6 h-6 flex items-center justify-center rounded-md overflow-hidden" :class="walletColor(expense.wallet)">
+                    <img 
+                      :src="expense.wallet.icon_url || `/icons/wallets/${expense.wallet.type}.png`" 
+                      class="w-full h-full object-contain p-0.5" 
+                      @error="$event.target.style.display='none'; $event.target.nextElementSibling.style.display='block'"
+                    />
+                    <span style="display:none" class="text-sm">{{ walletEmoji(expense.wallet) }}</span>
+                  </div>
+                </template>
+                <span v-else class="text-base">{{ getCategoryEmoji(expense.category) }}</span>
                 {{ expense.title }}
               </div>
             </td>
             <td class="px-4 py-3">
               <span v-if="expense.wallet" class="inline-flex items-center gap-1.5 text-sm">
-                <span>{{ walletEmoji(expense.wallet) }}</span>
+                <div class="w-5 h-5 flex items-center justify-center rounded-sm overflow-hidden" :class="walletColor(expense.wallet)">
+                  <img 
+                    :src="expense.wallet.icon_url || `/icons/wallets/${expense.wallet.type}.png`" 
+                    class="w-full h-full object-contain p-0.5" 
+                    @error="$event.target.style.display='none'; $event.target.nextElementSibling.style.display='block'"
+                  />
+                  <span style="display:none" class="text-xs">{{ walletEmoji(expense.wallet) }}</span>
+                </div>
                 <span class="text-muted-foreground">{{ expense.wallet.name }}</span>
               </span>
               <span v-else class="text-muted-foreground">—</span>
@@ -410,7 +435,14 @@ const total = computed(() =>
                       ? 'border-primary bg-primary/5 scale-[1.02]'
                       : 'border-border hover:border-muted-foreground/40'"
                   >
-                    <span class="text-xl leading-none">{{ walletEmoji(wallet) }}</span>
+                    <div class="h-8 w-8 shrink-0 flex items-center justify-center rounded-lg bg-white/20 p-1">
+                      <img 
+                        :src="wallet.icon_url || `/icons/wallets/${wallet.type}.png`" 
+                        class="w-full h-full object-contain" 
+                        @error="$event.target.style.display='none'; $event.target.nextElementSibling.style.display='block'"
+                      />
+                      <span class="text-xl leading-none" style="display:none">{{ walletEmoji(wallet) }}</span>
+                    </div>
                     <div class="min-w-0">
                       <p class="text-xs font-semibold truncate">{{ wallet.name }}</p>
                       <p class="text-[10px] text-muted-foreground">₱{{ parseFloat(wallet.balance).toLocaleString('en-PH', { minimumFractionDigits: 2 }) }}</p>

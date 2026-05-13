@@ -190,21 +190,21 @@ const filtered = computed(() => {
         class="px-4 py-3 transition-all duration-200 cursor-pointer sm:cursor-default"
         @click="openEdit(debt)"
         :class="[
-          debt.is_paid ? 'opacity-50' : '',
-          debt.type === 'owed_to_me'
-            ? 'border-l-[3px] border-l-emerald-500'
-            : 'border-l-[3px] border-l-destructive',
+          debt.is_paid ? 'opacity-50' : ''
         ]"
       >
         <!-- Row 1: name + amount -->
         <div class="flex items-start justify-between gap-3">
           <p class="font-semibold text-sm leading-snug truncate flex-1">{{ debt.name }}</p>
-          <span
-            class="font-bold tabular-nums text-sm shrink-0"
-            :class="debt.type === 'owed_to_me' ? 'text-emerald-600 dark:text-emerald-400' : 'text-destructive'"
-          >
-            {{ debt.type === 'owed_to_me' ? '+' : '-' }}₱{{ parseFloat(debt.amount).toFixed(2) }}
-          </span>
+          <div class="flex flex-col items-end gap-1 shrink-0">
+            <span
+              class="font-bold tabular-nums text-sm"
+              :class="debt.type === 'owed_to_me' ? 'text-emerald-600 dark:text-emerald-400' : 'text-destructive'"
+            >
+              {{ debt.type === 'owed_to_me' ? '+' : '-' }}₱{{ parseFloat(debt.amount).toFixed(2) }}
+            </span>
+            <span v-if="debt.is_paid" class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider bg-muted px-1.5 rounded">Paid</span>
+          </div>
         </div>
 
         <!-- Row 2: badges + due date + actions -->
@@ -219,7 +219,6 @@ const filtered = computed(() => {
             <span v-if="debt.due_date" class="text-[11px] text-muted-foreground shrink-0">
               Due {{ formatDueDate(debt.due_date) }}
             </span>
-            <UiBadge v-if="debt.is_paid" variant="secondary" class="text-[10px] shrink-0">Paid</UiBadge>
           </div>
 
           <!-- Action buttons -->
@@ -372,7 +371,14 @@ const filtered = computed(() => {
                     class="flex items-center gap-3 rounded-xl border-2 p-3 text-left transition-all duration-150"
                     :class="payWalletId === wallet.id ? 'border-primary bg-primary/5' : 'border-border hover:border-muted-foreground/40'"
                   >
-                    <span class="text-2xl leading-none">{{ walletEmoji(wallet) }}</span>
+                    <div class="h-8 w-8 shrink-0 flex items-center justify-center rounded-lg bg-white/20 p-1">
+                      <img 
+                        :src="wallet.icon_url || `/icons/wallets/${wallet.type}.png`" 
+                        class="w-full h-full object-contain" 
+                        @error="$event.target.style.display='none'; $event.target.nextElementSibling.style.display='block'"
+                      />
+                      <span class="text-xl leading-none" style="display:none">{{ walletEmoji(wallet) }}</span>
+                    </div>
                     <div class="flex-1 min-w-0">
                       <p class="text-sm font-semibold truncate">{{ wallet.name }}</p>
                       <p class="text-xs text-muted-foreground">₱{{ parseFloat(wallet.balance).toLocaleString('en-PH', { minimumFractionDigits: 2 }) }}</p>

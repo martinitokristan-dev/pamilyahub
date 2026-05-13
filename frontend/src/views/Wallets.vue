@@ -17,18 +17,18 @@ const editingId = ref(null)
 const form = ref({ name: '', type: 'cash', balance: '', color: '', icon_url: '' })
 
 const walletTypes = [
-  { id: 'cash',        label: 'Cash',        emoji: '💵', bg: 'from-green-500 to-emerald-600' },
-  { id: 'gcash',       label: 'GCash',       emoji: '📱', bg: 'from-blue-500 to-blue-700' },
-  { id: 'maya',        label: 'Maya',        emoji: '💚', bg: 'from-emerald-400 to-teal-600' },
-  { id: 'bpi',         label: 'BPI',         emoji: '🏦', bg: 'from-red-600 to-red-800' },
-  { id: 'bdo',         label: 'BDO',         emoji: '🏦', bg: 'from-blue-800 to-indigo-900' },
-  { id: 'unionbank',   label: 'UnionBank',   emoji: '🏦', bg: 'from-orange-500 to-orange-700' },
-  { id: 'metrobank',   label: 'Metrobank',   emoji: '🏦', bg: 'from-green-700 to-green-900' },
-  { id: 'credit_card', label: 'Credit Card', emoji: '💳', bg: 'from-violet-600 to-purple-800' },
-  { id: 'debit_card',  label: 'Debit Card',  emoji: '🏧', bg: 'from-slate-500 to-slate-700' },
-  { id: 'shopeepay',   label: 'ShopeePay',   emoji: '🛍️', bg: 'from-orange-400 to-red-500' },
-  { id: 'coins_ph',    label: 'Coins.ph',    emoji: '🪙', bg: 'from-yellow-400 to-amber-600' },
-  { id: 'custom',      label: 'Custom',      emoji: '👛', bg: 'from-pink-500 to-rose-600' },
+  { id: 'cash',        label: 'Cash',        emoji: '💵', bg: 'from-green-500 to-emerald-600', icon: '/icons/wallets/cash.png' },
+  { id: 'gcash',       label: 'GCash',       emoji: '📱', bg: 'from-blue-500 to-blue-700', icon: '/icons/wallets/gcash.png' },
+  { id: 'maya',        label: 'Maya',        emoji: '💚', bg: 'from-emerald-400 to-teal-600', icon: '/icons/wallets/maya.png' },
+  { id: 'bpi',         label: 'BPI',         emoji: '🏦', bg: 'from-red-600 to-red-800', icon: '/icons/wallets/bpi.png' },
+  { id: 'bdo',         label: 'BDO',         emoji: '🏦', bg: 'from-blue-800 to-indigo-900', icon: '/icons/wallets/bdo.png' },
+  { id: 'unionbank',   label: 'UnionBank',   emoji: '🏦', bg: 'from-orange-500 to-orange-700', icon: '/icons/wallets/unionbank.png' },
+  { id: 'metrobank',   label: 'Metrobank',   emoji: '🏦', bg: 'from-green-700 to-green-900', icon: '/icons/wallets/metrobank.png' },
+  { id: 'credit_card', label: 'Credit Card', emoji: '💳', bg: 'from-violet-600 to-purple-800', icon: '/icons/wallets/credit_card.png' },
+  { id: 'debit_card',  label: 'Debit Card',  emoji: '🏧', bg: 'from-slate-500 to-slate-700', icon: '/icons/wallets/debit_card.png' },
+  { id: 'shopeepay',   label: 'ShopeePay',   emoji: '🛍️', bg: 'from-orange-400 to-red-500', icon: '/icons/wallets/shopeepay.png' },
+  { id: 'coins_ph',    label: 'Coins.ph',    emoji: '🪙', bg: 'from-yellow-400 to-amber-600', icon: '/icons/wallets/coins_ph.png' },
+  { id: 'custom',      label: 'Custom',      emoji: '👛', bg: 'from-pink-500 to-rose-600', icon: '/icons/wallets/custom.png' },
 ]
 
 function typeInfo(type) {
@@ -89,8 +89,13 @@ const netWorth = computed(() =>
         :class="typeInfo(wallet.type).bg"
       >
         <div class="flex items-start justify-between mb-4">
-          <img v-if="wallet.icon_url" :src="wallet.icon_url" :alt="wallet.name" class="h-10 w-10 rounded-lg object-contain bg-white/20 p-1" />
-          <span v-else class="text-3xl leading-none">{{ typeInfo(wallet.type).emoji }}</span>
+          <img 
+            :src="wallet.icon_url || typeInfo(wallet.type).icon" 
+            :alt="wallet.name" 
+            class="h-10 w-10 rounded-lg object-contain bg-white/20 p-1" 
+            @error="$event.target.style.display='none'; $event.target.nextElementSibling.style.display='block'"
+          />
+          <span class="text-3xl leading-none" style="display:none">{{ typeInfo(wallet.type).emoji }}</span>
           <div class="hidden sm:flex gap-1" @click.stop>
             <button @click="openEdit(wallet)" class="rounded-lg bg-white/20 p-2 hover:bg-white/30 transition-colors">
               <Pencil class="h-4 w-4 text-white" />
@@ -102,7 +107,7 @@ const netWorth = computed(() =>
         </div>
         <p class="text-2xl font-bold leading-none mb-1">₱{{ parseFloat(wallet.balance).toLocaleString('en-PH', { minimumFractionDigits: 2 }) }}</p>
         <p class="text-sm text-white/80 font-medium">{{ wallet.name }}</p>
-        <p class="text-[11px] text-white/60 mt-0.5">{{ typeInfo(wallet.type).label }}</p>
+        <p v-if="wallet.name.toLowerCase() !== typeInfo(wallet.type).label.toLowerCase()" class="text-[11px] text-white/60 mt-0.5">{{ typeInfo(wallet.type).label }}</p>
         <div class="absolute -bottom-4 -right-4 h-20 w-20 rounded-full bg-white/10" />
         <div class="absolute -bottom-8 -right-8 h-28 w-28 rounded-full bg-white/5" />
       </div>
