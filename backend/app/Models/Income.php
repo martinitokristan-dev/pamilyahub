@@ -3,26 +3,32 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class File extends Model
+class Income extends Model
 {
     protected $fillable = [
         'user_id',
-        'file_name',
-        'album_name',
-        'drive_file_id',
-        'drive_link',
-        'mime_type',
-        'size',
+        'wallet_id',
+        'source',
+        'amount',
+        'date',
+        'description',
     ];
 
     protected $casts = [
-        'size' => 'integer',
+        'amount' => 'decimal:2',
+        'date'   => 'date',
     ];
 
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function wallet(): BelongsTo
+    {
+        return $this->belongsTo(Wallet::class);
     }
 }

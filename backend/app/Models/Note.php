@@ -11,10 +11,17 @@ class Note extends Model
         'user_id',
         'title',
         'content',
+        'folder_id',
+        'is_prioritized',
     ];
 
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function folder(): BelongsTo
+    {
+        return $this->belongsTo(NoteFolder::class, 'folder_id');
     }
 }

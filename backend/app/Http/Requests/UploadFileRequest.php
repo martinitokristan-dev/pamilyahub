@@ -15,6 +15,7 @@ class UploadFileRequest extends FormRequest
     {
         return [
             'file' => ['required', 'file', 'max:10240'],
+            'album_name' => ['nullable', 'string', 'max:255'],
         ];
     }
 }

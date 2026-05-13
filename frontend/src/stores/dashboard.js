@@ -8,11 +8,10 @@ export const useDashboardStore = defineStore('dashboard', () => {
   const fetched = ref(false)
   const error = ref(null)
 
-  async function fetchStats(force = false) {
-    if (fetched.value && !force) return
+  async function fetchStats(filters = {}) {
     loading.value = true
     try {
-      const res = await dashboardService.getStats()
+      const res = await dashboardService.getStats(filters)
       stats.value = res.data.data
       fetched.value = true
     } catch (e) {

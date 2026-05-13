@@ -5,4 +5,9 @@ export const noteService = {
   create: (data) => api.post('/notes', data),
   update: (id, data) => api.put(`/notes/${id}`, data),
   delete: (id) => api.delete(`/notes/${id}`),
+  
+  // Folders
+  getFolders: () => api.get('/note-folders'),
+  createFolder: (data) => api.post('/note-folders', data),
+  deleteFolder: (id) => api.delete(`/note-folders/${id}`),
 }

@@ -6,22 +6,17 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
-        Schema::create('wallets', function (Blueprint $table) {
-            $table->id();
-            $table->timestamps();
+        Schema::table('files', function (Blueprint $table) {
+            $table->string('album_name')->nullable()->after('file_name');
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
-        Schema::dropIfExists('wallets');
+        Schema::table('files', function (Blueprint $table) {
+            $table->dropColumn('album_name');
+        });
     }
 };

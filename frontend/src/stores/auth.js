@@ -65,5 +65,20 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  return { user, loading, error, register, login, logout, fetchMe }
+  async function updateProfile(data) {
+    loading.value = true
+    error.value = null
+    try {
+      const res = await authService.updateProfile(data)
+      user.value = res.data.data
+      return res.data.data
+    } catch (e) {
+      error.value = e.response?.data?.message ?? 'Update failed'
+      throw e
+    } finally {
+      loading.value = false
+    }
+  }
+
+  return { user, loading, error, register, login, logout, fetchMe, updateProfile }
 })

@@ -18,7 +18,16 @@ class WalletController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        return $this->success($this->walletService->getAll($request->user()->id));
+        $perPage = (int) $request->query('per_page', 20);
+        $page = (int) $request->query('page', 1);
+        
+        // If paginate=false, return all wallets (for backwards compatibility)
+        if ($request->query('paginate') === 'false') {
+            return $this->success($this->walletService->getAll($request->user()->id));
+        }
+        
+        $result = $this->walletService->getAllPaginated($request->user()->id, $perPage, $page);
+        return $this->success($result);
     }
 
     public function store(StoreWalletRequest $request): JsonResponse

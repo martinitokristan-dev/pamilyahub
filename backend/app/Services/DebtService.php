@@ -5,20 +5,28 @@ namespace App\Services;
 use App\Models\Debt;
 use App\Repositories\DebtRepository;
 use App\Repositories\WalletRepository;
+use App\Repositories\ExpenseRepository;
+use App\Services\UserStatsService;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 
 class DebtService
 {
     public function __construct(
-        private DebtRepository   $repository,
-        private WalletRepository $walletRepository,
-        private UserStatsService $stats
+        private DebtRepository    $repository,
+        private WalletRepository  $walletRepository,
+        private UserStatsService  $stats,
+        private ExpenseRepository $expenseRepository
     ) {}
 
     public function getAll(int $userId): Collection
     {
         return $this->repository->getByUser($userId);
+    }
+
+    public function getAllPaginated(int $userId, int $perPage = 20, int $page = 1): array
+    {
+        return $this->repository->getByUserPaginated($userId, $perPage, $page);
     }
 
     public function create(int $userId, array $data): Debt
@@ -57,6 +65,21 @@ class DebtService
                 $this->walletRepository->adjustBalance($walletId, $delta);
             }
             $result = $this->repository->update($debt, ['is_paid' => true]);
+            
+            // If it's a debt I OWE, log it as an expense
+            if ($debt->type === 'i_owe') {
+                $this->expenseRepository->create([
+                    'user_id' => $userId,
+                    'title' => "Debt Payment: " . $debt->name,
+                    'amount' => $debt->amount,
+                    'category' => 'Bills/Debt',
+                    'date' => now()->toDateString(),
+                    'wallet_id' => $walletId,
+                    'description' => $debt->description ?? 'Paid off debt'
+                ]);
+                $this->stats->adjust($userId, 'expenses_total', (float) $debt->amount);
+            }
+
             // Subtract from the appropriate debt field
             $field = $debt->type === 'i_owe' ? 'debts_i_owe' : 'debts_owed_to_me';
             $this->stats->adjust($userId, $field, -(float) $debt->amount);
@@ -90,6 +113,20 @@ class DebtService
             // Adjust stats
             $field = $debt->type === 'i_owe' ? 'debts_i_owe' : 'debts_owed_to_me';
             $this->stats->adjust($userId, $field, -$amount);
+
+            // If it's a debt I OWE, log partial payment as an expense
+            if ($debt->type === 'i_owe') {
+                $this->expenseRepository->create([
+                    'user_id' => $userId,
+                    'title' => "Partial Debt Payment: " . $debt->name,
+                    'amount' => $amount,
+                    'category' => 'Bills/Debt',
+                    'date' => now()->toDateString(),
+                    'wallet_id' => $walletId,
+                    'description' => 'Partial payment towards debt'
+                ]);
+                $this->stats->adjust($userId, 'expenses_total', $amount);
+            }
 
             return $result;
         });

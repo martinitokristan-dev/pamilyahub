@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useWalletsStore } from '@/stores/wallets.js'
 import { useRegisterAddAction } from '@/composables/usePageAction.js'
 import { Plus, Pencil, Trash2, X, Wallet } from 'lucide-vue-next'
@@ -8,9 +8,12 @@ import UiInput from '@/components/ui/Input.vue'
 import UiLabel from '@/components/ui/Label.vue'
 import UiCard from '@/components/ui/Card.vue'
 import UiCardContent from '@/components/ui/CardContent.vue'
+import { formatCurrency } from '@/lib/utils'
 
 const store = useWalletsStore()
 useRegisterAddAction(openCreate)
+
+onMounted(() => store.fetchAll())
 
 const showForm = ref(false)
 const editingId = ref(null)
@@ -63,14 +66,20 @@ const netWorth = computed(() =>
 
 <template>
   <div class="p-4 md:p-6 max-w-2xl mx-auto animate-fade-in">
-    <div class="mb-5 flex items-center justify-between">
+    <div class="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
       <div>
         <h1 class="text-2xl font-bold tracking-tight">Wallets</h1>
-        <p class="text-sm text-muted-foreground mt-0.5">Net worth: <span class="font-semibold text-foreground">₱{{ netWorth }}</span></p>
+        <p class="text-sm text-muted-foreground mt-0.5 hidden sm:block">Manage your accounts and balances</p>
       </div>
-      <UiButton @click="openCreate" class="hidden sm:flex">
-        <Plus class="h-4 w-4" /> Add Wallet
-      </UiButton>
+      <div class="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto">
+        <div class="bg-card border border-border shadow-sm px-4 py-2 rounded-2xl flex flex-col items-start sm:items-end min-w-[140px] transition-all hover:shadow-md">
+          <span class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest leading-none mb-1">Net Worth</span>
+          <span class="text-xl font-black text-foreground tabular-nums">{{ formatCurrency(netWorth) }}</span>
+        </div>
+        <UiButton @click="openCreate" class="hidden sm:flex h-12 px-6 rounded-2xl">
+          <Plus class="h-5 w-5 mr-1" /> Add
+        </UiButton>
+      </div>
     </div>
 
     <div v-if="store.loading && store.wallets.length === 0" class="text-sm text-muted-foreground">Loading…</div>
@@ -105,7 +114,7 @@ const netWorth = computed(() =>
             </button>
           </div>
         </div>
-        <p class="text-2xl font-bold leading-none mb-1">₱{{ parseFloat(wallet.balance).toLocaleString('en-PH', { minimumFractionDigits: 2 }) }}</p>
+        <p class="text-2xl font-bold leading-none mb-1">{{ formatCurrency(wallet.balance) }}</p>
         <p class="text-sm text-white/80 font-medium">{{ wallet.name }}</p>
         <p v-if="wallet.name.toLowerCase() !== typeInfo(wallet.type).label.toLowerCase()" class="text-[11px] text-white/60 mt-0.5">{{ typeInfo(wallet.type).label }}</p>
         <div class="absolute -bottom-4 -right-4 h-20 w-20 rounded-full bg-white/10" />

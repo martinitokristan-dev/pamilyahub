@@ -35,12 +35,10 @@ const { toasts } = useToast()
 
 onMounted(async () => {
   if (!auth.user) await auth.fetchMe()
-  // Prefetch all data in one parallel batch on first load
+  
+  // Load only critical stores on app init
+  // Debts, files, and expenses are loaded when needed by their respective pages
   await Promise.all([
-    notes.fetchAll(),
-    expenses.fetchAll(),
-    debts.fetchAll(),
-    files.fetchAll(),
     wallets.fetchAll(),
   ])
 })

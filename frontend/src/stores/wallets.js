@@ -1,73 +1,94 @@
-import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
-import { walletService } from '@/services/walletService.js'
-import { useToast } from '@/composables/useToast.js'
+import { defineStore } from "pinia";
+import { ref, computed } from "vue";
+import { walletService } from "@/services/walletService.js";
+import { useToast } from "@/composables/useToast.js";
 
-export const useWalletsStore = defineStore('wallets', () => {
-  const wallets = ref([])
-  const loading = ref(false)
-  const error = ref(null)
-  const fetched = ref(false)
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+export const useWalletsStore = defineStore("wallets", () => {
+  const wallets = ref([]);
+  const loading = ref(false);
+  const error = ref(null);
+  const fetched = ref(false);
+  const cacheTime = ref(null);
 
   const totalBalance = computed(() =>
-    wallets.value.reduce((sum, w) => sum + parseFloat(w.balance), 0)
-  )
+    wallets.value.reduce((sum, w) => sum + parseFloat(w.balance), 0),
+  );
+
+  function isCacheValid() {
+    if (!cacheTime.value) return false;
+    return Date.now() - cacheTime.value < CACHE_TTL;
+  }
 
   async function fetchAll(force = false) {
-    if (fetched.value && !force) return
-    loading.value = true
+    if (fetched.value && !force && isCacheValid()) return;
+    loading.value = true;
     try {
-      const res = await walletService.getAll()
-      wallets.value = res.data.data
-      fetched.value = true
+      const res = await walletService.getAll();
+      // API returns non-paginated array
+      wallets.value = res.data.data || [];
+      fetched.value = true;
+      cacheTime.value = Date.now();
     } catch (e) {
-      error.value = e.response?.data?.message ?? 'Failed to load wallets'
+      error.value = e.response?.data?.message ?? "Failed to load wallets";
     } finally {
-      loading.value = false
+      loading.value = false;
     }
   }
 
   async function create(data) {
-    loading.value = true
+    loading.value = true;
     try {
-      const res = await walletService.create(data)
-      wallets.value.push(res.data.data)
-      useToast().success('Wallet created')
-      return res.data.data
+      const res = await walletService.create(data);
+      wallets.value.push(res.data.data);
+      useToast().success("Wallet created");
+      return res.data.data;
     } finally {
-      loading.value = false
+      loading.value = false;
     }
   }
 
   async function update(id, data) {
-    loading.value = true
+    loading.value = true;
     try {
-      const res = await walletService.update(id, data)
-      const idx = wallets.value.findIndex((w) => w.id === id)
-      if (idx !== -1) wallets.value[idx] = res.data.data
-      useToast().success('Wallet updated')
-      return res.data.data
+      const res = await walletService.update(id, data);
+      const idx = wallets.value.findIndex((w) => w.id === id);
+      if (idx !== -1) wallets.value[idx] = res.data.data;
+      useToast().success("Wallet updated");
+      return res.data.data;
     } finally {
-      loading.value = false
+      loading.value = false;
     }
   }
 
   async function remove(id) {
-    loading.value = true
+    loading.value = true;
     try {
-      await walletService.delete(id)
-      wallets.value = wallets.value.filter((w) => w.id !== id)
-      useToast().success('Wallet deleted')
+      await walletService.delete(id);
+      wallets.value = wallets.value.filter((w) => w.id !== id);
+      useToast().success("Wallet deleted");
     } finally {
-      loading.value = false
+      loading.value = false;
     }
   }
 
   // Called after an expense is saved so balance reflects immediately without re-fetching
   function adjustBalance(walletId, delta) {
-    const w = wallets.value.find((w) => w.id === walletId)
-    if (w) w.balance = (parseFloat(w.balance) + delta).toFixed(2)
+    const w = wallets.value.find((w) => w.id === walletId);
+    if (w) w.balance = (parseFloat(w.balance) + delta).toFixed(2);
   }
 
-  return { wallets, loading, error, fetched, totalBalance, fetchAll, create, update, remove, adjustBalance }
-})
+  return {
+    wallets,
+    loading,
+    error,
+    fetched,
+    totalBalance,
+    fetchAll,
+    create,
+    update,
+    remove,
+    adjustBalance,
+  };
+});

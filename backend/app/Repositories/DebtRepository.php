@@ -12,6 +12,26 @@ class DebtRepository
         return Debt::where('user_id', $userId)->latest()->get();
     }
 
+    public function getByUserPaginated(int $userId, int $perPage = 20, int $page = 1): array
+    {
+        $query = Debt::where('user_id', $userId)->latest();
+        $total = $query->count();
+        $debts = $query->offset(($page - 1) * $perPage)->limit($perPage)->get();
+        
+        return [
+            'data' => $debts,
+            'total' => $total,
+            'page' => $page,
+            'per_page' => $perPage,
+            'last_page' => ceil($total / $perPage)
+        ];
+    }
+
+    public function countByUser(int $userId): int
+    {
+        return Debt::where('user_id', $userId)->count();
+    }
+
     public function findByUser(int $id, int $userId): ?Debt
     {
         return Debt::where('id', $id)->where('user_id', $userId)->first();

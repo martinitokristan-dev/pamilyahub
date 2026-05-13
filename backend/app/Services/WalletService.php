@@ -17,6 +17,11 @@ class WalletService
         return $this->repository->getByUser($userId);
     }
 
+    public function getAllPaginated(int $userId, int $perPage = 20, int $page = 1): array
+    {
+        return $this->repository->getByUserPaginated($userId, $perPage, $page);
+    }
+
     public function create(int $userId, array $data): Wallet
     {
         $data['user_id'] = $userId;

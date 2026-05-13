@@ -20,7 +20,12 @@ class FileService
         return $this->repository->getByUser($userId);
     }
 
-    public function upload(int $userId, UploadedFile $file): File
+    public function getAllPaginated(int $userId, int $perPage = 20, int $page = 1): array
+    {
+        return $this->repository->getByUserPaginated($userId, $perPage, $page);
+    }
+
+    public function upload(int $userId, UploadedFile $file, ?string $albumName = null): File
     {
         $folderId = env('GOOGLE_DRIVE_FOLDER_ID');
         $driveData = $this->driveService->upload($file, $folderId);
@@ -28,6 +33,7 @@ class FileService
         $record = $this->repository->create([
             'user_id'       => $userId,
             'file_name'     => $file->getClientOriginalName(),
+            'album_name'    => $albumName,
             'drive_file_id' => $driveData['drive_file_id'],
             'drive_link'    => $driveData['drive_link'],
             'mime_type'     => $file->getMimeType(),

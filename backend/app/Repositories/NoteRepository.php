@@ -9,7 +9,7 @@ class NoteRepository
 {
     public function getByUser(int $userId): Collection
     {
-        return Note::where('user_id', $userId)->latest()->get();
+        return Note::with('folder')->where('user_id', $userId)->latest()->get();
     }
 
     public function findByUser(int $id, int $userId): ?Note

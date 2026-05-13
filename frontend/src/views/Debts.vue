@@ -1,9 +1,9 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRegisterAddAction } from '@/composables/usePageAction.js'
 import { useDebtsStore } from '@/stores/debts.js'
 import { useWalletsStore } from '@/stores/wallets.js'
-import { Plus, Pencil, Trash2, X, BadgeCheck, HandCoins, Search, Wallet } from 'lucide-vue-next'
+import { Plus, Pencil, Trash2, X, BadgeCheck, HandCoins, Search, Wallet, CheckCircle2 } from 'lucide-vue-next'
 import UiButton from '@/components/ui/Button.vue'
 import UiInput from '@/components/ui/Input.vue'
 import UiTextarea from '@/components/ui/Textarea.vue'
@@ -12,10 +12,13 @@ import UiCard from '@/components/ui/Card.vue'
 import UiCardContent from '@/components/ui/CardContent.vue'
 import UiBadge from '@/components/ui/Badge.vue'
 import DatePicker from '@/components/ui/DatePicker.vue'
+import { formatCurrency } from '@/lib/utils'
 
 const store = useDebtsStore()
 const walletsStore = useWalletsStore()
 useRegisterAddAction(openCreate)
+
+onMounted(() => store.fetchAll())
 
 const activeTab = ref('all')
 const searchQuery = ref('')
@@ -105,7 +108,7 @@ async function confirmPay() {
   if (debt.type === 'i_owe' && payWalletId.value) {
     const wallet = walletsStore.wallets.find(w => w.id === payWalletId.value)
     if (wallet && payAmount > parseFloat(wallet.balance)) {
-      payBalanceError.value = `Insufficient balance. ${wallet.name} only has ₱${parseFloat(wallet.balance).toFixed(2)}.`
+      payBalanceError.value = `Insufficient balance. ${wallet.name} only has ${formatCurrency(wallet.balance)}.`
       return
     }
   }
@@ -145,18 +148,38 @@ const filtered = computed(() => {
   )
   return result
 })
+
+const totalBalance = computed(() => {
+  return store.debts
+    .filter(d => !d.is_paid)
+    .reduce((sum, d) => {
+      const amt = parseFloat(d.amount)
+      return d.type === 'owed_to_me' ? sum + amt : sum - amt
+    }, 0).toFixed(2)
+})
 </script>
 
 <template>
   <div class="p-6 max-w-4xl mx-auto animate-fade-in">
-    <div class="mb-6 flex items-center justify-between">
+    <div class="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
       <div>
         <h1 class="text-2xl font-bold tracking-tight">Debts</h1>
-        <p class="text-sm text-muted-foreground mt-1">Track what you owe and what others owe you</p>
+        <p class="text-sm text-muted-foreground mt-1 hidden sm:block">Track what you owe and what others owe you</p>
       </div>
-      <UiButton @click="openCreate" class="hidden sm:flex">
-        <Plus class="h-4 w-4" /> Add Debt
-      </UiButton>
+      <div class="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto">
+        <div class="bg-card border border-border shadow-sm px-4 py-2 rounded-2xl flex flex-col items-start sm:items-end min-w-[140px] transition-all hover:shadow-md">
+          <span class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest leading-none mb-1">Net Balance</span>
+          <span 
+            class="text-xl font-black tabular-nums"
+            :class="parseFloat(totalBalance) >= 0 ? 'text-emerald-600' : 'text-destructive'"
+          >
+            {{ parseFloat(totalBalance) >= 0 ? '+' : '' }}{{ formatCurrency(totalBalance) }}
+          </span>
+        </div>
+        <UiButton @click="openCreate" class="hidden sm:flex h-12 px-6 rounded-2xl">
+          <Plus class="h-5 w-5 mr-1" /> Add
+        </UiButton>
+      </div>
     </div>
 
     <div class="mb-3 flex flex-wrap gap-2">
@@ -189,37 +212,39 @@ const filtered = computed(() => {
         :key="debt.id"
         class="px-4 py-3 transition-all duration-200 cursor-pointer sm:cursor-default"
         @click="openEdit(debt)"
-        :class="[
-          debt.is_paid ? 'opacity-50' : ''
-        ]"
       >
-        <!-- Row 1: name + amount -->
+        <!-- Row 1: name + type + amount -->
         <div class="flex items-start justify-between gap-3">
-          <p class="font-semibold text-sm leading-snug truncate flex-1">{{ debt.name }}</p>
+          <div class="flex flex-col gap-0.5 flex-1 min-w-0">
+            <div class="flex items-center gap-2 text-sm leading-snug truncate">
+              <span class="font-bold">{{ debt.name }}</span>
+              <span class="text-foreground font-black">·</span>
+              <span class="text-xs font-medium" :class="debt.type === 'owed_to_me' ? 'text-emerald-600' : 'text-amber-600'">
+                {{ debt.type === 'owed_to_me' ? 'Owes me' : 'I owe' }}
+              </span>
+            </div>
+          </div>
+          
           <div class="flex flex-col items-end gap-1 shrink-0">
             <span
               class="font-bold tabular-nums text-sm"
               :class="debt.type === 'owed_to_me' ? 'text-emerald-600 dark:text-emerald-400' : 'text-destructive'"
             >
-              {{ debt.type === 'owed_to_me' ? '+' : '-' }}₱{{ parseFloat(debt.amount).toFixed(2) }}
+              {{ debt.type === 'owed_to_me' ? '+' : '-' }}{{ formatCurrency(debt.amount) }}
             </span>
-            <span v-if="debt.is_paid" class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider bg-muted px-1.5 rounded">Paid</span>
+            <span v-if="debt.is_paid" class="mt-1.5 inline-flex items-center gap-1 text-[9px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider bg-emerald-50 dark:bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-200/50 dark:border-emerald-500/20">
+              <CheckCircle2 class="h-2.5 w-2.5" />
+              Paid
+            </span>
           </div>
         </div>
 
-        <!-- Row 2: badges + due date + actions -->
+        <!-- Row 2: due date + actions -->
         <div class="flex items-center justify-between gap-2 mt-2">
-          <div class="flex flex-wrap items-center gap-1.5 min-w-0">
-            <UiBadge
-              :variant="debt.type === 'owed_to_me' ? 'success' : 'warning'"
-              class="text-[10px] shrink-0"
-            >
-              {{ debt.type === 'owed_to_me' ? 'Owes me' : 'I owe' }}
-            </UiBadge>
-            <span v-if="debt.due_date" class="text-[11px] text-muted-foreground shrink-0">
-              Due {{ formatDueDate(debt.due_date) }}
-            </span>
-          </div>
+          <p v-if="debt.due_date" class="text-xs text-muted-foreground shrink-0">
+            Due {{ formatDueDate(debt.due_date) }}
+          </p>
+          <div v-else></div> <!-- Spacer if no due date -->
 
           <!-- Action buttons -->
           <div class="flex items-center gap-0.5 shrink-0" @click.stop>
@@ -304,7 +329,7 @@ const filtered = computed(() => {
               <p class="text-sm text-muted-foreground mt-0.5">
                 <span class="font-semibold text-foreground">{{ payingDebt?.name }}</span>
                 <span class="mx-1">·</span>
-                <span class="font-semibold text-foreground">₱{{ parseFloat(payingDebt?.amount ?? 0).toFixed(2) }}</span>
+                <span class="font-semibold text-foreground">{{ formatCurrency(payingDebt?.amount ?? 0) }}</span>
               </p>
             </div>
             <UiButton variant="ghost" size="icon" @click="showPayModal = false"><X class="h-4 w-4" /></UiButton>
@@ -344,14 +369,14 @@ const filtered = computed(() => {
                 />
                 <p v-if="partialAmountError" class="text-xs text-destructive mt-1">{{ partialAmountError }}</p>
                 <p v-else-if="partialAmount && !partialAmountError" class="text-xs text-muted-foreground mt-1">
-                  Remaining after payment: <span class="font-semibold text-foreground">₱{{ (parseFloat(payingDebt?.amount ?? 0) - (parseFloat(partialAmount) || 0)).toFixed(2) }}</span>
+                  Remaining after payment: <span class="font-semibold text-foreground">{{ formatCurrency(parseFloat(payingDebt?.amount ?? 0) - (parseFloat(partialAmount) || 0)) }}</span>
                 </p>
               </div>
 
               <!-- Full pay info -->
               <div v-if="payMode === 'full'" class="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 text-center">
                 <p class="text-sm text-muted-foreground">This will mark the debt as <span class="font-semibold text-emerald-600 dark:text-emerald-400">fully paid</span></p>
-                <p class="text-lg font-bold text-emerald-600 dark:text-emerald-400 mt-1">₱{{ parseFloat(payingDebt?.amount ?? 0).toFixed(2) }}</p>
+                <p class="text-lg font-bold text-emerald-600 dark:text-emerald-400 mt-1">{{ formatCurrency(payingDebt?.amount ?? 0) }}</p>
               </div>
 
               <!-- Wallet picker -->
@@ -381,7 +406,7 @@ const filtered = computed(() => {
                     </div>
                     <div class="flex-1 min-w-0">
                       <p class="text-sm font-semibold truncate">{{ wallet.name }}</p>
-                      <p class="text-xs text-muted-foreground">₱{{ parseFloat(wallet.balance).toLocaleString('en-PH', { minimumFractionDigits: 2 }) }}</p>
+                      <p class="text-xs text-muted-foreground">{{ formatCurrency(wallet.balance) }}</p>
                     </div>
                     <div v-if="payWalletId === wallet.id" class="h-4 w-4 rounded-full bg-primary flex items-center justify-center shrink-0">
                       <span class="text-[8px] text-white font-bold">✓</span>
@@ -410,7 +435,7 @@ const filtered = computed(() => {
                   :disabled="store.loading || (payMode === 'partial' && !!partialAmountError)"
                   class="bg-emerald-600 hover:bg-emerald-700 text-white"
                 >
-                  {{ store.loading ? 'Saving…' : (payMode === 'full' ? 'Confirm paid' : `Pay ₱${effectivePayAmount.toFixed(2)}`) }}
+                  {{ store.loading ? 'Saving…' : (payMode === 'full' ? 'Confirm paid' : `Pay ${formatCurrency(effectivePayAmount)}`) }}
                 </UiButton>
               </div>
             </div>

@@ -4,16 +4,24 @@ import { useAuthStore } from '@/stores/auth.js'
 import { useNotesStore } from '@/stores/notes.js'
 import { useExpensesStore } from '@/stores/expenses.js'
 import { useDashboardStore } from '@/stores/dashboard.js'
-import { NotebookPen, Receipt, FolderOpen, TrendingUp, TrendingDown } from 'lucide-vue-next'
+import { NotebookPen, Receipt, FolderOpen, TrendingUp, TrendingDown, Banknote } from 'lucide-vue-next'
 import UiCard from '@/components/ui/Card.vue'
 import UiCardHeader from '@/components/ui/CardHeader.vue'
 import UiCardTitle from '@/components/ui/CardTitle.vue'
 import UiCardContent from '@/components/ui/CardContent.vue'
+import UiButton from '@/components/ui/Button.vue'
+import DepositSalaryModal from '@/components/financial/DepositSalaryModal.vue'
+import { formatCurrency } from '@/lib/utils'
 
 const auth = useAuthStore()
 const notes = useNotesStore()
 const expenses = useExpensesStore()
 const dashboard = useDashboardStore()
+const showDepositModal = ref(false)
+
+const handleDepositSuccess = async () => {
+  await dashboard.fetchStats()
+}
 
 onMounted(async () => {
   await Promise.all([
@@ -23,62 +31,78 @@ onMounted(async () => {
   ])
 })
 
-const stats = computed(() => [
-  {
-    label: 'Notes',
-    value: dashboard.stats.notes_count,
-    icon: NotebookPen,
-    gradient: 'from-blue-500 to-indigo-600',
-    bg: 'bg-gradient-to-br from-blue-500 to-indigo-600',
-    light: 'bg-blue-50 dark:bg-blue-950/30',
-    text: 'text-blue-600 dark:text-blue-400',
-  },
-  {
-    label: 'Total Expenses',
-    value: `₱${parseFloat(dashboard.stats.expenses_total).toFixed(2)}`,
-    icon: Receipt,
-    gradient: 'from-orange-500 to-amber-500',
-    bg: 'bg-gradient-to-br from-orange-500 to-amber-500',
-    light: 'bg-orange-50 dark:bg-orange-950/30',
-    text: 'text-orange-600 dark:text-orange-400',
-  },
-  {
-    label: 'Owed to Me',
-    value: `₱${parseFloat(dashboard.stats.debts_owed_to_me).toFixed(2)}`,
-    icon: TrendingUp,
-    gradient: 'from-emerald-500 to-green-600',
-    bg: 'bg-gradient-to-br from-emerald-500 to-green-600',
-    light: 'bg-emerald-50 dark:bg-emerald-950/30',
-    text: 'text-emerald-600 dark:text-emerald-400',
-  },
-  {
-    label: 'I Owe',
-    value: `₱${parseFloat(dashboard.stats.debts_i_owe).toFixed(2)}`,
-    icon: TrendingDown,
-    gradient: 'from-rose-500 to-red-600',
-    bg: 'bg-gradient-to-br from-rose-500 to-red-600',
-    light: 'bg-rose-50 dark:bg-rose-950/30',
-    text: 'text-rose-600 dark:text-rose-400',
-  },
-  {
-    label: 'Files',
-    value: dashboard.stats.files_count,
-    icon: FolderOpen,
-    gradient: 'from-violet-500 to-purple-600',
-    bg: 'bg-gradient-to-br from-violet-500 to-purple-600',
-    light: 'bg-violet-50 dark:bg-violet-950/30',
-    text: 'text-violet-600 dark:text-violet-400',
-  },
-])
+const stats = computed(() => {
+  const baseStats = []
+
+  // Use either the actual income deposited or the target salary setting
+  const salary = parseFloat(auth.user?.monthly_salary ?? 0)
+  const incomeTotal = parseFloat(dashboard.stats.income_total ?? 0)
+  const expensesTotal = parseFloat(dashboard.stats.expenses_total ?? 0)
+  const effectiveBudget = salary
+
+  if (effectiveBudget > 0) {
+    const remaining = effectiveBudget - expensesTotal
+    baseStats.push({
+      label: 'Budget Left',
+      value: formatCurrency(remaining),
+      icon: Banknote,
+      bg: remaining < 0 ? 'bg-gradient-to-br from-rose-500 to-red-600' : 'bg-gradient-to-br from-emerald-500 to-teal-600',
+    })
+  }
+
+  baseStats.push(
+    {
+      label: 'Notes',
+      value: dashboard.stats.notes_count,
+      icon: NotebookPen,
+      bg: 'bg-gradient-to-br from-blue-500 to-indigo-600',
+    },
+    {
+      label: 'Income (Monthly)',
+      value: formatCurrency(incomeTotal),
+      icon: TrendingUp,
+      bg: 'bg-gradient-to-br from-emerald-400 to-teal-500',
+    },
+    {
+      label: 'Expenses (Monthly)',
+      value: formatCurrency(expensesTotal),
+      icon: Receipt,
+      bg: 'bg-gradient-to-br from-orange-500 to-amber-500',
+    },
+    {
+      label: 'Owed to Me',
+      value: formatCurrency(dashboard.stats.debts_owed_to_me),
+      icon: TrendingUp,
+      bg: 'bg-gradient-to-br from-blue-400 to-blue-600',
+    },
+    {
+      label: 'I Owe',
+      value: formatCurrency(dashboard.stats.debts_i_owe),
+      icon: TrendingDown,
+      bg: 'bg-gradient-to-br from-rose-500 to-red-600',
+    }
+  )
+
+  return baseStats
+})
 </script>
 
 <template>
   <div class="p-6 max-w-6xl mx-auto animate-fade-in">
-    <div class="mb-6">
-      <h1 class="text-2xl font-bold tracking-tight">
-        Good day, {{ auth.user?.name?.split(' ')[0] }} 👋
-      </h1>
-      <p class="text-sm text-muted-foreground mt-1">Here's your Pamilya Hub overview</p>
+    <div class="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div>
+        <h1 class="text-2xl font-bold tracking-tight">
+          Good day, {{ auth.user?.name?.split(' ')[0] }} 👋
+        </h1>
+        <p class="text-sm text-muted-foreground mt-1">Here's your Pamilya Hub overview</p>
+      </div>
+      <UiButton 
+        v-if="parseFloat(auth.user?.monthly_salary) > 0" 
+        @click="showDepositModal = true"
+        class="rounded-2xl h-12 px-6 bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-lg shadow-emerald-500/20 gap-2 shrink-0"
+      >
+        <Banknote class="h-5 w-5" /> Deposit Salary
+      </UiButton>
     </div>
 
     <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 mb-6">
@@ -135,11 +159,17 @@ const stats = computed(() => [
                 <p class="text-sm font-medium leading-none mb-1">{{ expense.title }}</p>
                 <p class="text-xs text-muted-foreground">{{ expense.category ?? 'Uncategorized' }}</p>
               </div>
-              <span class="text-sm font-semibold tabular-nums">₱{{ parseFloat(expense.amount).toFixed(2) }}</span>
+              <span class="text-sm font-semibold tabular-nums">{{ formatCurrency(expense.amount) }}</span>
             </div>
           </div>
         </UiCardContent>
       </UiCard>
     </div>
+
+    <DepositSalaryModal 
+      :show="showDepositModal" 
+      @close="showDepositModal = false" 
+      @success="handleDepositSuccess" 
+    />
   </div>
 </template>

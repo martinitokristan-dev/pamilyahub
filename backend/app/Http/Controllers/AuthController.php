@@ -39,4 +39,16 @@ class AuthController extends Controller
     {
         return $this->success($request->user());
     }
+
+    public function updateProfile(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $validated = $request->validate([
+            'name' => 'sometimes|string|max:255',
+            'monthly_salary' => 'sometimes|numeric|min:0',
+        ]);
+
+        $user->update($validated);
+        return $this->success($user, 'Profile updated successfully');
+    }
 }

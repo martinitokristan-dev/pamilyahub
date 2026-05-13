@@ -7,9 +7,16 @@ use Illuminate\Database\Eloquent\Collection;
 
 class ExpenseRepository
 {
-    public function getByUser(int $userId): Collection
+    public function getByUser(int $userId, array $filters = []): Collection
     {
-        return Expense::with('wallet')->where('user_id', $userId)->latest()->get();
+        $query = Expense::with('wallet')->where('user_id', $userId);
+
+        if (!empty($filters['month']) && !empty($filters['year'])) {
+            $query->whereYear('date', $filters['year'])
+                  ->whereMonth('date', $filters['month']);
+        }
+
+        return $query->latest()->get();
     }
 
     public function findByUser(int $id, int $userId): ?Expense
@@ -31,5 +38,17 @@ class ExpenseRepository
     public function delete(Expense $expense): void
     {
         $expense->delete();
+    }
+
+    public function getByUserPaginated(int $userId, array $filters = []): \Illuminate\Pagination\LengthAwarePaginator
+    {
+        $query = Expense::with('wallet')->where('user_id', $userId);
+
+        if (!empty($filters['month']) && !empty($filters['year'])) {
+            $query->whereYear('date', $filters['year'])
+                  ->whereMonth('date', $filters['month']);
+        }
+
+        return $query->latest()->paginate(10);
     }
 }

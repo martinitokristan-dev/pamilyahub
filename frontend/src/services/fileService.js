@@ -1,16 +1,19 @@
-import api from '@/lib/axios.js'
+import api from "@/lib/axios.js";
 
 export const fileService = {
-  getAll: () => api.get('/files'),
+  getAll: (page = 1, perPage = 20) =>
+    api.get("/files", { params: { page, per_page: perPage } }),
   upload: (formData, onProgress) =>
-    api.post('/files', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+    api.post("/files", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
       onUploadProgress: (progressEvent) => {
         if (onProgress) {
-          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total)
-          onProgress(percentCompleted)
+          const percentCompleted = Math.round(
+            (progressEvent.loaded * 100) / progressEvent.total,
+          );
+          onProgress(percentCompleted);
         }
       },
     }),
   delete: (id) => api.delete(`/files/${id}`),
-}
+};

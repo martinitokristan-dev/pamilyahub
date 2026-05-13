@@ -6,6 +6,7 @@ import { useToast } from '@/composables/useToast.js'
 
 export const useNotesStore = defineStore('notes', () => {
   const notes = ref([])
+  const folders = ref([])
   const loading = ref(false)
   const error = ref(null)
   const fetched = ref(false)
@@ -14,8 +15,12 @@ export const useNotesStore = defineStore('notes', () => {
     if (fetched.value && !force) return
     loading.value = true
     try {
-      const res = await noteService.getAll()
-      notes.value = res.data.data
+      const [notesRes, foldersRes] = await Promise.all([
+        noteService.getAll(),
+        noteService.getFolders()
+      ])
+      notes.value = notesRes.data.data
+      folders.value = foldersRes.data.data
       fetched.value = true
     } catch (e) {
       error.value = e.response?.data?.message ?? 'Failed to load notes'
@@ -63,5 +68,36 @@ export const useNotesStore = defineStore('notes', () => {
     }
   }
 
-  return { notes, loading, error, fetched, fetchAll, create, update, remove }
+  async function createFolder(data) {
+    loading.value = true
+    try {
+      const res = await noteService.createFolder(data)
+      folders.value.push(res.data.data)
+      useToast().success('Folder created')
+      return res.data.data
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function removeFolder(id) {
+    loading.value = true
+    try {
+      await noteService.deleteFolder(id)
+      folders.value = folders.value.filter((f) => f.id !== id)
+      // Any notes in this folder should now be uncategorized
+      notes.value.forEach(n => {
+        if (n.folder_id === id) n.folder_id = null
+      })
+      useToast().success('Folder removed')
+    } finally {
+      loading.value = false
+    }
+  }
+
+  return { 
+    notes, folders, loading, error, fetched, 
+    fetchAll, create, update, remove, 
+    createFolder, removeFolder 
+  }
 })

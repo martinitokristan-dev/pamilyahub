@@ -18,8 +18,17 @@ class DebtController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $debts = $this->debtService->getAll($request->user()->id);
-        return $this->success($debts);
+        $perPage = (int) $request->query('per_page', 20);
+        $page = (int) $request->query('page', 1);
+        
+        // If paginate=false, return all debts (for backwards compatibility)
+        if ($request->query('paginate') === 'false') {
+            $debts = $this->debtService->getAll($request->user()->id);
+            return $this->success($debts);
+        }
+        
+        $result = $this->debtService->getAllPaginated($request->user()->id, $perPage, $page);
+        return $this->success($result);
     }
 
     public function store(StoreDebtRequest $request): JsonResponse

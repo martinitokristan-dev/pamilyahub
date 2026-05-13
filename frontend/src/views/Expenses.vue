@@ -1,9 +1,10 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRegisterAddAction } from '@/composables/usePageAction.js'
 import { useExpensesStore } from '@/stores/expenses.js'
 import { useWalletsStore } from '@/stores/wallets.js'
-import { Plus, Pencil, Trash2, X, Receipt, Search } from 'lucide-vue-next'
+import { Plus, Pencil, Trash2, X, Receipt, Search, TrendingUp, Calendar } from 'lucide-vue-next'
+import { useAuthStore } from '@/stores/auth.js'
 import UiButton from '@/components/ui/Button.vue'
 import UiInput from '@/components/ui/Input.vue'
 import UiLabel from '@/components/ui/Label.vue'
@@ -11,15 +12,46 @@ import UiCard from '@/components/ui/Card.vue'
 import UiCardContent from '@/components/ui/CardContent.vue'
 import UiBadge from '@/components/ui/Badge.vue'
 import DatePicker from '@/components/ui/DatePicker.vue'
+import { formatCurrency } from '@/lib/utils'
 
 const store = useExpensesStore()
 const walletsStore = useWalletsStore()
+const authStore = useAuthStore()
 useRegisterAddAction(openCreate)
+
+const selectedMonth = ref(new Date().getMonth() + 1)
+const selectedYear = ref(new Date().getFullYear())
+
+const months = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
+]
+
+watch([selectedMonth, selectedYear], () => {
+  store.fetchAll({ month: selectedMonth.value, year: selectedYear.value })
+}, { immediate: true })
 
 const showForm = ref(false)
 const editingId = ref(null)
 const search = ref('')
 const form = ref({ title: '', amount: '', category: '', description: '', date: '', wallet_id: null })
+
+const total = computed(() =>
+  store.expenses.reduce((sum, e) => sum + parseFloat(e.amount), 0).toFixed(2)
+)
+
+const salaryTarget = computed(() => parseFloat(authStore.user?.monthly_salary ?? 0))
+
+const effectiveLimit = computed(() => salaryTarget.value)
+
+const remainingSalary = computed(() => {
+  return effectiveLimit.value - parseFloat(total.value)
+})
+
+const spendingPercentage = computed(() => {
+  if (effectiveLimit.value <= 0) return 0
+  return Math.min((parseFloat(total.value) / effectiveLimit.value) * 100, 100)
+})
 
 // Wallet type → emoji + color
 const typeEmoji = {
@@ -231,23 +263,75 @@ async function remove(expense) {
   await store.remove(expense.id)
   if (expense.wallet_id) walletsStore.adjustBalance(expense.wallet_id, parseFloat(expense.amount))
 }
-
-const total = computed(() =>
-  store.expenses.reduce((sum, e) => sum + parseFloat(e.amount), 0).toFixed(2)
-)
 </script>
 
 <template>
   <div class="p-4 md:p-6 max-w-6xl mx-auto animate-fade-in">
-    <div class="mb-4 flex items-center justify-between">
+    <div class="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
       <div>
         <h1 class="text-2xl font-bold tracking-tight">Expenses</h1>
-        <p class="text-sm text-muted-foreground mt-1">Total: <span class="font-semibold text-foreground">₱{{ total }}</span></p>
+        <p class="text-sm text-muted-foreground mt-1 hidden sm:block">Track and manage your daily spending</p>
       </div>
-      <UiButton @click="openCreate" class="hidden sm:flex">
-        <Plus class="h-4 w-4" /> Add Expense
-      </UiButton>
+      <div class="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto">
+        <!-- Month Picker -->
+        <div class="flex items-center gap-2 bg-card border border-border shadow-sm px-3 py-1.5 rounded-2xl">
+          <Calendar class="h-4 w-4 text-muted-foreground" />
+          <select v-model="selectedMonth" class="bg-transparent text-sm font-bold border-none focus:ring-0 cursor-pointer">
+            <option v-for="(m, i) in months" :key="m" :value="i + 1">{{ m }}</option>
+          </select>
+          <select v-model="selectedYear" class="bg-transparent text-sm font-bold border-none focus:ring-0 cursor-pointer">
+            <option v-for="y in [2024, 2025, 2026]" :key="y" :value="y">{{ y }}</option>
+          </select>
+        </div>
+
+        <div class="bg-card border border-border shadow-sm px-4 py-2 rounded-2xl flex flex-col items-start sm:items-end min-w-[140px] transition-all hover:shadow-md">
+          <span class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest leading-none mb-1">Total Expenses</span>
+          <span class="text-xl font-black text-foreground tabular-nums">{{ formatCurrency(total) }}</span>
+        </div>
+        <UiButton @click="openCreate" class="hidden sm:flex h-12 px-6 rounded-2xl">
+          <Plus class="h-5 w-5 mr-1" /> Add
+        </UiButton>
+      </div>
     </div>
+
+    <!-- Salary / Budget Tracking Card -->
+    <UiCard v-if="authStore.user?.monthly_salary > 0" class="mb-5 overflow-hidden border-primary/10 shadow-sm rounded-2xl bg-gradient-to-br from-card to-muted/20">
+      <div class="p-4 sm:p-5">
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center gap-2">
+            <div class="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+              <TrendingUp class="h-4 w-4 text-primary" />
+            </div>
+            <h3 class="text-sm font-bold">Spending Power ({{ months[selectedMonth - 1] }})</h3>
+          </div>
+          <p class="text-xs font-bold" :class="remainingSalary < 0 ? 'text-destructive' : 'text-emerald-600'">
+            {{ formatCurrency(Math.abs(remainingSalary)) }} {{ remainingSalary < 0 ? 'over' : 'left' }}
+          </p>
+        </div>
+        
+        <div class="space-y-2.5">
+          <div class="flex items-center justify-between text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+            <span>Spent: {{ formatCurrency(total) }}</span>
+            <span>Budget: {{ formatCurrency(effectiveLimit) }}</span>
+          </div>
+          <div class="h-2 w-full bg-muted rounded-full overflow-hidden flex">
+             <div 
+               class="h-full transition-all duration-700 ease-out" 
+               :style="{ width: `${spendingPercentage}%` }"
+               :class="spendingPercentage > 90 ? 'bg-destructive' : spendingPercentage > 75 ? 'bg-amber-500' : 'bg-emerald-500'"
+             />
+          </div>
+          <div class="flex justify-between items-center">
+            <p class="text-[10px] text-muted-foreground italic">
+               {{ spendingPercentage > 100 ? "You've exceeded your limit!" : `${(100 - spendingPercentage).toFixed(0)}% of budget remaining` }}
+            </p>
+            <span class="text-[10px] font-black" :class="spendingPercentage > 90 ? 'text-destructive' : 'text-emerald-600'">
+              {{ spendingPercentage.toFixed(1) }}%
+            </span>
+          </div>
+        </div>
+      </div>
+    </UiCard>
 
     <!-- Search bar -->
     <div class="relative mb-4">
@@ -269,7 +353,6 @@ const total = computed(() =>
         :key="expense.id"
         class="rounded-2xl border border-border bg-card p-4 flex items-center gap-3 overflow-hidden cursor-pointer sm:cursor-default"
         @click="openEdit(expense)"
-        :class="getCategoryColor(expense.category).border"
       >
         <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xl overflow-hidden p-1.5" :class="walletColor(expense.wallet)">
           <template v-if="expense.wallet">
@@ -297,7 +380,7 @@ const total = computed(() =>
           <p class="text-[11px] text-muted-foreground mt-0.5">{{ formatDateTime(expense.date, expense.created_at) }}</p>
         </div>
         <div class="shrink-0 text-right">
-          <p class="font-bold text-sm text-destructive">-₱{{ parseFloat(expense.amount).toFixed(2) }}</p>
+          <p class="font-bold text-sm text-destructive">-{{ formatCurrency(expense.amount) }}</p>
           <div class="hidden sm:flex gap-1 mt-1 justify-end" @click.stop>
             <button class="h-8 w-8 flex items-center justify-center rounded-md hover:bg-muted transition-colors" @click="openEdit(expense)">
               <Pencil class="h-4 w-4 text-muted-foreground" />
@@ -328,7 +411,6 @@ const total = computed(() =>
             v-for="expense in filteredExpenses"
             :key="expense.id"
             class="hover:bg-muted/30 transition-colors"
-            :class="getCategoryColor(expense.category).border"
           >
             <td class="px-4 py-3 font-medium">
               <div class="flex items-center gap-2">
@@ -371,7 +453,7 @@ const total = computed(() =>
               <span v-else class="text-muted-foreground">—</span>
             </td>
             <td class="px-4 py-3 text-muted-foreground text-xs">{{ formatDateTime(expense.date, expense.created_at) }}</td>
-            <td class="px-4 py-3 text-right font-semibold tabular-nums text-destructive">-₱{{ parseFloat(expense.amount).toFixed(2) }}</td>
+            <td class="px-4 py-3 text-right font-semibold tabular-nums text-destructive">-{{ formatCurrency(expense.amount) }}</td>
             <td class="px-4 py-3">
               <div class="flex justify-end gap-1">
                 <UiButton variant="ghost" size="icon" class="h-8 w-8" @click="openEdit(expense)">
@@ -445,7 +527,7 @@ const total = computed(() =>
                     </div>
                     <div class="min-w-0">
                       <p class="text-xs font-semibold truncate">{{ wallet.name }}</p>
-                      <p class="text-[10px] text-muted-foreground">₱{{ parseFloat(wallet.balance).toLocaleString('en-PH', { minimumFractionDigits: 2 }) }}</p>
+                      <p class="text-[10px] text-muted-foreground">{{ formatCurrency(wallet.balance) }}</p>
                     </div>
                   </button>
                   <button

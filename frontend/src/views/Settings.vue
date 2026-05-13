@@ -2,7 +2,7 @@
 import { ref, computed } from 'vue'
 import { useAuthStore } from '@/stores/auth.js'
 import { useDarkMode } from '@/composables/useDarkMode.js'
-import { Moon, Sun, User, LogOut, ChevronRight, Bell, Shield, Palette } from 'lucide-vue-next'
+import { Moon, Sun, User, LogOut, ChevronRight, Bell, Shield, Palette, Banknote } from 'lucide-vue-next'
 import UiCard from '@/components/ui/Card.vue'
 import UiCardContent from '@/components/ui/CardContent.vue'
 import UiButton from '@/components/ui/Button.vue'
@@ -14,6 +14,18 @@ const initials = computed(() => {
   const name = auth.user?.name ?? ''
   return name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
 })
+
+const salaryInput = ref(auth.user?.monthly_salary ?? 0)
+const savingSalary = ref(false)
+
+async function saveSalary() {
+  savingSalary.value = true
+  try {
+    await auth.updateProfile({ monthly_salary: salaryInput.value })
+  } finally {
+    savingSalary.value = false
+  }
+}
 </script>
 
 <template>
@@ -34,6 +46,39 @@ const initials = computed(() => {
               <div class="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
               <span class="text-[11px] font-medium text-emerald-700 dark:text-emerald-400">Active</span>
             </div>
+          </div>
+        </div>
+      </UiCardContent>
+    </UiCard>
+
+    <!-- Financial -->
+    <p class="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1 mb-2">Financial</p>
+    <UiCard class="mb-4 overflow-hidden border-emerald-500/20 shadow-emerald-500/5">
+      <UiCardContent class="p-0 divide-y divide-border">
+        <div class="px-5 py-4">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100 dark:bg-emerald-900/30">
+              <Banknote class="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            </div>
+            <div>
+              <p class="text-sm font-medium">Monthly Salary</p>
+              <p class="text-xs text-muted-foreground">Used for tracking spending power</p>
+            </div>
+          </div>
+          
+          <div class="flex items-center gap-2">
+            <div class="relative flex-1">
+              <span class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-bold">₱</span>
+              <input 
+                v-model="salaryInput" 
+                type="number" 
+                class="w-full bg-muted/50 border border-border rounded-xl py-2 pl-7 pr-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all"
+                placeholder="0.00"
+              />
+            </div>
+            <UiButton size="sm" variant="default" @click="saveSalary" :disabled="savingSalary" class="h-9 px-4 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 text-white">
+              {{ savingSalary ? 'Saving...' : 'Save' }}
+            </UiButton>
           </div>
         </div>
       </UiCardContent>
