@@ -28,6 +28,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::apiResource('debts', DebtController::class)->only(['index', 'store', 'update', 'destroy']);
     Route::patch('debts/{id}/mark-paid', [DebtController::class, 'markPaid']);
+    Route::patch('debts/{id}/partial-pay', [DebtController::class, 'partialPay']);
 
     Route::apiResource('wallets', WalletController::class)->only(['index', 'store', 'update', 'destroy']);
 });

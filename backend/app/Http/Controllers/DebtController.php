@@ -61,4 +61,25 @@ class DebtController extends Controller
 
         return $this->success(null, 'Debt deleted');
     }
+
+    public function partialPay(Request $request, int $id): JsonResponse
+    {
+        $request->validate([
+            'amount' => ['required', 'numeric', 'min:0.01'],
+            'wallet_id' => ['nullable', 'integer', 'exists:wallets,id'],
+        ]);
+
+        $debt = $this->debtService->partialPay(
+            $request->user()->id,
+            $id,
+            (float) $request->amount,
+            $request->wallet_id
+        );
+
+        if (! $debt) {
+            return $this->error('Debt not found', 404);
+        }
+
+        return $this->success($debt, 'Partial payment recorded');
+    }
 }

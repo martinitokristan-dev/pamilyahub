@@ -14,7 +14,7 @@ useRegisterAddAction(openCreate)
 
 const showForm = ref(false)
 const editingId = ref(null)
-const form = ref({ name: '', type: 'cash', balance: '', color: '' })
+const form = ref({ name: '', type: 'cash', balance: '', color: '', icon_url: '' })
 
 const walletTypes = [
   { id: 'cash',        label: 'Cash',        emoji: '💵', bg: 'from-green-500 to-emerald-600' },
@@ -37,13 +37,13 @@ function typeInfo(type) {
 
 function openCreate() {
   editingId.value = null
-  form.value = { name: '', type: 'cash', balance: '0', color: '' }
+  form.value = { name: '', type: 'cash', balance: '0', color: '', icon_url: '' }
   showForm.value = true
 }
 
 function openEdit(wallet) {
   editingId.value = wallet.id
-  form.value = { name: wallet.name, type: wallet.type, balance: wallet.balance, color: wallet.color ?? '' }
+  form.value = { name: wallet.name, type: wallet.type, balance: wallet.balance, color: wallet.color ?? '', icon_url: wallet.icon_url ?? '' }
   showForm.value = true
 }
 
@@ -84,17 +84,19 @@ const netWorth = computed(() =>
       <div
         v-for="wallet in store.wallets"
         :key="wallet.id"
-        class="relative rounded-2xl p-5 text-white shadow-md overflow-hidden bg-gradient-to-br"
+        class="relative rounded-2xl p-5 text-white shadow-md overflow-hidden bg-gradient-to-br sm:cursor-default cursor-pointer"
+        @click="openEdit(wallet)"
         :class="typeInfo(wallet.type).bg"
       >
         <div class="flex items-start justify-between mb-4">
-          <span class="text-3xl leading-none">{{ typeInfo(wallet.type).emoji }}</span>
-          <div class="flex gap-1">
-            <button @click="openEdit(wallet)" class="rounded-lg bg-white/20 p-1.5 hover:bg-white/30 transition-colors">
-              <Pencil class="h-3.5 w-3.5 text-white" />
+          <img v-if="wallet.icon_url" :src="wallet.icon_url" :alt="wallet.name" class="h-10 w-10 rounded-lg object-contain bg-white/20 p-1" />
+          <span v-else class="text-3xl leading-none">{{ typeInfo(wallet.type).emoji }}</span>
+          <div class="hidden sm:flex gap-1" @click.stop>
+            <button @click="openEdit(wallet)" class="rounded-lg bg-white/20 p-2 hover:bg-white/30 transition-colors">
+              <Pencil class="h-4 w-4 text-white" />
             </button>
-            <button @click="store.remove(wallet.id)" class="rounded-lg bg-white/20 p-1.5 hover:bg-white/30 transition-colors">
-              <Trash2 class="h-3.5 w-3.5 text-white" />
+            <button @click="store.remove(wallet.id)" class="rounded-lg bg-white/20 p-2 hover:bg-white/30 transition-colors">
+              <Trash2 class="h-4 w-4 text-white" />
             </button>
           </div>
         </div>
@@ -144,11 +146,17 @@ const netWorth = computed(() =>
                 <UiInput v-model="form.balance" type="number" min="0" step="0.01" placeholder="0.00" required />
               </div>
 
-              <div class="flex justify-end gap-2 pt-1">
-                <UiButton type="button" variant="outline" @click="showForm = false">Cancel</UiButton>
-                <UiButton type="submit" :disabled="store.loading">
-                  {{ store.loading ? 'Saving…' : (editingId ? 'Save changes' : 'Add wallet') }}
+              <div class="flex justify-between items-center pt-1">
+                <UiButton v-if="editingId" type="button" variant="destructive" size="icon" class="h-9 w-9" @click="store.remove(editingId); showForm = false">
+                  <Trash2 class="h-4 w-4" />
                 </UiButton>
+                <div v-else></div>
+                <div class="flex gap-2">
+                  <UiButton type="button" variant="outline" @click="showForm = false">Cancel</UiButton>
+                  <UiButton type="submit" :disabled="store.loading">
+                    {{ store.loading ? 'Saving…' : (editingId ? 'Save changes' : 'Add wallet') }}
+                  </UiButton>
+                </div>
               </div>
             </form>
           </UiCardContent>

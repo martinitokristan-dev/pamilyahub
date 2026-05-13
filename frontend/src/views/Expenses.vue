@@ -52,23 +52,99 @@ function walletColor(wallet) {
   return typeColor[wallet.type] ?? typeColor.custom
 }
 
-const typeAccent = {
-  cash:        'border-l-[3px] border-l-green-500',
-  gcash:       'border-l-[3px] border-l-blue-500',
-  maya:        'border-l-[3px] border-l-emerald-500',
-  bpi:         'border-l-[3px] border-l-red-600',
-  bdo:         'border-l-[3px] border-l-indigo-600',
-  unionbank:   'border-l-[3px] border-l-orange-500',
-  metrobank:   'border-l-[3px] border-l-green-700',
-  credit_card: 'border-l-[3px] border-l-violet-600',
-  debit_card:  'border-l-[3px] border-l-slate-500',
-  shopeepay:   'border-l-[3px] border-l-orange-400',
-  coins_ph:    'border-l-[3px] border-l-yellow-500',
-  custom:      'border-l-[3px] border-l-pink-500',
+// Category-based color system
+const categoryColors = {
+  food: {
+    border: 'border-l-[3px] border-l-orange-500',
+    badge: 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-800',
+    emoji: '🍔',
+  },
+  groceries: {
+    border: 'border-l-[3px] border-l-green-500',
+    badge: 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800',
+    emoji: '🛒',
+  },
+  transport: {
+    border: 'border-l-[3px] border-l-blue-500',
+    badge: 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800',
+    emoji: '🚗',
+  },
+  transportation: {
+    border: 'border-l-[3px] border-l-blue-500',
+    badge: 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800',
+    emoji: '🚗',
+  },
+  bills: {
+    border: 'border-l-[3px] border-l-red-500',
+    badge: 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800',
+    emoji: '📄',
+  },
+  utilities: {
+    border: 'border-l-[3px] border-l-yellow-500',
+    badge: 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300 border-yellow-200 dark:border-yellow-800',
+    emoji: '⚡',
+  },
+  entertainment: {
+    border: 'border-l-[3px] border-l-purple-500',
+    badge: 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800',
+    emoji: '🎬',
+  },
+  health: {
+    border: 'border-l-[3px] border-l-rose-500',
+    badge: 'bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800',
+    emoji: '💊',
+  },
+  shopping: {
+    border: 'border-l-[3px] border-l-pink-500',
+    badge: 'bg-pink-100 dark:bg-pink-900/40 text-pink-700 dark:text-pink-300 border-pink-200 dark:border-pink-800',
+    emoji: '🛍️',
+  },
+  education: {
+    border: 'border-l-[3px] border-l-indigo-500',
+    badge: 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800',
+    emoji: '📚',
+  },
+  travel: {
+    border: 'border-l-[3px] border-l-teal-500',
+    badge: 'bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800',
+    emoji: '✈️',
+  },
+  subscription: {
+    border: 'border-l-[3px] border-l-violet-500',
+    badge: 'bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 border-violet-200 dark:border-violet-800',
+    emoji: '📱',
+  },
+  snack: {
+    border: 'border-l-[3px] border-l-amber-500',
+    badge: 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800',
+    emoji: '🍿',
+  },
+  drinks: {
+    border: 'border-l-[3px] border-l-cyan-500',
+    badge: 'bg-cyan-100 dark:bg-cyan-900/40 text-cyan-700 dark:text-cyan-300 border-cyan-200 dark:border-cyan-800',
+    emoji: '🥤',
+  },
+  rent: {
+    border: 'border-l-[3px] border-l-stone-500',
+    badge: 'bg-stone-100 dark:bg-stone-900/40 text-stone-700 dark:text-stone-300 border-stone-200 dark:border-stone-800',
+    emoji: '🏠',
+  },
 }
-function walletCardAccent(wallet) {
-  if (!wallet) return ''
-  return typeAccent[wallet.type] ?? typeAccent.custom
+
+const defaultCategoryColor = {
+  border: 'border-l-[3px] border-l-slate-400',
+  badge: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700',
+  emoji: '📦',
+}
+
+function getCategoryColor(category) {
+  if (!category) return defaultCategoryColor
+  const key = category.toLowerCase().trim()
+  return categoryColors[key] ?? defaultCategoryColor
+}
+
+function getCategoryEmoji(category) {
+  return getCategoryColor(category).emoji
 }
 
 // Balance validation error
@@ -191,28 +267,35 @@ const total = computed(() =>
       <div
         v-for="expense in filteredExpenses"
         :key="expense.id"
-        class="rounded-2xl border border-border bg-card p-4 flex items-center gap-3 overflow-hidden"
-        :class="walletCardAccent(expense.wallet)"
+        class="rounded-2xl border border-border bg-card p-4 flex items-center gap-3 overflow-hidden cursor-pointer sm:cursor-default"
+        @click="openEdit(expense)"
+        :class="getCategoryColor(expense.category).border"
       >
         <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xl" :class="walletColor(expense.wallet)">
-          {{ walletEmoji(expense.wallet) }}
+          {{ getCategoryEmoji(expense.category) }}
         </div>
         <div class="min-w-0 flex-1">
           <p class="font-semibold text-sm truncate">{{ expense.title }}</p>
           <div class="flex flex-wrap items-center gap-1.5 mt-0.5">
-            <UiBadge v-if="expense.category" variant="secondary" class="text-[10px]">{{ expense.category }}</UiBadge>
+            <span
+              v-if="expense.category"
+              class="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-medium border"
+              :class="getCategoryColor(expense.category).badge"
+            >
+              {{ expense.category }}
+            </span>
             <span v-if="expense.wallet" class="text-[10px] text-muted-foreground font-medium">{{ expense.wallet.name }}</span>
           </div>
           <p class="text-[11px] text-muted-foreground mt-0.5">{{ formatDateTime(expense.date, expense.created_at) }}</p>
         </div>
         <div class="shrink-0 text-right">
           <p class="font-bold text-sm text-destructive">-₱{{ parseFloat(expense.amount).toFixed(2) }}</p>
-          <div class="flex gap-1 mt-1 justify-end">
-            <button class="h-6 w-6 flex items-center justify-center rounded-md hover:bg-muted transition-colors" @click="openEdit(expense)">
-              <Pencil class="h-3 w-3 text-muted-foreground" />
+          <div class="hidden sm:flex gap-1 mt-1 justify-end" @click.stop>
+            <button class="h-8 w-8 flex items-center justify-center rounded-md hover:bg-muted transition-colors" @click="openEdit(expense)">
+              <Pencil class="h-4 w-4 text-muted-foreground" />
             </button>
-            <button class="h-6 w-6 flex items-center justify-center rounded-md hover:bg-destructive/10 transition-colors" @click="remove(expense)">
-              <Trash2 class="h-3 w-3 text-destructive" />
+            <button class="h-8 w-8 flex items-center justify-center rounded-md hover:bg-destructive/10 transition-colors" @click="remove(expense)">
+              <Trash2 class="h-4 w-4 text-destructive" />
             </button>
           </div>
         </div>
@@ -233,8 +316,18 @@ const total = computed(() =>
           </tr>
         </thead>
         <tbody class="divide-y divide-border">
-          <tr v-for="expense in filteredExpenses" :key="expense.id" class="hover:bg-muted/30 transition-colors">
-            <td class="px-4 py-3 font-medium">{{ expense.title }}</td>
+          <tr
+            v-for="expense in filteredExpenses"
+            :key="expense.id"
+            class="hover:bg-muted/30 transition-colors"
+            :class="getCategoryColor(expense.category).border"
+          >
+            <td class="px-4 py-3 font-medium">
+              <div class="flex items-center gap-2">
+                <span class="text-base">{{ getCategoryEmoji(expense.category) }}</span>
+                {{ expense.title }}
+              </div>
+            </td>
             <td class="px-4 py-3">
               <span v-if="expense.wallet" class="inline-flex items-center gap-1.5 text-sm">
                 <span>{{ walletEmoji(expense.wallet) }}</span>
@@ -243,18 +336,24 @@ const total = computed(() =>
               <span v-else class="text-muted-foreground">—</span>
             </td>
             <td class="px-4 py-3">
-              <UiBadge v-if="expense.category" variant="secondary">{{ expense.category }}</UiBadge>
+              <span
+                v-if="expense.category"
+                class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border"
+                :class="getCategoryColor(expense.category).badge"
+              >
+                {{ expense.category }}
+              </span>
               <span v-else class="text-muted-foreground">—</span>
             </td>
             <td class="px-4 py-3 text-muted-foreground text-xs">{{ formatDateTime(expense.date, expense.created_at) }}</td>
             <td class="px-4 py-3 text-right font-semibold tabular-nums text-destructive">-₱{{ parseFloat(expense.amount).toFixed(2) }}</td>
             <td class="px-4 py-3">
               <div class="flex justify-end gap-1">
-                <UiButton variant="ghost" size="icon" class="h-7 w-7" @click="openEdit(expense)">
-                  <Pencil class="h-3.5 w-3.5" />
+                <UiButton variant="ghost" size="icon" class="h-8 w-8" @click="openEdit(expense)">
+                  <Pencil class="h-4 w-4" />
                 </UiButton>
-                <UiButton variant="ghost" size="icon" class="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10" @click="remove(expense)">
-                  <Trash2 class="h-3.5 w-3.5" />
+                <UiButton variant="ghost" size="icon" class="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10" @click="remove(expense)">
+                  <Trash2 class="h-4 w-4" />
                 </UiButton>
               </div>
             </td>
@@ -335,11 +434,17 @@ const total = computed(() =>
                 {{ balanceError }}
               </p>
 
-              <div class="flex justify-end gap-2 pt-1">
-                <UiButton type="button" variant="outline" @click="showForm = false">Cancel</UiButton>
-                <UiButton type="submit" :disabled="store.loading">
-                  {{ store.loading ? 'Saving…' : (editingId ? 'Save changes' : 'Add expense') }}
+              <div class="flex justify-between items-center pt-1">
+                <UiButton v-if="editingId" type="button" variant="destructive" size="icon" class="h-9 w-9" @click="remove({ id: editingId, amount: form.amount, wallet_id: form.wallet_id }); showForm = false">
+                  <Trash2 class="h-4 w-4" />
                 </UiButton>
+                <div v-else></div>
+                <div class="flex gap-2">
+                  <UiButton type="button" variant="outline" @click="showForm = false">Cancel</UiButton>
+                  <UiButton type="submit" :disabled="store.loading">
+                    {{ store.loading ? 'Saving…' : (editingId ? 'Save changes' : 'Add expense') }}
+                  </UiButton>
+                </div>
               </div>
             </form>
           </UiCardContent>

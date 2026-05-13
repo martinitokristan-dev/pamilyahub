@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { fileService } from '@/services/fileService.js'
 import { useDashboardStore } from './dashboard.js'
+import { useToast } from '@/composables/useToast.js'
 
 export const useFilesStore = defineStore('files', () => {
   const files = ref([])
@@ -35,9 +36,11 @@ export const useFilesStore = defineStore('files', () => {
       })
       files.value.unshift(res.data.data)
       useDashboardStore().invalidate()
+      useToast().success('File uploaded successfully')
       return res.data.data
     } catch (e) {
       error.value = e.response?.data?.message ?? 'Failed to upload file'
+      useToast().error(error.value)
       throw e
     } finally {
       uploading.value = false
@@ -46,9 +49,15 @@ export const useFilesStore = defineStore('files', () => {
   }
 
   async function remove(id) {
-    await fileService.delete(id)
-    files.value = files.value.filter((f) => f.id !== id)
-    useDashboardStore().invalidate()
+    loading.value = true
+    try {
+      await fileService.delete(id)
+      files.value = files.value.filter((f) => f.id !== id)
+      useDashboardStore().invalidate()
+      useToast().success('File deleted')
+    } finally {
+      loading.value = false
+    }
   }
 
   return { files, loading, uploading, uploadProgress, error, fetched, fetchAll, upload, remove }

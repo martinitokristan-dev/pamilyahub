@@ -64,6 +64,37 @@ class DebtService
         });
     }
 
+    public function partialPay(int $userId, int $id, float $amount, ?int $walletId = null): ?Debt
+    {
+        $debt = $this->repository->findByUser($id, $userId);
+        if (! $debt) return null;
+
+        $currentAmount = (float) $debt->amount;
+
+        // If paying full or more, just mark as paid
+        if ($amount >= $currentAmount) {
+            return $this->markPaid($userId, $id, $walletId);
+        }
+
+        return DB::transaction(function () use ($userId, $debt, $amount, $walletId, $currentAmount) {
+            // Adjust wallet balance
+            if ($walletId) {
+                $delta = $debt->type === 'i_owe' ? -$amount : $amount;
+                $this->walletRepository->adjustBalance($walletId, $delta);
+            }
+
+            // Reduce the debt amount
+            $remaining = $currentAmount - $amount;
+            $result = $this->repository->update($debt, ['amount' => round($remaining, 2)]);
+
+            // Adjust stats
+            $field = $debt->type === 'i_owe' ? 'debts_i_owe' : 'debts_owed_to_me';
+            $this->stats->adjust($userId, $field, -$amount);
+
+            return $result;
+        });
+    }
+
     public function delete(int $userId, int $id): bool
     {
         $debt = $this->repository->findByUser($id, $userId);

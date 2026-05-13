@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { noteService } from '@/services/noteService.js'
 import { useDashboardStore } from './dashboard.js'
+import { useToast } from '@/composables/useToast.js'
 
 export const useNotesStore = defineStore('notes', () => {
   const notes = ref([])
@@ -24,24 +25,42 @@ export const useNotesStore = defineStore('notes', () => {
   }
 
   async function create(data) {
-    const res = await noteService.create(data)
-    notes.value.unshift(res.data.data)
-    useDashboardStore().invalidate()
-    return res.data.data
+    loading.value = true
+    try {
+      const res = await noteService.create(data)
+      notes.value.unshift(res.data.data)
+      useDashboardStore().invalidate()
+      useToast().success('Note created')
+      return res.data.data
+    } finally {
+      loading.value = false
+    }
   }
 
   async function update(id, data) {
-    const res = await noteService.update(id, data)
-    const idx = notes.value.findIndex((n) => n.id === id)
-    if (idx !== -1) notes.value[idx] = res.data.data
-    useDashboardStore().invalidate()
-    return res.data.data
+    loading.value = true
+    try {
+      const res = await noteService.update(id, data)
+      const idx = notes.value.findIndex((n) => n.id === id)
+      if (idx !== -1) notes.value[idx] = res.data.data
+      useDashboardStore().invalidate()
+      useToast().success('Note updated')
+      return res.data.data
+    } finally {
+      loading.value = false
+    }
   }
 
   async function remove(id) {
-    await noteService.delete(id)
-    notes.value = notes.value.filter((n) => n.id !== id)
-    useDashboardStore().invalidate()
+    loading.value = true
+    try {
+      await noteService.delete(id)
+      notes.value = notes.value.filter((n) => n.id !== id)
+      useDashboardStore().invalidate()
+      useToast().success('Note deleted')
+    } finally {
+      loading.value = false
+    }
   }
 
   return { notes, loading, error, fetched, fetchAll, create, update, remove }

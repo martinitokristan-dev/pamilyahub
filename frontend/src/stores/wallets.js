@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { walletService } from '@/services/walletService.js'
+import { useToast } from '@/composables/useToast.js'
 
 export const useWalletsStore = defineStore('wallets', () => {
   const wallets = ref([])
@@ -27,21 +28,39 @@ export const useWalletsStore = defineStore('wallets', () => {
   }
 
   async function create(data) {
-    const res = await walletService.create(data)
-    wallets.value.push(res.data.data)
-    return res.data.data
+    loading.value = true
+    try {
+      const res = await walletService.create(data)
+      wallets.value.push(res.data.data)
+      useToast().success('Wallet created')
+      return res.data.data
+    } finally {
+      loading.value = false
+    }
   }
 
   async function update(id, data) {
-    const res = await walletService.update(id, data)
-    const idx = wallets.value.findIndex((w) => w.id === id)
-    if (idx !== -1) wallets.value[idx] = res.data.data
-    return res.data.data
+    loading.value = true
+    try {
+      const res = await walletService.update(id, data)
+      const idx = wallets.value.findIndex((w) => w.id === id)
+      if (idx !== -1) wallets.value[idx] = res.data.data
+      useToast().success('Wallet updated')
+      return res.data.data
+    } finally {
+      loading.value = false
+    }
   }
 
   async function remove(id) {
-    await walletService.delete(id)
-    wallets.value = wallets.value.filter((w) => w.id !== id)
+    loading.value = true
+    try {
+      await walletService.delete(id)
+      wallets.value = wallets.value.filter((w) => w.id !== id)
+      useToast().success('Wallet deleted')
+    } finally {
+      loading.value = false
+    }
   }
 
   // Called after an expense is saved so balance reflects immediately without re-fetching

@@ -105,7 +105,7 @@ function formatSize(bytes) {
       <p class="text-xs text-muted-foreground/60 mt-1">Upload files to store them on Google Drive</p>
     </div>
 
-    <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+    <div v-else class="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
       <UiCard
         v-for="file in store.files"
         :key="file.id"
@@ -131,7 +131,7 @@ function formatSize(bytes) {
             <ExternalLink class="h-3 w-3" /> View
           </a>
           <UiButton variant="ghost" size="icon" class="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10" @click="store.remove(file.id)">
-            <Trash2 class="h-3.5 w-3.5" />
+            <Trash2 class="h-4 w-4" />
           </UiButton>
         </div>
       </UiCard>

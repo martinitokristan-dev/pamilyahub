@@ -9,6 +9,7 @@ import { useFilesStore } from '@/stores/files.js'
 import { useWalletsStore } from '@/stores/wallets.js'
 import { useDarkMode } from '@/composables/useDarkMode.js'
 import { pageAddAction } from '@/composables/usePageAction.js'
+import { useToast } from '@/composables/useToast.js'
 import {
   LayoutDashboard,
   NotebookPen,
@@ -30,6 +31,7 @@ const files = useFilesStore()
 const wallets = useWalletsStore()
 const route = useRoute()
 const { isDark } = useDarkMode()
+const { toasts } = useToast()
 
 onMounted(async () => {
   if (!auth.user) await auth.fetchMe()
@@ -125,9 +127,9 @@ function isActive(path) {
     </aside>
 
     <!-- Content area -->
-    <div class="flex min-w-0 flex-1 flex-col overflow-hidden">
+    <div class="flex min-w-0 flex-1 flex-col overflow-hidden relative">
       <!-- Page content — extra bottom padding on mobile for bottom nav -->
-      <main class="flex-1 overflow-y-auto pb-20 lg:pb-0">
+      <main class="flex-1 overflow-y-auto pb-24 lg:pb-0">
         <RouterView />
       </main>
 
@@ -146,7 +148,7 @@ function isActive(path) {
           <button
             v-if="pageAddAction"
             @click="pageAddAction()"
-            class="absolute bottom-full right-4 mb-3 flex h-13 w-13 h-[52px] w-[52px] items-center justify-center rounded-[15px] bg-primary text-primary-foreground shadow-xl active:scale-95 transition-transform z-10"
+            class="absolute bottom-full right-4 mb-4 flex h-[52px] w-[52px] items-center justify-center rounded-[15px] bg-primary text-primary-foreground shadow-xl active:scale-95 transition-transform z-10"
             aria-label="Add new"
           >
             <Plus class="h-6 w-6" />
@@ -154,7 +156,7 @@ function isActive(path) {
         </Transition>
 
         <!-- Nav pill — full width, all items equal, no scrolling -->
-        <div class="mx-3 mb-3 rounded-2xl border border-border bg-background/95 backdrop-blur-md shadow-xl">
+        <div class="mx-3 mb-6 rounded-2xl border border-border bg-background/95 backdrop-blur-md shadow-xl">
           <div class="flex items-center justify-around px-1 py-1">
             <RouterLink
               v-for="item in bottomNav"
@@ -174,6 +176,32 @@ function isActive(path) {
           </div>
         </div>
       </nav>
+
+      <!-- Global Toasts -->
+      <div class="fixed top-4 left-1/2 -translate-x-1/2 z-[100] flex flex-col gap-2 pointer-events-none w-full max-w-sm px-4">
+        <TransitionGroup
+          enter-active-class="transition-all duration-300 ease-out"
+          enter-from-class="opacity-0 -translate-y-4 scale-95"
+          enter-to-class="opacity-100 translate-y-0 scale-100"
+          leave-active-class="transition-all duration-200 ease-in"
+          leave-from-class="opacity-100 translate-y-0 scale-100"
+          leave-to-class="opacity-0 -translate-y-4 scale-95"
+        >
+          <div
+            v-for="toast in toasts"
+            :key="toast.id"
+            class="pointer-events-auto rounded-lg shadow-lg px-4 py-3 flex items-center justify-center gap-2 text-sm font-medium backdrop-blur-md"
+            :class="
+              toast.type === 'success' 
+                ? 'bg-emerald-500/90 text-white dark:bg-emerald-600/90'
+                : 'bg-destructive/90 text-white'
+            "
+          >
+            <span>{{ toast.message }}</span>
+          </div>
+        </TransitionGroup>
+      </div>
+
     </div>
   </div>
 </template>

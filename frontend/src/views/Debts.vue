@@ -28,6 +28,8 @@ const showPayModal = ref(false)
 const payingDebt = ref(null)
 const payWalletId = ref(null)
 const payBalanceError = ref('')
+const payMode = ref('full') // 'full' or 'partial'
+const partialAmount = ref('')
 
 const typeEmoji = {
   cash: '💵', gcash: '📱', maya: '💚', bpi: '🏦', bdo: '🏦',
@@ -40,7 +42,8 @@ function walletEmoji(wallet) {
 
 function openCreate() {
   editingId.value = null
-  form.value = { name: '', amount: '', type: 'owed_to_me', description: '', due_date: '' }
+  const defaultType = activeTab.value === 'i_owe' ? 'i_owe' : 'owed_to_me'
+  form.value = { name: '', amount: '', type: defaultType, description: '', due_date: '' }
   showForm.value = true
 }
 
@@ -69,30 +72,60 @@ function openPayModal(debt) {
   payingDebt.value = debt
   payWalletId.value = walletsStore.wallets[0]?.id ?? null
   payBalanceError.value = ''
+  payMode.value = 'full'
+  partialAmount.value = ''
   showPayModal.value = true
 }
+
+const effectivePayAmount = computed(() => {
+  if (!payingDebt.value) return 0
+  if (payMode.value === 'full') return parseFloat(payingDebt.value.amount)
+  return parseFloat(partialAmount.value) || 0
+})
+
+const partialAmountError = computed(() => {
+  if (payMode.value !== 'partial') return ''
+  const amt = parseFloat(partialAmount.value) || 0
+  const total = parseFloat(payingDebt.value?.amount ?? 0)
+  if (amt <= 0) return 'Enter a valid amount'
+  if (amt >= total) return 'Amount must be less than the total. Use "Pay Full" instead.'
+  return ''
+})
 
 async function confirmPay() {
   payBalanceError.value = ''
   const debt = payingDebt.value
   if (!debt) return
 
-  // Only validate balance for i_owe (you are paying out)
+  if (payMode.value === 'partial' && partialAmountError.value) return
+
+  const payAmount = effectivePayAmount.value
+
+  // Balance validation for i_owe (you are paying out)
   if (debt.type === 'i_owe' && payWalletId.value) {
     const wallet = walletsStore.wallets.find(w => w.id === payWalletId.value)
-    if (wallet && parseFloat(debt.amount) > parseFloat(wallet.balance)) {
+    if (wallet && payAmount > parseFloat(wallet.balance)) {
       payBalanceError.value = `Insufficient balance. ${wallet.name} only has ₱${parseFloat(wallet.balance).toFixed(2)}.`
       return
     }
   }
 
-  await store.markPaid(debt.id, payWalletId.value)
-
-  // Optimistic wallet balance update
-  if (payWalletId.value) {
-    const delta = debt.type === 'i_owe' ? -parseFloat(debt.amount) : parseFloat(debt.amount)
-    walletsStore.adjustBalance(payWalletId.value, delta)
+  if (payMode.value === 'full') {
+    // Full payment — mark as paid
+    await store.markPaid(debt.id, payWalletId.value)
+    if (payWalletId.value) {
+      const delta = debt.type === 'i_owe' ? -payAmount : payAmount
+      walletsStore.adjustBalance(payWalletId.value, delta)
+    }
+  } else {
+    // Partial payment — reduce the amount via backend
+    await store.partialPay(debt.id, payAmount, payWalletId.value)
+    if (payWalletId.value) {
+      const delta = debt.type === 'i_owe' ? -payAmount : payAmount
+      walletsStore.adjustBalance(payWalletId.value, delta)
+    }
   }
+
   showPayModal.value = false
 }
 
@@ -154,7 +187,8 @@ const filtered = computed(() => {
       <UiCard
         v-for="debt in filtered"
         :key="debt.id"
-        class="px-4 py-3 transition-all duration-200"
+        class="px-4 py-3 transition-all duration-200 cursor-pointer sm:cursor-default"
+        @click="openEdit(debt)"
         :class="[
           debt.is_paid ? 'opacity-50' : '',
           debt.type === 'owed_to_me'
@@ -189,20 +223,20 @@ const filtered = computed(() => {
           </div>
 
           <!-- Action buttons -->
-          <div class="flex items-center gap-0.5 shrink-0">
+          <div class="flex items-center gap-0.5 shrink-0" @click.stop>
             <UiButton
               v-if="!debt.is_paid"
-              variant="ghost" size="icon" class="h-7 w-7 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/30"
+              variant="outline" size="sm" class="h-8 px-3 text-emerald-600 border-emerald-200 hover:border-emerald-300 hover:text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800/60 dark:hover:bg-emerald-900/30 font-semibold shadow-sm"
               title="Mark as paid"
               @click="openPayModal(debt)"
             >
-              <BadgeCheck class="h-3.5 w-3.5" />
+              Mark as Paid
             </UiButton>
-            <UiButton variant="ghost" size="icon" class="h-7 w-7" @click="openEdit(debt)">
-              <Pencil class="h-3.5 w-3.5" />
+            <UiButton variant="ghost" size="icon" class="h-8 w-8 hidden sm:flex" @click="openEdit(debt)">
+              <Pencil class="h-4 w-4" />
             </UiButton>
-            <UiButton variant="ghost" size="icon" class="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10" @click="store.remove(debt.id)">
-              <Trash2 class="h-3.5 w-3.5" />
+            <UiButton variant="ghost" size="icon" class="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10 hidden sm:flex" @click="store.remove(debt.id)">
+              <Trash2 class="h-4 w-4" />
             </UiButton>
           </div>
         </div>
@@ -243,11 +277,17 @@ const filtered = computed(() => {
                   <UiTextarea v-model="form.description" placeholder="Optional notes…" />
                 </div>
               </div>
-              <div class="flex justify-end gap-2 pt-2">
-                <UiButton type="button" variant="outline" @click="showForm = false">Cancel</UiButton>
-                <UiButton type="submit" :disabled="store.loading">
-                  {{ store.loading ? 'Saving…' : (editingId ? 'Save changes' : 'Add debt') }}
+              <div class="flex justify-between items-center pt-2">
+                <UiButton v-if="editingId" type="button" variant="destructive" size="icon" class="h-9 w-9" @click="store.remove(editingId); showForm = false">
+                  <Trash2 class="h-4 w-4" />
                 </UiButton>
+                <div v-else></div>
+                <div class="flex gap-2">
+                  <UiButton type="button" variant="outline" @click="showForm = false">Cancel</UiButton>
+                  <UiButton type="submit" :disabled="store.loading">
+                    {{ store.loading ? 'Saving…' : (editingId ? 'Save changes' : 'Add debt') }}
+                  </UiButton>
+                </div>
               </div>
             </form>
           </UiCardContent>
@@ -255,7 +295,7 @@ const filtered = computed(() => {
       </div>
     </Teleport>
 
-    <!-- Pay with wallet modal -->
+    <!-- Pay with wallet modal — now with Full/Partial tabs -->
     <Teleport to="body">
       <div v-if="showPayModal" class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm" @mousedown.self="showPayModal = false">
         <UiCard class="w-full sm:max-w-md shadow-xl animate-fade-in rounded-t-2xl sm:rounded-2xl max-h-[90vh] overflow-y-auto">
@@ -263,45 +303,94 @@ const filtered = computed(() => {
             <div>
               <h2 class="text-lg font-semibold">Mark as Paid</h2>
               <p class="text-sm text-muted-foreground mt-0.5">
-                <span v-if="payingDebt?.type === 'i_owe'">Which wallet did you pay from?</span>
-                <span v-else>Which wallet received the payment?</span>
-                <span class="font-semibold text-foreground ml-1">₱{{ parseFloat(payingDebt?.amount ?? 0).toFixed(2) }}</span>
+                <span class="font-semibold text-foreground">{{ payingDebt?.name }}</span>
+                <span class="mx-1">·</span>
+                <span class="font-semibold text-foreground">₱{{ parseFloat(payingDebt?.amount ?? 0).toFixed(2) }}</span>
               </p>
             </div>
             <UiButton variant="ghost" size="icon" @click="showPayModal = false"><X class="h-4 w-4" /></UiButton>
           </div>
           <UiCardContent class="p-5">
-            <div class="space-y-3">
-              <div v-if="walletsStore.wallets.length === 0" class="text-sm text-muted-foreground rounded-xl border border-dashed p-4 text-center">
-                No wallets yet — you can still mark as paid without a wallet.
+            <div class="space-y-4">
+              <!-- Full / Partial toggle -->
+              <div class="flex gap-2 p-1 bg-muted rounded-xl">
+                <button
+                  type="button"
+                  @click="payMode = 'full'"
+                  class="flex-1 py-2 px-3 text-sm font-medium rounded-lg transition-all duration-200"
+                  :class="payMode === 'full' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
+                >
+                  Pay Full
+                </button>
+                <button
+                  type="button"
+                  @click="payMode = 'partial'"
+                  class="flex-1 py-2 px-3 text-sm font-medium rounded-lg transition-all duration-200"
+                  :class="payMode === 'partial' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
+                >
+                  Pay Partial
+                </button>
               </div>
-              <div v-else class="grid grid-cols-1 gap-2">
-                <button
-                  v-for="wallet in walletsStore.wallets"
-                  :key="wallet.id"
-                  type="button"
-                  @click="payWalletId = wallet.id"
-                  class="flex items-center gap-3 rounded-xl border-2 p-3 text-left transition-all duration-150"
-                  :class="payWalletId === wallet.id ? 'border-primary bg-primary/5' : 'border-border hover:border-muted-foreground/40'"
-                >
-                  <span class="text-2xl leading-none">{{ walletEmoji(wallet) }}</span>
-                  <div class="flex-1 min-w-0">
-                    <p class="text-sm font-semibold truncate">{{ wallet.name }}</p>
-                    <p class="text-xs text-muted-foreground">₱{{ parseFloat(wallet.balance).toLocaleString('en-PH', { minimumFractionDigits: 2 }) }}</p>
-                  </div>
-                  <div v-if="payWalletId === wallet.id" class="h-4 w-4 rounded-full bg-primary flex items-center justify-center shrink-0">
-                    <span class="text-[8px] text-white font-bold">✓</span>
-                  </div>
-                </button>
-                <button
-                  type="button"
-                  @click="payWalletId = null"
-                  class="flex items-center gap-3 rounded-xl border-2 p-3 text-left transition-all duration-150"
-                  :class="payWalletId === null ? 'border-primary bg-primary/5' : 'border-border hover:border-muted-foreground/40'"
-                >
-                  <span class="text-2xl leading-none">💰</span>
-                  <p class="text-sm font-semibold">No wallet (cash / external)</p>
-                </button>
+
+              <!-- Partial amount input -->
+              <div v-if="payMode === 'partial'" class="space-y-1.5">
+                <UiLabel>Amount to pay (₱)</UiLabel>
+                <UiInput
+                  v-model="partialAmount"
+                  type="number"
+                  min="1"
+                  :max="parseFloat(payingDebt?.amount ?? 0) - 0.01"
+                  step="0.01"
+                  placeholder="0.00"
+                />
+                <p v-if="partialAmountError" class="text-xs text-destructive mt-1">{{ partialAmountError }}</p>
+                <p v-else-if="partialAmount && !partialAmountError" class="text-xs text-muted-foreground mt-1">
+                  Remaining after payment: <span class="font-semibold text-foreground">₱{{ (parseFloat(payingDebt?.amount ?? 0) - (parseFloat(partialAmount) || 0)).toFixed(2) }}</span>
+                </p>
+              </div>
+
+              <!-- Full pay info -->
+              <div v-if="payMode === 'full'" class="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 text-center">
+                <p class="text-sm text-muted-foreground">This will mark the debt as <span class="font-semibold text-emerald-600 dark:text-emerald-400">fully paid</span></p>
+                <p class="text-lg font-bold text-emerald-600 dark:text-emerald-400 mt-1">₱{{ parseFloat(payingDebt?.amount ?? 0).toFixed(2) }}</p>
+              </div>
+
+              <!-- Wallet picker -->
+              <div class="space-y-2">
+                <UiLabel class="text-xs text-muted-foreground">
+                  {{ payingDebt?.type === 'i_owe' ? 'Pay from wallet' : 'Receive to wallet' }}
+                </UiLabel>
+                <div v-if="walletsStore.wallets.length === 0" class="text-sm text-muted-foreground rounded-xl border border-dashed p-4 text-center">
+                  No wallets yet — you can still mark as paid without a wallet.
+                </div>
+                <div v-else class="grid grid-cols-1 gap-2">
+                  <button
+                    v-for="wallet in walletsStore.wallets"
+                    :key="wallet.id"
+                    type="button"
+                    @click="payWalletId = wallet.id"
+                    class="flex items-center gap-3 rounded-xl border-2 p-3 text-left transition-all duration-150"
+                    :class="payWalletId === wallet.id ? 'border-primary bg-primary/5' : 'border-border hover:border-muted-foreground/40'"
+                  >
+                    <span class="text-2xl leading-none">{{ walletEmoji(wallet) }}</span>
+                    <div class="flex-1 min-w-0">
+                      <p class="text-sm font-semibold truncate">{{ wallet.name }}</p>
+                      <p class="text-xs text-muted-foreground">₱{{ parseFloat(wallet.balance).toLocaleString('en-PH', { minimumFractionDigits: 2 }) }}</p>
+                    </div>
+                    <div v-if="payWalletId === wallet.id" class="h-4 w-4 rounded-full bg-primary flex items-center justify-center shrink-0">
+                      <span class="text-[8px] text-white font-bold">✓</span>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    @click="payWalletId = null"
+                    class="flex items-center gap-3 rounded-xl border-2 p-3 text-left transition-all duration-150"
+                    :class="payWalletId === null ? 'border-primary bg-primary/5' : 'border-border hover:border-muted-foreground/40'"
+                  >
+                    <span class="text-2xl leading-none">💰</span>
+                    <p class="text-sm font-semibold">No wallet (cash / external)</p>
+                  </button>
+                </div>
               </div>
 
               <p v-if="payBalanceError" class="text-sm text-destructive font-medium rounded-xl bg-destructive/10 px-3 py-2">
@@ -310,8 +399,12 @@ const filtered = computed(() => {
 
               <div class="flex justify-end gap-2 pt-1">
                 <UiButton type="button" variant="outline" @click="showPayModal = false">Cancel</UiButton>
-                <UiButton @click="confirmPay" :disabled="store.loading" class="bg-emerald-600 hover:bg-emerald-700 text-white">
-                  {{ store.loading ? 'Saving…' : 'Confirm paid' }}
+                <UiButton
+                  @click="confirmPay"
+                  :disabled="store.loading || (payMode === 'partial' && !!partialAmountError)"
+                  class="bg-emerald-600 hover:bg-emerald-700 text-white"
+                >
+                  {{ store.loading ? 'Saving…' : (payMode === 'full' ? 'Confirm paid' : `Pay ₱${effectivePayAmount.toFixed(2)}`) }}
                 </UiButton>
               </div>
             </div>
