@@ -20,22 +20,21 @@ const editingId = ref(null)
 const form = ref({ name: '', type: 'cash', balance: '', color: '', icon_url: '' })
 
 const walletTypes = [
-  { id: 'cash',        label: 'Cash',        emoji: '💵', bg: 'from-green-500 to-emerald-600', icon: '/icons/wallets/cash.png' },
-  { id: 'gcash',       label: 'GCash',       emoji: '📱', bg: 'from-blue-500 to-blue-700', icon: '/icons/wallets/gcash.png' },
-  { id: 'maya',        label: 'Maya',        emoji: '💚', bg: 'from-emerald-400 to-teal-600', icon: '/icons/wallets/maya.png' },
-  { id: 'bpi',         label: 'BPI',         emoji: '🏦', bg: 'from-red-600 to-red-800', icon: '/icons/wallets/bpi.png' },
-  { id: 'bdo',         label: 'BDO',         emoji: '🏦', bg: 'from-blue-800 to-indigo-900', icon: '/icons/wallets/bdo.png' },
-  { id: 'unionbank',   label: 'UnionBank',   emoji: '🏦', bg: 'from-orange-500 to-orange-700', icon: '/icons/wallets/unionbank.png' },
-  { id: 'metrobank',   label: 'Metrobank',   emoji: '🏦', bg: 'from-green-700 to-green-900', icon: '/icons/wallets/metrobank.png' },
-  { id: 'credit_card', label: 'Credit Card', emoji: '💳', bg: 'from-violet-600 to-purple-800', icon: '/icons/wallets/credit_card.png' },
-  { id: 'debit_card',  label: 'Debit Card',  emoji: '🏧', bg: 'from-slate-500 to-slate-700', icon: '/icons/wallets/debit_card.png' },
-  { id: 'shopeepay',   label: 'ShopeePay',   emoji: '🛍️', bg: 'from-orange-400 to-red-500', icon: '/icons/wallets/shopeepay.png' },
-  { id: 'coins_ph',    label: 'Coins.ph',    emoji: '🪙', bg: 'from-yellow-400 to-amber-600', icon: '/icons/wallets/coins_ph.png' },
-  { id: 'custom',      label: 'Custom',      emoji: '👛', bg: 'from-pink-500 to-rose-600', icon: '/icons/wallets/custom.png' },
+  { id: 'cash',        label: 'Cash',        bg: 'from-green-500 to-emerald-600', icon: '/icons/wallets/cash.png' },
+  { id: 'gcash',       label: 'GCash',       bg: 'from-blue-500 to-blue-700', icon: '/icons/wallets/gcash.png' },
+  { id: 'maya',        label: 'Maya',        bg: 'from-gray-900 to-black', icon: '/icons/wallets/maya.png' },
+  { id: 'bpi',         label: 'BPI',         bg: 'from-red-600 to-red-800', icon: '/icons/wallets/bpi.png' },
+  { id: 'bdo',         label: 'BDO',         bg: 'from-blue-900 to-blue-950', icon: '/icons/wallets/bdo.png' },
+  { id: 'unionbank',   label: 'UnionBank',   bg: 'from-orange-500 to-orange-700', icon: '/icons/wallets/unionbank.png' },
+  { id: 'metrobank',   label: 'Metrobank',   bg: 'from-red-800 to-red-950', icon: '/icons/wallets/metrobank.png' },
+  { id: 'credit_card', label: 'Credit Card', bg: 'from-purple-600 to-purple-800', icon: '/icons/wallets/credit_card.png' },
+  { id: 'debit_card',  label: 'Debit Card',  bg: 'from-indigo-500 to-indigo-700', icon: '/icons/wallets/debit_card.png' },
+  { id: 'shopeepay',   label: 'ShopeePay',   bg: 'from-orange-500 to-red-500', icon: '/icons/wallets/shopeepay.png' },
+  { id: 'coins_ph',    label: 'Coins.ph',    bg: 'from-teal-500 to-teal-700', icon: '/icons/wallets/coins_ph.png' },
 ]
 
 function typeInfo(type) {
-  return walletTypes.find(w => w.id === type) ?? walletTypes.find(w => w.id === 'custom')
+  return walletTypes.find(w => w.id === type) ?? walletTypes[0]
 }
 
 function openCreate() {
@@ -110,9 +109,7 @@ const netWorth = computed(() =>
             :src="wallet.icon_url || typeInfo(wallet.type).icon" 
             :alt="wallet.name" 
             class="h-10 w-10 rounded-lg object-contain bg-white/20 p-1" 
-            @error="$event.target.style.display='none'; $event.target.nextElementSibling.style.display='block'"
           />
-          <span class="text-3xl leading-none" style="display:none">{{ typeInfo(wallet.type).emoji }}</span>
           <div class="hidden sm:flex gap-1" @click.stop>
             <button @click="openEdit(wallet)" class="rounded-lg bg-white/20 p-2 hover:bg-white/30 transition-colors">
               <Pencil class="h-4 w-4 text-white" />
@@ -157,7 +154,6 @@ const netWorth = computed(() =>
                     class="flex flex-col items-center gap-1 rounded-xl border-2 p-2.5 transition-all duration-150"
                     :class="form.type === wt.id ? 'border-primary bg-primary/5 scale-105' : 'border-border hover:border-muted-foreground/30'"
                   >
-                    <span class="text-xl leading-none">{{ wt.emoji }}</span>
                     <span class="text-[10px] font-medium text-center leading-none">{{ wt.label }}</span>
                   </button>
                 </div>

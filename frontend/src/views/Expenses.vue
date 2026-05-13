@@ -3,7 +3,7 @@ import { ref, computed, watch } from 'vue'
 import { useRegisterAddAction } from '@/composables/usePageAction.js'
 import { useExpensesStore } from '@/stores/expenses.js'
 import { useWalletsStore } from '@/stores/wallets.js'
-import { Plus, Pencil, Trash2, X, Receipt, Search, TrendingUp, Calendar } from 'lucide-vue-next'
+import { Plus, Pencil, Trash2, X, Receipt, Search, TrendingUp, Calendar, ChevronDown } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth.js'
 import UiButton from '@/components/ui/Button.vue'
 import UiInput from '@/components/ui/Input.vue'
@@ -21,11 +21,42 @@ useRegisterAddAction(openCreate)
 
 const selectedMonth = ref(new Date().getMonth() + 1)
 const selectedYear = ref(new Date().getFullYear())
+const showMonthPicker = ref(false)
+const showYearPicker = ref(false)
 
 const months = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'
 ]
+
+// Generate years dynamically based on data or default range
+const availableYears = computed(() => {
+  const currentYear = new Date().getFullYear()
+  if (store.expenses.length === 0) {
+    // Default range if no data: currentYear - 2 to currentYear + 1
+    const years = []
+    for (let y = currentYear - 2; y <= currentYear + 1; y++) {
+      years.push(y)
+    }
+    return years
+  }
+  
+  // Find earliest and latest years from expense dates
+  const years = new Set()
+  store.expenses.forEach(expense => {
+    const date = new Date(expense.date)
+    years.add(date.getFullYear())
+  })
+  
+  const minYear = Math.min(...years)
+  const maxYear = Math.max(...years, currentYear)
+  
+  const yearList = []
+  for (let y = minYear; y <= maxYear + 1; y++) {
+    yearList.push(y)
+  }
+  return yearList.sort((a, b) => b - a) // Sort descending
+})
 
 watch([selectedMonth, selectedYear], () => {
   store.fetchAll({ month: selectedMonth.value, year: selectedYear.value })
@@ -274,15 +305,23 @@ async function remove(expense) {
         <p class="text-sm text-muted-foreground mt-1 hidden sm:block">Track and manage your daily spending</p>
       </div>
       <div class="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto">
-        <!-- Month Picker -->
-        <div class="flex items-center gap-2 bg-card border border-border shadow-sm px-3 py-1.5 rounded-2xl">
-          <Calendar class="h-4 w-4 text-muted-foreground" />
-          <select v-model="selectedMonth" class="bg-transparent text-sm font-bold border-none focus:ring-0 cursor-pointer">
-            <option v-for="(m, i) in months" :key="m" :value="i + 1">{{ m }}</option>
-          </select>
-          <select v-model="selectedYear" class="bg-transparent text-sm font-bold border-none focus:ring-0 cursor-pointer">
-            <option v-for="y in [2024, 2025, 2026]" :key="y" :value="y">{{ y }}</option>
-          </select>
+        <!-- iOS-style Date Filter -->
+        <div class="flex items-center gap-2 bg-card border border-border shadow-sm rounded-2xl px-1 py-1">
+          <button
+            @click="showMonthPicker = true"
+            class="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-muted hover:bg-muted/80 transition-colors min-h-[44px]"
+          >
+            <Calendar class="h-4 w-4 text-muted-foreground" />
+            <span class="text-sm font-semibold">{{ months[selectedMonth - 1] }}</span>
+            <ChevronDown class="h-4 w-4 text-muted-foreground" />
+          </button>
+          <button
+            @click="showYearPicker = true"
+            class="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-muted hover:bg-muted/80 transition-colors min-h-[44px]"
+          >
+            <span class="text-sm font-semibold">{{ selectedYear }}</span>
+            <ChevronDown class="h-4 w-4 text-muted-foreground" />
+          </button>
         </div>
 
         <div class="bg-card border border-border shadow-sm px-4 py-2 rounded-2xl flex flex-col items-start sm:items-end min-w-[140px] transition-all hover:shadow-md">
@@ -344,7 +383,8 @@ async function remove(expense) {
 
     <div v-else-if="store.expenses.length === 0" class="flex flex-col items-center justify-center py-24 text-center border rounded-xl border-dashed bg-muted/20">
       <Receipt class="h-10 w-10 text-muted-foreground/40 mb-3" />
-      <p class="text-sm text-muted-foreground">No expenses recorded yet.</p>
+      <p class="text-sm text-muted-foreground">No expenses for {{ months[selectedMonth - 1] }} {{ selectedYear }}</p>
+      <p class="text-xs text-muted-foreground mt-1">Try selecting a different month or add a new expense</p>
     </div>
 
     <!-- Mobile card list -->
@@ -564,6 +604,50 @@ async function remove(expense) {
             </form>
           </UiCardContent>
         </UiCard>
+      </div>
+    </Teleport>
+
+    <!-- Month Picker Bottom Sheet -->
+    <Teleport to="body">
+      <div v-if="showMonthPicker" class="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm" @click.self="showMonthPicker = false">
+        <div class="w-full max-w-md bg-card rounded-t-2xl sm:rounded-2xl shadow-xl animate-slide-up">
+          <div class="p-4 border-b border-border">
+            <h3 class="text-lg font-semibold text-center">Select Month</h3>
+          </div>
+          <div class="max-h-[50vh] overflow-y-auto">
+            <button
+              v-for="(m, i) in months"
+              :key="m"
+              @click="selectedMonth = i + 1; showMonthPicker = false"
+              class="w-full px-6 py-4 text-left transition-colors min-h-[44px] flex items-center"
+              :class="selectedMonth === i + 1 ? 'bg-primary text-white font-semibold' : 'hover:bg-muted'"
+            >
+              {{ m }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Year Picker Bottom Sheet -->
+    <Teleport to="body">
+      <div v-if="showYearPicker" class="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm" @click.self="showYearPicker = false">
+        <div class="w-full max-w-md bg-card rounded-t-2xl sm:rounded-2xl shadow-xl animate-slide-up">
+          <div class="p-4 border-b border-border">
+            <h3 class="text-lg font-semibold text-center">Select Year</h3>
+          </div>
+          <div class="max-h-[50vh] overflow-y-auto">
+            <button
+              v-for="y in availableYears"
+              :key="y"
+              @click="selectedYear = y; showYearPicker = false"
+              class="w-full px-6 py-4 text-left transition-colors min-h-[44px] flex items-center"
+              :class="selectedYear === y ? 'bg-primary text-white font-semibold' : 'hover:bg-muted'"
+            >
+              {{ y }}
+            </button>
+          </div>
+        </div>
       </div>
     </Teleport>
   </div>

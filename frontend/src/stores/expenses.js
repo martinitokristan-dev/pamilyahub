@@ -17,6 +17,10 @@ export const useExpensesStore = defineStore("expenses", () => {
   }
 
   async function fetchAll(page = 1, filters = {}) {
+    // Invalidate cache when filters are provided to ensure fresh data
+    if (Object.keys(filters).length > 0) {
+      fetched.value = false;
+    }
     if (fetched.value && isCacheValid() && Object.keys(filters).length === 0) return;
     loading.value = true;
     try {
