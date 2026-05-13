@@ -41,7 +41,7 @@ const alreadySpent = computed(() => parseCurrency(alreadySpentRaw.value) || pars
 const available    = computed(() => Math.max(0, totalSalary.value - alreadySpent.value))
 
 // ── Step 2 fields ────────────────────────────────────────────────────────────
-const allocations = ref([]) // [{ wallet_id, name, amount: string }]
+const allocations = ref([]) // [{ wallet_id, name, type, icon_url, amount: string }]
 
 const totalAllocated = computed(() =>
   allocations.value.reduce((sum, a) => sum + (parseFloat(a.amount) || 0), 0)
@@ -77,6 +77,8 @@ function buildAllocations() {
   allocations.value = wallets.map(w => ({
     wallet_id: w.id,
     name:      w.name,
+    type:      w.type,
+    icon_url:  w.icon_url,
     amount:    '',
   }))
 }
@@ -147,13 +149,18 @@ async function handleConfirm() {
   <Teleport to="body">
     <div
       v-if="show"
-      class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+      class="fixed inset-0 z-50 flex items-stretch justify-center bg-black/60 backdrop-blur-sm p-0 sm:items-center sm:p-4"
       @mousedown.self="emit('close')"
     >
-      <UiCard class="w-full max-w-lg shadow-2xl animate-in fade-in zoom-in duration-200 rounded-2xl overflow-hidden bg-card">
+      <UiCard
+        class="flex w-full max-w-none flex-col overflow-hidden bg-card shadow-2xl animate-in fade-in zoom-in duration-200
+          max-sm:h-[100dvh] max-sm:max-h-[100dvh] max-sm:min-h-0 max-sm:rounded-none max-sm:pt-[env(safe-area-inset-top)]
+          sm:max-h-[90vh] sm:min-h-0 sm:max-w-lg sm:rounded-2xl"
+        @mousedown.stop
+      >
 
         <!-- ── Header ── -->
-        <div class="p-6 border-b border-border bg-gradient-to-r from-emerald-600/10 to-transparent">
+        <div class="shrink-0 p-6 border-b border-border bg-gradient-to-r from-emerald-600/10 to-transparent">
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-3">
               <button
@@ -184,10 +191,11 @@ async function handleConfirm() {
           </div>
         </div>
 
+        <div class="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
         <!-- ── Error Banner ── -->
         <div
           v-if="error"
-          class="mx-6 mt-4 p-3 rounded-xl bg-destructive/10 border border-destructive/20 flex items-start gap-3"
+          class="mx-6 mt-4 shrink-0 p-3 rounded-xl bg-destructive/10 border border-destructive/20 flex items-start gap-3"
         >
           <AlertCircle class="h-5 w-5 text-destructive shrink-0 mt-0.5" />
           <p class="text-sm text-destructive font-medium">{{ error }}</p>
@@ -264,7 +272,7 @@ async function handleConfirm() {
         <!-- ══════════════════════════════════════════════════════════ -->
         <!-- STEP 2 — Wallet Distribution                              -->
         <!-- ══════════════════════════════════════════════════════════ -->
-        <UiCardContent v-else class="p-6 space-y-4 max-h-[55vh] overflow-y-auto">
+        <UiCardContent v-else class="p-6 space-y-4">
 
           <p class="text-sm text-muted-foreground">
             Distribute <span class="font-bold text-foreground">{{ formatCurrency(available) }}</span>
@@ -278,8 +286,13 @@ async function handleConfirm() {
               :key="alloc.wallet_id"
               class="flex items-center gap-3 p-3 rounded-2xl border border-border bg-muted/30 hover:bg-muted/50 transition-all"
             >
-              <div class="h-10 w-10 rounded-xl bg-background flex items-center justify-center shrink-0 border border-border shadow-sm">
-                <Wallet class="h-5 w-5 text-muted-foreground" />
+              <div class="h-10 w-10 rounded-xl bg-background flex items-center justify-center shrink-0 border border-border shadow-sm overflow-hidden">
+                <img 
+                    :src="alloc.icon_url || `/icons/wallets/${alloc.type === 'metrobank' ? 'metrobank.jpg' : alloc.type + '.png'}`" 
+                    class="w-full h-full object-contain rounded"
+                    @error="$event.target.style.display='none'; $event.target.nextElementSibling.style.display='block'"
+                />
+                <Wallet style="display:none" class="h-5 w-5 text-muted-foreground" />
               </div>
               <div class="flex-1 min-w-0">
                 <p class="text-sm font-bold truncate">{{ alloc.name }}</p>
@@ -343,8 +356,12 @@ async function handleConfirm() {
 
         </UiCardContent>
 
+        </div>
+
         <!-- ── Footer ── -->
-        <div class="p-5 bg-muted/20 border-t border-border flex flex-col sm:flex-row gap-3 justify-end">
+        <div
+          class="shrink-0 border-t border-border bg-muted/20 p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] flex flex-col gap-3 justify-end sm:flex-row"
+        >
           <UiButton variant="outline" @click="emit('close')" class="rounded-xl h-11 px-6">
             Cancel
           </UiButton>

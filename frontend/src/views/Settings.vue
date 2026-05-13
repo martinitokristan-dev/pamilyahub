@@ -41,8 +41,10 @@ async function handleSignOut() {
 </script>
 
 <template>
-  <div class="p-4 max-w-lg mx-auto animate-fade-in">
-    <h1 class="text-2xl font-bold tracking-tight mb-6">Settings</h1>
+  <div class="p-6 max-w-3xl mx-auto animate-fade-in">
+    <div class="mb-8">
+      <h1 class="text-[32px] sm:text-[40px] font-black tracking-tight text-foreground leading-none">Settings</h1>
+    </div>
 
     <!-- Profile card -->
     <UiCard class="mb-4 overflow-hidden">

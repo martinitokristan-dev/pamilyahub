@@ -100,7 +100,7 @@ const typeColor = {
   bpi:         'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300',
   bdo:         'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300',
   unionbank:   'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300',
-  metrobank:   'bg-green-200 dark:bg-green-900/50 text-green-800 dark:text-green-300',
+  metrobank:   'bg-blue-200 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300',
   credit_card: 'bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300',
   debit_card:  'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300',
   shopeepay:   'bg-orange-100 dark:bg-orange-900/40 text-orange-600 dark:text-orange-300',
@@ -307,10 +307,9 @@ async function remove(expense) {
 
 <template>
   <div class="p-4 md:p-6 max-w-6xl mx-auto animate-fade-in">
-    <div class="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-      <div>
-        <h1 class="text-2xl font-bold tracking-tight">Expenses</h1>
-        <p class="text-sm text-muted-foreground mt-1 hidden sm:block">Track and manage your daily spending</p>
+    <div class="mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+      <div class="space-y-1">
+        <h1 class="text-[32px] sm:text-[40px] font-black tracking-tight text-foreground leading-none">Expenses</h1>
       </div>
       <div class="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto">
         <!-- iOS-style Date Filter -->
@@ -403,16 +402,16 @@ async function remove(expense) {
         class="rounded-2xl border border-border bg-card p-4 flex items-center gap-3 overflow-hidden cursor-pointer sm:cursor-default"
         @click="openEdit(expense)"
       >
-        <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xl overflow-hidden p-1.5" :class="walletColor(expense.wallet)">
+        <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl overflow-hidden bg-muted/50 border border-border shadow-sm">
           <template v-if="expense.wallet">
             <img 
-              :src="expense.wallet.icon_url || `/icons/wallets/${expense.wallet.type}.png`" 
-              class="w-full h-full object-contain" 
+              :src="expense.wallet.icon_url || `/icons/wallets/${expense.wallet.type === 'metrobank' ? 'metrobank.jpg' : expense.wallet.type + '.png'}`" 
+              class="w-full h-full object-contain rounded" 
               @error="$event.target.style.display='none'; $event.target.nextElementSibling.style.display='block'"
             />
             <span style="display:none">{{ walletEmoji(expense.wallet) }}</span>
           </template>
-          <span v-else>{{ getCategoryEmoji(expense.category) }}</span>
+          <span v-else class="text-xl">{{ getCategoryEmoji(expense.category) }}</span>
         </div>
         <div class="min-w-0 flex-1">
           <p class="font-semibold text-sm truncate">{{ expense.title }}</p>
@@ -462,32 +461,32 @@ async function remove(expense) {
             class="hover:bg-muted/30 transition-colors"
           >
             <td class="px-4 py-3 font-medium">
-              <div class="flex items-center gap-2">
+              <div class="flex items-center gap-2.5">
                 <template v-if="expense.wallet">
-                  <div class="w-6 h-6 flex items-center justify-center rounded-md overflow-hidden" :class="walletColor(expense.wallet)">
+                  <div class="w-8 h-8 flex items-center justify-center rounded-lg overflow-hidden bg-muted/50 border border-border shadow-sm">
                     <img 
-                      :src="expense.wallet.icon_url || `/icons/wallets/${expense.wallet.type}.png`" 
-                      class="w-full h-full object-contain p-0.5" 
+                      :src="expense.wallet.icon_url || `/icons/wallets/${expense.wallet.type === 'metrobank' ? 'metrobank.jpg' : expense.wallet.type + '.png'}`" 
+                      class="w-full h-full object-contain rounded" 
                       @error="$event.target.style.display='none'; $event.target.nextElementSibling.style.display='block'"
                     />
                     <span style="display:none" class="text-sm">{{ walletEmoji(expense.wallet) }}</span>
                   </div>
                 </template>
-                <span v-else class="text-base">{{ getCategoryEmoji(expense.category) }}</span>
+                <span v-else class="text-xl w-8 h-8 flex items-center justify-center">{{ getCategoryEmoji(expense.category) }}</span>
                 {{ expense.title }}
               </div>
             </td>
             <td class="px-4 py-3">
-              <span v-if="expense.wallet" class="inline-flex items-center gap-1.5 text-sm">
-                <div class="w-5 h-5 flex items-center justify-center rounded-sm overflow-hidden" :class="walletColor(expense.wallet)">
+              <span v-if="expense.wallet" class="inline-flex items-center gap-2 text-sm">
+                <div class="w-6 h-6 flex items-center justify-center rounded-md overflow-hidden bg-muted/50 border border-border">
                   <img 
-                    :src="expense.wallet.icon_url || `/icons/wallets/${expense.wallet.type}.png`" 
-                    class="w-full h-full object-contain p-0.5" 
+                    :src="expense.wallet.icon_url || `/icons/wallets/${expense.wallet.type === 'metrobank' ? 'metrobank.jpg' : expense.wallet.type + '.png'}`" 
+                    class="w-full h-full object-contain rounded" 
                     @error="$event.target.style.display='none'; $event.target.nextElementSibling.style.display='block'"
                   />
                   <span style="display:none" class="text-xs">{{ walletEmoji(expense.wallet) }}</span>
                 </div>
-                <span class="text-muted-foreground">{{ expense.wallet.name }}</span>
+                <span class="text-muted-foreground font-medium">{{ expense.wallet.name }}</span>
               </span>
               <span v-else class="text-muted-foreground">—</span>
             </td>
@@ -566,10 +565,10 @@ async function remove(expense) {
                       ? 'border-primary bg-primary/5 scale-[1.02]'
                       : 'border-border hover:border-muted-foreground/40'"
                   >
-                    <div class="h-8 w-8 shrink-0 flex items-center justify-center rounded-lg bg-white/20 p-1">
+                    <div class="h-8 w-8 shrink-0 flex items-center justify-center rounded-lg bg-white/20">
                       <img 
-                        :src="wallet.icon_url || `/icons/wallets/${wallet.type}.png`" 
-                        class="w-full h-full object-contain" 
+                        :src="wallet.icon_url || `/icons/wallets/${wallet.type === 'metrobank' ? 'metrobank.jpg' : wallet.type + '.png'}`" 
+                        class="w-full h-full object-contain rounded" 
                         @error="$event.target.style.display='none'; $event.target.nextElementSibling.style.display='block'"
                       />
                       <span class="text-xl leading-none" style="display:none">{{ walletEmoji(wallet) }}</span>

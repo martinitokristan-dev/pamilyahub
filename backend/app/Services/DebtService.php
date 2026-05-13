@@ -16,7 +16,7 @@ class DebtService
         private DebtRepository    $repository,
         private WalletRepository  $walletRepository,
         private UserStatsService  $stats,
-        private ExpenseRepository $expenseRepository
+        private ExpenseRepository $expenseRepository,
     ) {}
 
     public function getAll(int $userId): Collection
@@ -31,12 +31,29 @@ class DebtService
 
     public function create(int $userId, array $data): Debt
     {
-        $data['user_id'] = $userId;
-        $debt = $this->repository->create($data);
-        $field = $data['type'] === 'i_owe' ? 'debts_i_owe' : 'debts_owed_to_me';
-        $this->stats->adjust($userId, $field, (float) $data['amount']);
-        \App\Http\Controllers\DashboardController::invalidateCache($userId);
-        return $debt;
+        return DB::transaction(function () use ($userId, $data) {
+            $data['user_id'] = $userId;
+            $debt = $this->repository->create($data);
+            
+            // If I am lending money (Owed to Me), log it as an expense immediately
+            if ($data['type'] === 'owed_to_me') {
+                $this->expenseRepository->create([
+                    'user_id' => $userId,
+                    'title' => "Lent money to: " . $data['name'],
+                    'amount' => $data['amount'],
+                    'category' => 'Bills/Debt',
+                    'date' => now()->toDateString(),
+                    'wallet_id' => $data['wallet_id'] ?? null,
+                    'description' => $data['description'] ?? 'Lending money'
+                ]);
+                $this->stats->adjust($userId, 'expenses_total', (float) $data['amount']);
+            }
+
+            $field = $data['type'] === 'i_owe' ? 'debts_i_owe' : 'debts_owed_to_me';
+            $this->stats->adjust($userId, $field, (float) $data['amount']);
+            \App\Http\Controllers\DashboardController::invalidateCache($userId);
+            return $debt;
+        });
     }
 
     public function update(int $userId, int $id, array $data): ?Debt
@@ -62,8 +79,9 @@ class DebtService
         if (! $debt) return null;
 
         return DB::transaction(function () use ($userId, $debt, $walletId) {
+            $amount = (float) $debt->amount;
+
             if ($walletId) {
-                $amount = (float) $debt->amount;
                 // i_owe → deduct; owed_to_me → receive (add)
                 $delta = $debt->type === 'i_owe' ? -$amount : $amount;
                 $this->walletRepository->adjustBalance($walletId, $delta);
@@ -75,18 +93,30 @@ class DebtService
                 $this->expenseRepository->create([
                     'user_id' => $userId,
                     'title' => "Debt Payment: " . $debt->name,
-                    'amount' => $debt->amount,
+                    'amount' => $amount,
                     'category' => 'Bills/Debt',
                     'date' => now()->toDateString(),
                     'wallet_id' => $walletId,
                     'description' => $debt->description ?? 'Paid off debt'
                 ]);
-                $this->stats->adjust($userId, 'expenses_total', (float) $debt->amount);
+                $this->stats->adjust($userId, 'expenses_total', $amount);
+            } else {
+                // If it's a debt OWED TO ME, log it as a general Income (NOT Salary)
+                DB::table('incomes')->insert([
+                    'user_id'     => $userId,
+                    'wallet_id'   => $walletId,
+                    'amount'      => $amount,
+                    'source'      => 'Debt Collection',
+                    'date'        => now()->toDateString(),
+                    'description' => "Debt Payment from: " . $debt->name,
+                    'created_at'  => now(),
+                    'updated_at'  => now(),
+                ]);
             }
 
             // Subtract from the appropriate debt field
             $field = $debt->type === 'i_owe' ? 'debts_i_owe' : 'debts_owed_to_me';
-            $this->stats->adjust($userId, $field, -(float) $debt->amount);
+            $this->stats->adjust($userId, $field, -$amount);
             \App\Http\Controllers\DashboardController::invalidateCache($userId);
             return $result;
         });
@@ -132,6 +162,18 @@ class DebtService
                     'description' => 'Partial payment towards debt'
                 ]);
                 $this->stats->adjust($userId, 'expenses_total', $amount);
+            } else {
+                // If it's a debt OWED TO ME, log partial payment as a general Income
+                DB::table('incomes')->insert([
+                    'user_id'     => $userId,
+                    'wallet_id'   => $walletId,
+                    'amount'      => $amount,
+                    'source'      => 'Debt Collection',
+                    'date'        => now()->toDateString(),
+                    'description' => "Partial Debt Payment from: " . $debt->name,
+                    'created_at'  => now(),
+                    'updated_at'  => now(),
+                ]);
             }
 
             return $result;

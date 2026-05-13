@@ -3,6 +3,9 @@ import { ref, computed, onMounted } from 'vue'
 import { useRegisterAddAction } from '@/composables/usePageAction.js'
 import { useDebtsStore } from '@/stores/debts.js'
 import { useWalletsStore } from '@/stores/wallets.js'
+import { useDashboardStore } from '@/stores/dashboard.js'
+import { useExpensesStore } from '@/stores/expenses.js'
+import { useSalaryStore } from '@/stores/salary.js'
 import { Plus, Pencil, Trash2, X, BadgeCheck, HandCoins, Search, Wallet, CheckCircle2 } from 'lucide-vue-next'
 import UiButton from '@/components/ui/Button.vue'
 import UiInput from '@/components/ui/Input.vue'
@@ -16,6 +19,9 @@ import { formatCurrency, parseCurrency } from '@/utils/format'
 
 const store = useDebtsStore()
 const walletsStore = useWalletsStore()
+const dashboardStore = useDashboardStore()
+const expensesStore = useExpensesStore()
+const salaryStore = useSalaryStore()
 useRegisterAddAction(openCreate)
 
 onMounted(() => store.fetchAll())
@@ -133,6 +139,18 @@ async function confirmPay() {
     }
   }
 
+  // Invalidate all stores for real-time sync
+  dashboardStore.invalidate()
+  expensesStore.invalidate()
+  salaryStore.invalidate()
+  
+  // Refetch data
+  await Promise.all([
+    dashboardStore.fetchStats(),
+    expensesStore.fetchAll(),
+    salaryStore.fetchCurrentMonth()
+  ])
+
   showPayModal.value = false
 }
 
@@ -165,10 +183,9 @@ const totalBalance = computed(() => {
 
 <template>
   <div class="p-6 max-w-4xl mx-auto animate-fade-in">
-    <div class="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-      <div>
-        <h1 class="text-2xl font-bold tracking-tight">Debts</h1>
-        <p class="text-sm text-muted-foreground mt-1 hidden sm:block">Track what you owe and what others owe you</p>
+    <div class="mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+      <div class="space-y-1">
+        <h1 class="text-[32px] sm:text-[40px] font-black tracking-tight text-foreground leading-none">Debts</h1>
       </div>
       <div class="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto">
         <div class="bg-card border border-border shadow-sm px-4 py-2 rounded-2xl flex flex-col items-start sm:items-end min-w-[140px] transition-all hover:shadow-md">
@@ -400,10 +417,10 @@ const totalBalance = computed(() => {
                     class="flex items-center gap-3 rounded-xl border-2 p-3 text-left transition-all duration-150"
                     :class="payWalletId === wallet.id ? 'border-primary bg-primary/5' : 'border-border hover:border-muted-foreground/40'"
                   >
-                    <div class="h-8 w-8 shrink-0 flex items-center justify-center rounded-lg bg-white/20 p-1">
+                    <div class="h-8 w-8 shrink-0 flex items-center justify-center rounded-lg bg-white/20">
                       <img 
-                        :src="wallet.icon_url || `/icons/wallets/${wallet.type}.png`" 
-                        class="w-full h-full object-contain" 
+                        :src="wallet.icon_url || `/icons/wallets/${wallet.type === 'metrobank' ? 'metrobank.jpg' : wallet.type + '.png'}`" 
+                        class="w-full h-full object-contain rounded" 
                         @error="$event.target.style.display='none'; $event.target.nextElementSibling.style.display='block'"
                       />
                       <span class="text-xl leading-none" style="display:none">{{ walletEmoji(wallet) }}</span>

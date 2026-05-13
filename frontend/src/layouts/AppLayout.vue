@@ -82,10 +82,10 @@ function isActive(path) {
     <!-- Desktop Sidebar -->
     <aside class="hidden lg:flex w-[220px] shrink-0 flex-col border-r border-sidebar-border bg-sidebar">
       <div class="flex h-14 shrink-0 items-center gap-2.5 border-b border-sidebar-border px-4">
-        <div class="flex h-7 w-7 items-center justify-center rounded-lg bg-primary">
-          <Home class="h-4 w-4 text-primary-foreground" />
+        <div class="h-8 w-8 rounded-lg bg-emerald-600 flex items-center justify-center shrink-0">
+          <span class="text-white font-bold text-lg leading-none">E</span>
         </div>
-        <span class="text-sm font-semibold tracking-tight text-foreground">Pamilya Hub</span>
+        <span class="font-bold text-xl tracking-tight hidden md:block">EleFam</span>
       </div>
 
       <nav class="flex flex-1 flex-col gap-0.5 overflow-y-auto p-3">

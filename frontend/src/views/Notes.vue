@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed, nextTick, watch } from 'vue'
+import { ref, onMounted, computed, nextTick, watch, onBeforeUnmount } from 'vue'
 import { useRegisterAddAction } from '@/composables/usePageAction.js'
 import { useNotesStore } from '@/stores/notes.js'
 import { Plus, Pencil, Trash2, X, NotebookPen, Search, ArrowLeft, Check, MoreVertical, Star, FolderPlus, Lock, FolderOpen, Eye, EyeOff, FileText } from 'lucide-vue-next'
@@ -8,7 +8,10 @@ import { useToast } from '@/composables/useToast.js'
 import UiInput from '@/components/ui/Input.vue'
 import UiLabel from '@/components/ui/Label.vue'
 import UiCard from '@/components/ui/Card.vue'
-import UiCardContent from '@/components/ui/CardContent.vue'
+import { Editor, EditorContent } from '@tiptap/vue-3'
+import { BubbleMenu } from '@tiptap/vue-3/menus'
+import StarterKit from '@tiptap/starter-kit'
+import Placeholder from '@tiptap/extension-placeholder'
 
 const store = useNotesStore()
 const toast = useToast()
@@ -16,7 +19,9 @@ const showEditor = ref(false)
 const editing = ref(null)
 const form = ref({ title: '', content: '', folder_id: null })
 const searchQuery = ref('')
-const contentTextarea = ref(null)
+const editor = ref(null)
+const expandTools = ref(false)
+const isMobile = ref(false)
 
 // Folder & Priority State
 const activeFolderId = ref(null)
@@ -32,8 +37,42 @@ const showPasswordCreate = ref(false)
 const showPasswordUnlock = ref(false)
 const pendingFolderId = ref(null)
 
-onMounted(() => store.fetchAll())
+onMounted(() => {
+  store.fetchAll()
+  isMobile.value = window.innerWidth < 640
+  window.addEventListener('resize', () => isMobile.value = window.innerWidth < 640)
+})
+onBeforeUnmount(() => {
+  if (editor.value) editor.value.destroy()
+})
 useRegisterAddAction(openCreate)
+
+function initEditor(content = '') {
+  if (editor.value) {
+    editor.value.destroy()
+  }
+  editor.value = new Editor({
+    extensions: [
+      StarterKit,
+      Placeholder.configure({
+        placeholder: 'Start writing…',
+      }),
+    ],
+    content: content,
+    editorProps: {
+      attributes: {
+        class: 'w-full h-full bg-transparent text-sm sm:text-base text-foreground placeholder:text-muted-foreground/40 border-none outline-none resize-none leading-relaxed min-h-[300px] focus:outline-none prose prose-sm sm:prose-base dark:prose-invert max-w-none',
+        spellcheck: 'true',
+        autocorrect: 'on',
+      },
+    },
+    onSelectionUpdate() {
+      if (!isMobile.value) {
+        expandTools.value = false
+      }
+    }
+  })
+}
 
 const activeFolder = computed(() => {
   if (!activeFolderId.value) return null
@@ -91,8 +130,9 @@ function openCreate() {
     folder_id: activeFolderId.value || null
   }
   showEditor.value = true
+  initEditor('')
   nextTick(() => {
-    if (contentTextarea.value) contentTextarea.value.focus()
+    editor.value?.commands.focus()
   })
 }
 
@@ -104,17 +144,19 @@ function openNote(note) {
     folder_id: note.folder_id
   }
   showEditor.value = true
+  initEditor(note.content)
 }
 
 async function saveNote() {
-  if (!form.value.title.trim() && !form.value.content.trim()) {
-    showEditor.value = false
+  const contentHTML = editor.value ? editor.value.getHTML() : form.value.content
+  if (!form.value.title.trim() && (!contentHTML || contentHTML === '<p></p>')) {
+    closeEditor()
     return
   }
   
   const data = { 
     title: form.value.title,
-    content: form.value.content,
+    content: contentHTML,
     folder_id: form.value.folder_id
   }
 
@@ -123,11 +165,15 @@ async function saveNote() {
   } else {
     await store.create(data)
   }
-  showEditor.value = false
+  closeEditor()
 }
 
 function closeEditor() {
   showEditor.value = false
+  if (editor.value) {
+    editor.value.destroy()
+    editor.value = null
+  }
 }
 
 // Menu Actions
@@ -198,71 +244,14 @@ function closePasswordModal() {
   passwordAttempt.value = ''
 }
 
-// Auto bullet point logic — iPhone Notepad style
-function handleContentKeydown(e) {
-  const textarea = e.target
-  const { selectionStart } = textarea
-  const text = textarea.value
-  const lineStart = text.lastIndexOf('\n', selectionStart - 1) + 1
-  const currentLine = text.substring(lineStart, selectionStart)
-
-  if (e.key === 'Enter') {
-    // Check if line starts with bullet: -, *, or • followed by a space
-    const bulletMatch = currentLine.match(/^(\s*)([-*•]\s)/)
-    if (bulletMatch) {
-      const afterBullet = currentLine.substring(bulletMatch[0].length)
-      
-      // If line is ONLY a bullet (user pressed Enter on an empty bullet line), remove it
-      if (afterBullet.trim() === '') {
-        e.preventDefault()
-        const before = text.substring(0, lineStart)
-        const after = text.substring(selectionStart)
-        form.value.content = before + '\n' + after
-        nextTick(() => {
-          textarea.selectionStart = textarea.selectionEnd = before.length + 1
-        })
-        return
-      }
-
-      // Continue the bullet on the next line
-      e.preventDefault()
-      const indent = bulletMatch[1]
-      const bulletChar = bulletMatch[2]
-      const newBullet = '\n' + indent + bulletChar
-      const before = text.substring(0, selectionStart)
-      const after = text.substring(selectionStart)
-      form.value.content = before + newBullet + after
-      nextTick(() => {
-        const newPos = selectionStart + newBullet.length
-        textarea.selectionStart = textarea.selectionEnd = newPos
-      })
-    }
-  } 
-  
-  // Convert "-" or "*" to "•" when space is pressed
-  if (e.key === ' ') {
-    const spaceMatch = currentLine.match(/^(\s*)([-*])$/)
-    if (spaceMatch) {
-      e.preventDefault()
-      const indent = spaceMatch[1]
-      const before = text.substring(0, lineStart)
-      const after = text.substring(selectionStart)
-      // Standardize to the dot bullet for a premium feel
-      form.value.content = before + indent + '• ' + after
-      nextTick(() => {
-        textarea.selectionStart = textarea.selectionEnd = lineStart + indent.length + 2
-      })
-    }
-  }
-}
-
 function formatDate(dateStr) {
   return new Date(dateStr).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 function getPreviewLines(content) {
   if (!content) return ''
-  return content.split('\n').slice(0, 3).join('\n')
+  const plainText = content.replace(/<p[^>]*>/g, '\n').replace(/<[^>]+>/g, '').trim()
+  return plainText.split('\n').slice(0, 3).join('\n')
 }
 </script>
 
@@ -270,16 +259,16 @@ function getPreviewLines(content) {
   <div class="p-4 sm:p-6 max-w-6xl mx-auto animate-fade-in pb-6">
     <!-- List view -->
     <template v-if="!showEditor">
-      <div class="mb-6 flex items-center justify-between">
-        <div class="flex items-center gap-3">
+      <div class="mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+        <div class="flex items-center gap-3 space-y-1">
           <UiButton v-if="activeFolderId" variant="ghost" size="icon" @click="activeFolderId = null" class="rounded-full">
             <ArrowLeft class="h-5 w-5" />
           </UiButton>
-          <h1 class="text-2xl font-bold tracking-tight">
+          <h1 class="text-[32px] sm:text-[40px] font-black tracking-tight text-foreground leading-none">
             {{ activeFolder ? activeFolder.name : 'Notes' }}
           </h1>
         </div>
-        <div class="flex items-center gap-2">
+        <div class="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto">
           <UiButton variant="outline" size="sm" @click="openCreateFolder" class="shrink-0 rounded-full h-9 px-4">
             <FolderPlus class="h-4 w-4 mr-2" /> Add Folder
           </UiButton>
@@ -448,21 +437,46 @@ function getPreviewLines(content) {
               <div class="h-px bg-border mb-4"></div>
 
               <!-- Content textarea -->
-              <textarea
-                ref="contentTextarea"
-                v-model="form.content"
-                placeholder="Start writing…"
-                @keydown="handleContentKeydown"
-                class="w-full flex-1 bg-transparent text-sm sm:text-base text-foreground placeholder:text-muted-foreground/40 border-none outline-none resize-none leading-relaxed min-h-[300px]"
-              ></textarea>
-            </div>
-          </div>
+              <editor-content :editor="editor" class="flex-1 flex flex-col [&>div]:flex-1" />
 
-          <!-- Toolbar hint -->
-          <div class="border-t border-border px-4 py-2.5 bg-card/95 backdrop-blur-sm shrink-0">
-            <p class="text-[11px] text-muted-foreground/60 text-center">
-              Tip: Start a line with <span class="font-mono bg-muted px-1 py-0.5 rounded text-muted-foreground">-</span> or <span class="font-mono bg-muted px-1 py-0.5 rounded text-muted-foreground">•</span> for auto bullet points
-            </p>
+              <bubble-menu
+                v-if="editor"
+                :editor="editor"
+                :options="{ placement: 'top' }"
+                class="flex items-center bg-card border border-border shadow-xl rounded-xl overflow-hidden p-1 gap-1"
+              >
+                <!-- Desktop Pen Toggle -->
+                <div v-if="!isMobile && !expandTools">
+                  <button @click="expandTools = true" class="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors flex items-center justify-center">
+                    <Pencil class="h-4 w-4" />
+                  </button>
+                </div>
+                
+                <!-- Tools -->
+                <div v-show="isMobile || expandTools" class="flex items-center gap-1 animate-in fade-in zoom-in-95 duration-200">
+                  <button @click="editor.chain().focus().toggleBold().run()" :class="{ 'bg-muted text-foreground': editor.isActive('bold') }" class="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors font-bold font-serif">
+                    B
+                  </button>
+                  <button @click="editor.chain().focus().toggleItalic().run()" :class="{ 'bg-muted text-foreground': editor.isActive('italic') }" class="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors italic font-serif">
+                    I
+                  </button>
+                  <button @click="editor.chain().focus().toggleStrike().run()" :class="{ 'bg-muted text-foreground': editor.isActive('strike') }" class="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors line-through">
+                    S
+                  </button>
+                  <div class="w-px h-4 bg-border mx-1"></div>
+                  <button @click="editor.chain().focus().toggleHeading({ level: 2 }).run()" :class="{ 'bg-muted text-foreground': editor.isActive('heading', { level: 2 }) }" class="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors font-bold text-sm">
+                    H2
+                  </button>
+                  <button @click="editor.chain().focus().toggleHeading({ level: 3 }).run()" :class="{ 'bg-muted text-foreground': editor.isActive('heading', { level: 3 }) }" class="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors font-bold text-sm">
+                    H3
+                  </button>
+                  <div class="w-px h-4 bg-border mx-1"></div>
+                  <button @click="editor.chain().focus().toggleBulletList().run()" :class="{ 'bg-muted text-foreground': editor.isActive('bulletList') }" class="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors text-sm whitespace-nowrap">
+                    • List
+                  </button>
+                </div>
+              </bubble-menu>
+            </div>
           </div>
         </div>
       </transition>
@@ -600,5 +614,54 @@ function getPreviewLines(content) {
 .note-editor-leave-to {
   transform: translateY(100%);
   opacity: 0.8;
+}
+
+/* TipTap Editor Styles */
+:deep(.tiptap p.is-editor-empty:first-child::before) {
+  content: attr(data-placeholder);
+  float: left;
+  color: hsl(var(--muted-foreground) / 0.4);
+  pointer-events: none;
+  height: 0;
+}
+:deep(.tiptap) {
+  outline: none !important;
+}
+:deep(.tiptap p) {
+  margin-bottom: 0.75em;
+}
+:deep(.tiptap h1) {
+  font-size: 1.5em;
+  font-weight: 700;
+  margin-bottom: 0.5em;
+  margin-top: 1em;
+}
+:deep(.tiptap h2) {
+  font-size: 1.25em;
+  font-weight: 600;
+  margin-bottom: 0.5em;
+  margin-top: 1em;
+}
+:deep(.tiptap h3) {
+  font-size: 1.1em;
+  font-weight: 600;
+  margin-bottom: 0.5em;
+  margin-top: 1em;
+}
+:deep(.tiptap ul) {
+  list-style-type: disc;
+  padding-left: 1.5em;
+  margin-bottom: 0.75em;
+}
+:deep(.tiptap ol) {
+  list-style-type: decimal;
+  padding-left: 1.5em;
+  margin-bottom: 0.75em;
+}
+:deep(.tiptap blockquote) {
+  border-left: 3px solid hsl(var(--border));
+  padding-left: 1em;
+  color: hsl(var(--muted-foreground));
+  font-style: italic;
 }
 </style>

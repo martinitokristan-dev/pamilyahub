@@ -97,10 +97,10 @@ function formatSize(bytes) {
 
 <template>
   <div class="p-4 sm:p-6 max-w-6xl mx-auto animate-fade-in">
-    <div class="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-      <div>
-        <h1 class="text-2xl font-bold tracking-tight">Files & Albums</h1>
-        <p class="text-sm text-muted-foreground mt-1">{{ store.files.length }} file{{ store.files.length !== 1 ? 's' : '' }} stored securely</p>
+    <div class="mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+      <div class="space-y-1">
+        <h1 class="text-[32px] sm:text-[40px] font-black tracking-tight text-foreground leading-none">Files & Albums</h1>
+        <p class="text-sm font-medium text-muted-foreground">{{ store.files.length }} file{{ store.files.length !== 1 ? 's' : '' }} stored securely</p>
       </div>
       <UiButton @click="showUploadModal = true" :disabled="store.uploading || !!compressionStatus" class="hidden sm:flex shrink-0">
         <Loader2 v-if="store.uploading || compressionStatus" class="h-4 w-4 animate-spin mr-2" />

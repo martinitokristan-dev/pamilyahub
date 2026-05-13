@@ -1,13 +1,13 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useRegisterAddAction } from '@/composables/usePageAction.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useNotesStore } from '@/stores/notes.js'
 import { useExpensesStore } from '@/stores/expenses.js'
 import { useDashboardStore } from '@/stores/dashboard.js'
 import { useSalaryStore } from '@/stores/salary.js'
 import {
-  NotebookPen, Receipt, TrendingUp, TrendingDown, Banknote,
-  CheckCircle2, Clock, Plus, AlertTriangle
+  NotebookPen, Receipt, TrendingUp, TrendingDown, Banknote, Plus
 } from 'lucide-vue-next'
 import UiCard from '@/components/ui/Card.vue'
 import UiCardHeader from '@/components/ui/CardHeader.vue'
@@ -26,12 +26,12 @@ const salary    = useSalaryStore()
 const showDepositModal  = ref(false)
 const isAddMore         = ref(false)
 
-function openPrimaryDeposit() {
-  isAddMore.value      = false
-  showDepositModal.value = true
-}
-function openAddMore() {
-  isAddMore.value      = true
+// Use the exact same global floating action button / plus shortcut as other pages
+useRegisterAddAction(openDeposit)
+
+function openDeposit() {
+  // If already received, this acts as "Add More"
+  isAddMore.value = salary.isReceived
   showDepositModal.value = true
 }
 
@@ -39,28 +39,26 @@ const handleDepositSuccess = async () => {
   await Promise.all([dashboard.fetchStats(), salary.fetchCurrentMonth()])
 }
 
+const greeting = computed(() => {
+  const hour = new Date().getHours()
+  if (hour < 12) return 'Good morning'
+  if (hour < 18) return 'Good afternoon'
+  return 'Good evening'
+})
+
+const currentDate = computed(() => {
+  return new Date().toLocaleDateString('en-US', { 
+    weekday: 'long', 
+    month: 'long', 
+    day: 'numeric' 
+  }).toUpperCase()
+})
+
 onMounted(async () => {
   const fetches = [dashboard.fetchStats(), salary.fetchCurrentMonth()]
   if (!notes.fetched) fetches.push(notes.fetchAll())
   await Promise.all(fetches)
 })
-
-// ── Month label ──────────────────────────────────────────────────────────────
-const monthLabel = computed(() => {
-  if (!salary.month || !salary.year) return ''
-  return new Date(salary.year, salary.month - 1, 1)
-    .toLocaleDateString('en-PH', { month: 'long', year: 'numeric' })
-})
-
-// Deposit date label for "received" state
-const depositedAtLabel = computed(() => {
-  const dep = salary.latestDeposit
-  if (!dep) return ''
-  const d = new Date(dep.deposited_at)
-  return d.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
-})
-
-const hasSalarySetup = computed(() => parseFloat(auth.user?.monthly_salary ?? 0) > 0)
 
 // ── Stat cards ───────────────────────────────────────────────────────────────
 const stats = computed(() => {
@@ -120,96 +118,48 @@ const stats = computed(() => {
   <div class="p-6 max-w-6xl mx-auto animate-fade-in">
 
     <!-- ── Page header ── -->
-    <div class="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-      <div>
-        <h1 class="text-2xl font-bold tracking-tight">
-          Good day, {{ auth.user?.name?.split(' ')[0] }} 👋
-        </h1>
-        <p class="text-sm text-muted-foreground mt-1">Here's your Pamilya Hub overview</p>
-      </div>
-    </div>
-
-    <!-- ── Smart Salary Status Card ── -->
-    <div v-if="hasSalarySetup && salary.fetched" class="mb-5">
-
-      <!-- PENDING state -->
-      <div
-        v-if="salary.isPending"
-        class="rounded-2xl border-2 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all"
-        :class="salary.isDelayed
-          ? 'border-orange-500/40 bg-gradient-to-r from-orange-500/8 to-amber-500/5'
-          : 'border-amber-400/40 bg-gradient-to-r from-amber-500/8 to-yellow-500/5'"
-      >
-        <div class="flex items-center gap-3">
-          <div
-            class="h-10 w-10 rounded-xl flex items-center justify-center shrink-0"
-            :class="salary.isDelayed ? 'bg-orange-500/15' : 'bg-amber-500/15'"
-          >
-            <component
-              :is="salary.isDelayed ? AlertTriangle : Clock"
-              class="h-5 w-5"
-              :class="salary.isDelayed ? 'text-orange-500' : 'text-amber-500'"
+    <div class="mb-6 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+      <!-- Mascot Greeting UI (Takes full available width on left) -->
+      <div class="flex flex-col w-full relative">
+        <div class="mb-3 pl-2">
+          <p class="text-[11px] font-bold text-muted-foreground/80 tracking-widest uppercase mb-1">
+            {{ currentDate }}
+          </p>
+          <h1 class="text-2xl font-medium tracking-tight text-foreground">
+            {{ greeting }}, <span class="font-extrabold">{{ auth.user?.name?.split(' ')[0] }}!</span>
+          </h1>
+        </div>
+        <div class="flex items-center gap-0 w-full relative">
+          <!-- Mascot Image Container -->
+          <div class="w-36 h-40 shrink-0 overflow-hidden rounded-bl-3xl z-10 flex items-start justify-center bg-transparent -ml-2">
+            <img 
+              src="/icons/wallets/elefam.png" 
+              alt="EleFam Mascot" 
+              class="w-[110%] max-w-none h-auto object-cover -translate-y-[5%] -translate-x-[6%]" 
             />
           </div>
-          <div>
-            <p class="font-bold text-sm leading-tight">
-              Salary Pending — {{ monthLabel }}
-            </p>
-            <p
-              class="text-xs mt-0.5"
-              :class="salary.isDelayed ? 'text-orange-600 dark:text-orange-400' : 'text-muted-foreground'"
-            >
-              <template v-if="salary.isDelayed">
-                Your salary is delayed — deposit when you receive it
-              </template>
-              <template v-else>
-                No salary deposited yet this month
-              </template>
-            </p>
+          
+          <!-- Chat Bubble (Expands to fill remaining space) -->
+          <div class="bg-card border border-border shadow-sm rounded-2xl p-4 relative ml-2 z-0 flex-1 min-w-0">
+            <!-- Speech bubble tail pointing to EleFam -->
+            <div class="absolute top-1/2 -translate-y-1/2 -left-[7px] w-4 h-4 bg-card border-l border-b border-border rotate-45 rounded-sm"></div>
+            
+            <div class="relative z-10">
+              <h3 class="font-bold text-emerald-600 text-sm mb-1">EleFam</h3>
+              <p class="text-sm text-muted-foreground leading-snug">
+                Ready to track those finances? Keep an eye on that budget before lifestyle creep sneaks in!
+              </p>
+            </div>
           </div>
         </div>
-        <UiButton
-          @click="openPrimaryDeposit"
-          class="rounded-xl h-10 px-5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-md shadow-emerald-500/20 shrink-0 gap-2"
-        >
-          <Banknote class="h-4 w-4" />
-          Salary Received
-        </UiButton>
       </div>
 
-      <!-- RECEIVED state -->
-      <div
-        v-else-if="salary.isReceived"
-        class="rounded-2xl border-2 border-emerald-500/30 bg-gradient-to-r from-emerald-500/8 to-teal-500/5 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
-      >
-        <div class="flex items-center gap-3">
-          <div class="h-10 w-10 rounded-xl bg-emerald-500/15 flex items-center justify-center shrink-0">
-            <CheckCircle2 class="h-5 w-5 text-emerald-500" />
-          </div>
-          <div>
-            <p class="font-bold text-sm text-emerald-700 dark:text-emerald-400 leading-tight">
-              Salary Deposited — {{ monthLabel }}
-            </p>
-            <p class="text-xs text-muted-foreground mt-0.5">
-              <template v-if="salary.latestDeposit?.is_delayed">
-                Deposited late — {{ depositedAtLabel }}
-              </template>
-              <template v-else>
-                Deposited on {{ depositedAtLabel }}
-              </template>
-            </p>
-          </div>
-        </div>
-        <UiButton
-          @click="openAddMore"
-          variant="outline"
-          class="rounded-xl h-9 px-4 text-sm font-semibold shrink-0 gap-1.5 border-emerald-500/30 hover:bg-emerald-500/10"
-        >
-          <Plus class="h-4 w-4" />
-          Deposit More
+      <!-- Deposit Button (Aligned to the right) -->
+      <div class="flex items-center justify-end sm:mb-4 shrink-0">
+        <UiButton @click="openDeposit" class="hidden sm:flex h-12 px-6 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-md shadow-emerald-500/20">
+          <Plus class="h-5 w-5 mr-1" /> Deposit
         </UiButton>
       </div>
-
     </div>
 
     <!-- ── Stat Cards ── -->
@@ -232,26 +182,7 @@ const stats = computed(() => {
     </div>
 
     <!-- ── Bottom grid ── -->
-    <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-      <UiCard>
-        <UiCardHeader>
-          <UiCardTitle class="text-sm">Recent Notes</UiCardTitle>
-        </UiCardHeader>
-        <UiCardContent>
-          <p v-if="notes.notes.length === 0" class="text-sm text-muted-foreground">No notes yet.</p>
-          <div v-else class="space-y-2">
-            <div
-              v-for="note in notes.notes.slice(0, 5)"
-              :key="note.id"
-              class="rounded-lg bg-muted/50 px-3 py-2.5"
-            >
-              <p class="text-sm font-medium leading-none mb-1">{{ note.title }}</p>
-              <p class="text-xs text-muted-foreground line-clamp-1">{{ note.content }}</p>
-            </div>
-          </div>
-        </UiCardContent>
-      </UiCard>
-
+    <div class="grid grid-cols-1 gap-6">
       <UiCard>
         <UiCardHeader>
           <UiCardTitle class="text-sm">Recent Expenses</UiCardTitle>
@@ -268,7 +199,7 @@ const stats = computed(() => {
                 <p class="text-sm font-medium leading-none mb-1">{{ expense.title }}</p>
                 <p class="text-xs text-muted-foreground">{{ expense.category ?? 'Uncategorized' }}</p>
               </div>
-              <span class="text-sm font-semibold tabular-nums">{{ formatCurrency(expense.amount) }}</span>
+              <span class="text-sm font-semibold tabular-nums text-destructive">-{{ formatCurrency(expense.amount) }}</span>
             </div>
           </div>
         </UiCardContent>
