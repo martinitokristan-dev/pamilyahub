@@ -73,11 +73,11 @@ function buildAllocations() {
     allocations.value = []
     return
   }
-  const even = available.value / wallets.length
+  // No longer auto-distributing evenly. Users must manually enter amounts.
   allocations.value = wallets.map(w => ({
     wallet_id: w.id,
     name:      w.name,
-    amount:    even > 0 ? even.toFixed(2) : '',
+    amount:    '',
   }))
 }
 
