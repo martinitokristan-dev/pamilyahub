@@ -19,8 +19,11 @@ const { toasts } = useToast()
 
 // Handle showing the update screen
 const showUpdateScreen = ref(false)
+const isStandalone = ref(false)
 
 onMounted(() => {
+  isStandalone.value = window.matchMedia('(display-mode: standalone)').matches
+  
   // If user clicked the notification, instantly show update screen
   if (route.query.update) {
     showUpdateScreen.value = true
@@ -187,7 +190,7 @@ async function handleSignOut() {
           <ChevronRight class="h-4 w-4 text-muted-foreground" />
         </div>
 
-        <div @click="handleUpdateClick" class="flex items-center justify-between px-5 py-4 cursor-pointer hover:bg-muted/50 transition-colors">
+        <div v-if="isStandalone" @click="handleUpdateClick" class="flex items-center justify-between px-5 py-4 cursor-pointer hover:bg-muted/50 transition-colors">
           <div class="flex items-center gap-3">
             <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-100 dark:bg-sky-900/30 relative">
               <DownloadCloud class="h-4 w-4 text-sky-600 dark:text-sky-400" />

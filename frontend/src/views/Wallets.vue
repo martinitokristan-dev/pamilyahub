@@ -99,28 +99,41 @@ const netWorth = computed(() =>
       <div
         v-for="wallet in store.wallets"
         :key="wallet.id"
-        class="relative rounded-2xl p-5 text-white shadow-md overflow-hidden bg-gradient-to-br sm:cursor-default cursor-pointer"
+        class="relative rounded-2xl p-4 text-white shadow-md overflow-hidden bg-gradient-to-br sm:cursor-default cursor-pointer"
         @click="openEdit(wallet)"
         :class="typeInfo(wallet.type).bg"
       >
-        <div class="flex items-start justify-between mb-4">
+        <div class="flex items-center gap-2.5 mb-3">
           <img 
             :src="wallet.icon_url || typeInfo(wallet.type).icon" 
             :alt="wallet.name" 
-            class="h-10 w-10 rounded-lg object-contain bg-white/20 p-1" 
+            class="h-8 w-8 rounded-lg object-contain bg-white/20 p-1 shadow-sm shrink-0" 
           />
-          <div class="hidden sm:flex gap-1" @click.stop>
-            <button @click="openEdit(wallet)" class="rounded-lg bg-white/20 p-2 hover:bg-white/30 transition-colors">
-              <Pencil class="h-4 w-4 text-white" />
+          <div class="min-w-0">
+            <p class="text-[11px] text-white font-bold truncate leading-tight">{{ wallet.name }}</p>
+            <p v-if="wallet.name.toLowerCase() !== typeInfo(wallet.type).label.toLowerCase()" class="text-[7px] text-white/60 uppercase tracking-widest font-black mt-0.5 truncate">
+              {{ typeInfo(wallet.type).label }}
+            </p>
+          </div>
+          
+          <!-- Actions tucked in top right -->
+          <div class="hidden sm:flex gap-1 absolute top-2 right-2" @click.stop>
+            <button @click="openEdit(wallet)" class="rounded-lg bg-white/10 p-1 hover:bg-white/20 transition-colors">
+              <Pencil class="h-2.5 w-2.5 text-white" />
             </button>
-            <button @click="store.remove(wallet.id)" class="rounded-lg bg-white/20 p-2 hover:bg-white/30 transition-colors">
-              <Trash2 class="h-4 w-4 text-white" />
+            <button @click="store.remove(wallet.id)" class="rounded-lg bg-white/10 p-1 hover:bg-white/20 transition-colors">
+              <Trash2 class="h-2.5 w-2.5 text-white" />
             </button>
           </div>
         </div>
-        <p class="text-2xl font-bold leading-none mb-1">{{ formatCurrency(wallet.balance) }}</p>
-        <p class="text-sm text-white/80 font-medium">{{ wallet.name }}</p>
-        <p v-if="wallet.name.toLowerCase() !== typeInfo(wallet.type).label.toLowerCase()" class="text-[11px] text-white/60 mt-0.5">{{ typeInfo(wallet.type).label }}</p>
+        
+        <div class="mt-auto">
+          <p class="text-[8px] uppercase tracking-[0.15em] text-white/50 font-black leading-none mb-1.5">Balance</p>
+          <p class="text-base font-black leading-none tabular-nums tracking-tight">
+            ₱{{ Number(wallet.balance).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
+          </p>
+        </div>
+        
         <div class="absolute -bottom-4 -right-4 h-20 w-20 rounded-full bg-white/10" />
         <div class="absolute -bottom-8 -right-8 h-28 w-28 rounded-full bg-white/5" />
       </div>

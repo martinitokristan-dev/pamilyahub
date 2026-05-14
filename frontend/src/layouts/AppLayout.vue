@@ -64,20 +64,20 @@ pwaStore.updateServiceWorker = updateServiceWorker
 watch(needRefresh, (newValue) => {
   pwaStore.setNeedRefresh(newValue)
   if (newValue) {
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches
     
-    // Auto-update silently on desktop browsers
-    if (!isMobile) {
-      updateServiceWorker(true)
+    // If running as an installed PWA (Standalone/Add to Home Screen), DO NOT auto-update.
+    // This provides the premium "Software Update" UX for installed users.
+    if (isStandalone) {
+      // Try to set App Icon Badge (shows a dot or "1" on the home screen icon)
+      if ('setAppBadge' in navigator) {
+        navigator.setAppBadge(1).catch(err => console.error('Error setting badge:', err))
+      }
       return
     }
 
-    // Try to set App Icon Badge (shows a dot or "1" on the home screen/dock icon)
-    if ('setAppBadge' in navigator) {
-      navigator.setAppBadge(1).catch(err => console.error('Error setting badge:', err))
-    }
-    // System notification is handled by the service worker (sw.js)
-    // so it works even when the app is in the background
+    // Auto-update silently for EVERYONE ELSE (Desktop browsers and regular Mobile browsers)
+    updateServiceWorker(true)
   } else {
     // Clear badge when update is handled
     if ('clearAppBadge' in navigator) {
