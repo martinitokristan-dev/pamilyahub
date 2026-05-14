@@ -8,6 +8,16 @@ import { useDashboardStore } from './dashboard.js'
 import { useWalletsStore } from './wallets.js'
 import { useNotesStore } from './notes.js'
 
+// Check if API is on a different origin (cross-domain = production)
+function isCrossDomain() {
+  try {
+    const apiUrl = new URL(import.meta.env.VITE_API_BASE_URL)
+    return apiUrl.origin !== window.location.origin
+  } catch {
+    return false
+  }
+}
+
 export const useAuthStore = defineStore('auth', () => {
   const user = ref(null)
   const loading = ref(false)
@@ -17,11 +27,19 @@ export const useAuthStore = defineStore('auth', () => {
     loading.value = true
     error.value = null
     try {
-      // Fetch CSRF cookie before registering
-      await api.get('/sanctum/csrf-cookie', { baseURL: import.meta.env.VITE_API_BASE_URL.replace('/api', '') })
+      // Only fetch CSRF cookie for same-origin (local dev) — not needed for token auth
+      if (!isCrossDomain()) {
+        await api.get('/sanctum/csrf-cookie', { baseURL: import.meta.env.VITE_API_BASE_URL.replace('/api', '') })
+      }
       
       const res = await authService.register(data)
       user.value = res.data.data.user
+
+      // Store token for cross-domain auth
+      if (res.data.data.token) {
+        localStorage.setItem('auth_token', res.data.data.token)
+      }
+
       router.push({ name: 'dashboard' })
     } catch (e) {
       error.value = e.response?.data?.message ?? 'Registration failed'
@@ -37,8 +55,10 @@ export const useAuthStore = defineStore('auth', () => {
       let res
       let usedCombined = false
 
-      // Fetch CSRF cookie before logging in
-      await api.get('/sanctum/csrf-cookie', { baseURL: import.meta.env.VITE_API_BASE_URL.replace('/api', '') })
+      // Only fetch CSRF cookie for same-origin (local dev) — not needed for token auth
+      if (!isCrossDomain()) {
+        await api.get('/sanctum/csrf-cookie', { baseURL: import.meta.env.VITE_API_BASE_URL.replace('/api', '') })
+      }
 
       // Try the optimized combined endpoint first
       try {
@@ -54,6 +74,11 @@ export const useAuthStore = defineStore('auth', () => {
       }
 
       user.value = res.data.data.user
+
+      // Store token for cross-domain auth
+      if (res.data.data.token) {
+        localStorage.setItem('auth_token', res.data.data.token)
+      }
 
       // Pre-populate stores only if combined response succeeded and has data
       if (usedCombined) {
@@ -87,7 +112,8 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       await authService.logout()
     } finally {
-      // Clear all storage
+      // Clear token and storage
+      localStorage.removeItem('auth_token')
       sessionStorage.clear()
       
       // Reset all Pinia stores
