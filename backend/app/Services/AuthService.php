@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\User;
 use App\Repositories\AuthRepository;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 
@@ -20,6 +21,10 @@ class AuthService
         $user  = $this->repository->create($data);
         $token = $user->createToken('auth_token')->plainTextToken;
 
+        // Establish session-based authentication for SPA
+        Auth::login($user);
+        request()->session()->regenerate();
+
         return ['user' => $user, 'token' => $token];
     }
 
@@ -33,6 +38,10 @@ class AuthService
             ]);
         }
 
+        // Establish session-based authentication for SPA
+        Auth::login($user);
+        request()->session()->regenerate();
+
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return ['user' => $user, 'token' => $token];
@@ -40,6 +49,14 @@ class AuthService
 
     public function logout(User $user): void
     {
-        $user->currentAccessToken()->delete();
+        try {
+            $user->currentAccessToken()->delete();
+        } catch (\Throwable $e) {
+            // TransientToken from session auth doesn't support delete — safe to ignore
+        }
+
+        Auth::guard('web')->logout();
+        request()->session()->invalidate();
+        request()->session()->regenerateToken();
     }
 }

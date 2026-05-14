@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { RouterView, RouterLink, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.js'
 import { useNotesStore } from '@/stores/notes.js'
@@ -10,6 +10,8 @@ import { useWalletsStore } from '@/stores/wallets.js'
 import { useDarkMode } from '@/composables/useDarkMode.js'
 import { pageAddAction } from '@/composables/usePageAction.js'
 import { useToast } from '@/composables/useToast.js'
+import { useRegisterSW } from 'virtual:pwa-register/vue'
+import UpdateNotification from '@/components/ui/UpdateNotification.vue'
 import {
   LayoutDashboard,
   NotebookPen,
@@ -36,8 +38,57 @@ const route = useRoute()
 const { isDark } = useDarkMode()
 const { toasts } = useToast()
 
+const {
+  offlineReady,
+  needRefresh,
+  updateServiceWorker,
+} = useRegisterSW({
+  onRegisteredSW(swUrl, registration) {
+    if (registration) {
+      // Check for service worker updates every 30 minutes
+      // This ensures users get update notifications even if the app stays open
+      setInterval(() => {
+        registration.update()
+      }, 30 * 60 * 1000)
+    }
+  }
+})
+
+// Handle App Badge when an update is detected
+watch(needRefresh, (newValue) => {
+  if (newValue) {
+    // Set App Icon Badge (shows a dot or "1" on the home screen icon)
+    if ('setAppBadge' in navigator) {
+      navigator.setAppBadge(1).catch(err => console.error('Error setting badge:', err))
+    }
+    // System notification is handled by the service worker (sw.js)
+    // so it works even when the app is in the background
+  } else {
+    // Clear badge when update is handled
+    if ('clearAppBadge' in navigator) {
+      navigator.clearAppBadge().catch(err => console.error('Error clearing badge:', err))
+    }
+  }
+})
+
 onMounted(async () => {
-  if (!auth.user) await auth.fetchMe()
+  // Clear any accidental service workers on localhost to prevent reload loops
+  if (window.location.hostname === 'localhost' && 'serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations().then(registrations => {
+      for (const registration of registrations) {
+        registration.unregister()
+      }
+    })
+  }
+
+  // On fresh install (first time opening the app), ask for notification permission
+  // This ensures users will see update notifications from the service worker later
+  if (import.meta.env.PROD && 'Notification' in window && Notification.permission === 'default') {
+    // Wait a bit after mount so it doesn't feel too intrusive
+    setTimeout(() => {
+      Notification.requestPermission().catch(err => console.error('Notification permission denied:', err))
+    }, 5000)
+  }
 
   // Preload all essential data in the background for an instant-load experience
   // This happens silently thanks to our new storeHelper
@@ -116,6 +167,10 @@ function isActive(path) {
         >
           <component :is="item.icon" class="h-4 w-4 shrink-0" />
           {{ item.name }}
+          <span 
+            v-if="item.name === 'Settings' && needRefresh" 
+            class="ml-auto h-2 w-2 rounded-full bg-destructive animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.5)]"
+          ></span>
         </RouterLink>
       </nav>
 
@@ -175,8 +230,12 @@ function isActive(path) {
                   class="flex flex-col items-center gap-2 p-3 rounded-2xl transition-all active:scale-90"
                   :class="isActive(item.to) ? 'bg-primary/10 text-primary' : 'hover:bg-muted/50 text-muted-foreground hover:text-foreground'"
                 >
-                  <div class="h-12 w-12 flex items-center justify-center rounded-2xl bg-muted/50 shadow-sm border border-border/30">
+                  <div class="h-12 w-12 flex items-center justify-center rounded-2xl bg-muted/50 shadow-sm border border-border/30 relative">
                     <component :is="item.icon" class="h-6 w-6" />
+                    <span 
+                      v-if="item.name === 'Settings' && needRefresh" 
+                      class="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-destructive border-2 border-card animate-pulse"
+                    ></span>
                   </div>
                   <span class="text-[10px] font-black tracking-wider uppercase">{{ item.name }}</span>
                 </RouterLink>
@@ -234,10 +293,14 @@ function isActive(path) {
                 class="relative flex flex-col items-center justify-center w-14 h-full transition-all group"
                 :class="showMoreMenu ? 'text-primary' : 'text-muted-foreground/60 hover:text-foreground'"
               >
-                <div class="flex flex-col gap-0.5 items-center justify-center h-6 w-6 transition-transform duration-300 group-active:scale-90">
+                <div class="flex flex-col gap-0.5 items-center justify-center h-6 w-6 transition-transform duration-300 group-active:scale-90 relative">
                   <div class="w-1.5 h-1.5 rounded-full bg-current transition-all" :class="{ 'scale-125': showMoreMenu }" />
                   <div class="w-1.5 h-1.5 rounded-full bg-current transition-all" :class="{ 'scale-125': showMoreMenu }" />
                   <div class="w-1.5 h-1.5 rounded-full bg-current transition-all" :class="{ 'scale-125': showMoreMenu }" />
+                  <span 
+                    v-if="needRefresh" 
+                    class="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-destructive border-2 border-background animate-pulse"
+                  ></span>
                 </div>
                 <span class="text-[9px] font-black mt-1 uppercase tracking-tighter">More</span>
               </button>
@@ -286,10 +349,14 @@ function isActive(path) {
                 class="relative flex flex-col items-center justify-center flex-1 h-full transition-all group"
                 :class="showMoreMenu ? 'text-primary' : 'text-muted-foreground/60 hover:text-foreground'"
               >
-                <div class="flex flex-col gap-0.5 items-center justify-center h-6 w-6 transition-transform duration-300 group-active:scale-90">
+                <div class="flex flex-col gap-0.5 items-center justify-center h-6 w-6 transition-transform duration-300 group-active:scale-90 relative">
                   <div class="w-1.5 h-1.5 rounded-full bg-current transition-all" :class="{ 'scale-125': showMoreMenu }" />
                   <div class="w-1.5 h-1.5 rounded-full bg-current transition-all" :class="{ 'scale-125': showMoreMenu }" />
                   <div class="w-1.5 h-1.5 rounded-full bg-current transition-all" :class="{ 'scale-125': showMoreMenu }" />
+                  <span 
+                    v-if="needRefresh" 
+                    class="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-destructive border-2 border-background animate-pulse"
+                  ></span>
                 </div>
                 <span class="text-[9px] font-black mt-1 uppercase tracking-tighter">More</span>
               </button>
@@ -323,6 +390,14 @@ function isActive(path) {
           </div>
         </TransitionGroup>
       </div>
+
+      <!-- Update Notification -->
+      <UpdateNotification 
+        :offline-ready="offlineReady"
+        :need-refresh="needRefresh"
+        @update="updateServiceWorker()"
+        @close="offlineReady = false; needRefresh = false"
+      />
 
     </div>
   </div>

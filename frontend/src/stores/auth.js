@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { authService } from '@/services/authService.js'
+import api from '@/lib/axios.js'
 import router from '@/router/index.js'
 import { getActivePinia } from 'pinia'
 import { useDashboardStore } from './dashboard.js'
@@ -16,8 +17,10 @@ export const useAuthStore = defineStore('auth', () => {
     loading.value = true
     error.value = null
     try {
+      // Fetch CSRF cookie before registering
+      await api.get('/sanctum/csrf-cookie', { baseURL: import.meta.env.VITE_API_BASE_URL.replace('/api', '') })
+      
       const res = await authService.register(data)
-      localStorage.setItem('token', res.data.data.token)
       user.value = res.data.data.user
       router.push({ name: 'dashboard' })
     } catch (e) {
@@ -34,22 +37,25 @@ export const useAuthStore = defineStore('auth', () => {
       let res
       let usedCombined = false
 
+      // Fetch CSRF cookie before logging in
+      await api.get('/sanctum/csrf-cookie', { baseURL: import.meta.env.VITE_API_BASE_URL.replace('/api', '') })
+
       // Try the optimized combined endpoint first
       try {
         res = await authService.loginWithData(data)
         usedCombined = true
-      } catch {
-        // Fall back to regular login if loginWithData fails
+      } catch (e) {
+        // If it's a validation error (422) or unauthorized (401), don't retry, just throw
+        if (e.response && (e.response.status === 422 || e.response.status === 401)) {
+          throw e
+        }
+        // Fall back to regular login if loginWithData fails for other reasons (like 404)
         res = await authService.login(data)
       }
 
-      localStorage.setItem('token', res.data.data.token)
       user.value = res.data.data.user
 
       // Pre-populate stores only if combined response succeeded and has data
-      // NOTE: Do NOT pre-populate dashboard — loginWithData returns all-time
-      // totals but the dashboard needs monthly-filtered stats with remaining_salary.
-      // Let Dashboard.vue fetch from /dashboard/stats which has the correct logic.
       if (usedCombined) {
         if (res.data.data.wallets?.length) {
           const walletsStore = useWalletsStore()
@@ -70,6 +76,8 @@ export const useAuthStore = defineStore('auth', () => {
       router.push({ name: 'dashboard' })
     } catch (e) {
       error.value = e.response?.data?.message ?? 'Login failed'
+      // Throw the error so the component knows login failed
+      throw e
     } finally {
       loading.value = false
     }
@@ -79,8 +87,7 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       await authService.logout()
     } finally {
-      // Clear all localStorage and sessionStorage
-      localStorage.clear()
+      // Clear all storage
       sessionStorage.clear()
       
       // Reset all Pinia stores
@@ -106,8 +113,10 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const res = await authService.me()
       user.value = res.data.data
-    } catch {
-      localStorage.removeItem('token')
+      return res.data.data
+    } catch (e) {
+      user.value = null
+      throw e // Re-throw so the router guard knows it failed
     }
   }
 

@@ -63,9 +63,20 @@ const router = createRouter({
   routes,
 })
 
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   const auth = useAuthStore()
-  const isLoggedIn = !!localStorage.getItem('token')
+  
+  // If we don't have a user but are going to a protected route, try to fetch them
+  if (!auth.user && to.meta.requiresAuth) {
+    try {
+      await auth.fetchMe()
+    } catch (err) {
+      // Silent fail, isLoggedIn will be false
+      console.log('User not authenticated on initial load')
+    }
+  }
+
+  const isLoggedIn = !!auth.user
 
   if (to.meta.requiresAuth && !isLoggedIn) {
     return { name: 'login' }

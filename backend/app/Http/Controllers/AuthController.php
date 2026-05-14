@@ -46,17 +46,9 @@ class AuthController extends Controller
             $result['wallets'] = [];
         }
 
-        try {
-            $result['notes'] = \App\Models\Note::with('folder')->where('user_id', $userId)->latest()->limit(50)->get();
-        } catch (\Throwable $e) {
-            $result['notes'] = [];
-        }
-
-        try {
-            $result['folders'] = \App\Models\NoteFolder::where('user_id', $userId)->get();
-        } catch (\Throwable $e) {
-            $result['folders'] = [];
-        }
+        // Removed heavy notes loading from login to prevent UI blocking on mobile networks
+        $result['notes'] = [];
+        $result['folders'] = [];
 
         return $this->success($result, 'Logged in successfully');
     }
