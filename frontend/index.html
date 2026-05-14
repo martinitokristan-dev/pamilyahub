@@ -41,12 +41,26 @@
         }
       }
     </style>
+    <script>
+      // Only show splash screen on mobile devices
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      if (!isMobile) {
+        document.documentElement.style.setProperty('--splash-display', 'none');
+      } else {
+        document.documentElement.style.setProperty('--splash-display', 'flex');
+      }
+    </script>
+    <style>
+      #splash {
+        display: var(--splash-display, flex) !important;
+      }
+    </style>
   </head>
   <body>
     <div id="app">
       <!-- Splash screen content -->
       <div id="splash">
-        <img src="/icons/wallets/ele-icon.png" alt="EleFam Logo" class="splash-logo" />
+        <img src="/icons/wallets/EF-logo.png" alt="EleFam Logo" class="splash-logo" />
       </div>
     </div>
     <script type="module" src="/src/main.js"></script>

@@ -25,8 +25,15 @@ const app = createApp(App)
 
 app.use(createPinia())
 app.use(router)
-// Wait for the router to finish its initial async guard (fetching user)
-// This keeps the HTML splash screen (EleFam logo) visible instead of showing a blank white page!
-router.isReady().then(() => {
+
+const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+
+if (isMobile) {
+  // On mobile, wait for router so the EleFam splash animation is visible
+  router.isReady().then(() => {
+    app.mount('#app')
+  })
+} else {
+  // On desktop, mount immediately (no splash animation)
   app.mount('#app')
-})
+}

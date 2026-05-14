@@ -66,17 +66,10 @@ const router = createRouter({
 router.beforeEach(async (to) => {
   const auth = useAuthStore()
   
-  // If we don't have a user but are going to a protected route, try to fetch them
-  if (!auth.user && to.meta.requiresAuth) {
-    try {
-      await auth.fetchMe()
-    } catch (err) {
-      // Silent fail, isLoggedIn will be false
-      console.log('User not authenticated on initial load')
-    }
-  }
-
-  const isLoggedIn = !!auth.user
+  // Assume logged in if they have a token in localStorage, or if auth.user is populated.
+  // The actual user object will be fetched in the background by AppLayout.vue.
+  const hasToken = !!localStorage.getItem('auth_token')
+  const isLoggedIn = !!auth.user || hasToken
 
   if (to.meta.requiresAuth && !isLoggedIn) {
     return { name: 'login' }

@@ -80,6 +80,11 @@ watch(needRefresh, (newValue) => {
 })
 
 onMounted(async () => {
+  // If we don't have the user object yet (because we skipped blocking the router), fetch it in the background
+  if (!auth.user && localStorage.getItem('auth_token')) {
+    auth.fetchMe().catch(() => {}) // 401s are handled automatically by axios interceptor
+  }
+
   // Clear any accidental service workers on localhost to prevent reload loops
   if (window.location.hostname === 'localhost' && 'serviceWorker' in navigator) {
     navigator.serviceWorker.getRegistrations().then(registrations => {
