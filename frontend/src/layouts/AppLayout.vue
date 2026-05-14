@@ -87,17 +87,56 @@ onMounted(async () => {
     }, 5000)
   }
 
-  // Preload all essential data in the background for an instant-load experience
-  // This happens silently thanks to our new storeHelper
+  // Priority-based Wave Loading
   if (auth.user) {
-    // Grouped background preloading
-    Promise.all([
-      dashboard.fetchStats(),
-      expenses.fetchAll(),
-      debts.fetchAll(),
-      notes.fetchAll(),
-      wallets.fetchAll()
-    ]).catch(err => console.error('Silent preload failed:', err))
+    const connection = navigator?.connection || navigator?.mozConnection || navigator?.webkitConnection
+    const isSlowConnection = connection?.effectiveType === '2g' || connection?.effectiveType === 'slow-2g'
+    
+    // Wave 1: Critical - Load current page data immediately
+    const loadCurrentRouteData = async () => {
+      const currentRoute = route.name
+      try {
+        if (currentRoute === 'dashboard') await dashboard.fetchStats()
+        else if (currentRoute === 'expenses') await expenses.fetchAll()
+        else if (currentRoute === 'debts') await debts.fetchAll()
+        else if (currentRoute === 'notes') await notes.fetchAll()
+        else if (currentRoute === 'wallets') await wallets.fetchAll()
+        else await dashboard.fetchStats() // Default to dashboard stats
+      } catch (err) {
+        console.error('Wave 1 loading failed:', err)
+      }
+    }
+
+    // Wave 2: Defer non-critical data until idle (skip entirely on slow connections)
+    const runWave2 = () => {
+      if (isSlowConnection) return
+
+      const idle = window.requestIdleCallback ?? ((cb) => {
+        console.log('[Performance] requestIdleCallback not supported, using setTimeout fallback')
+        return setTimeout(cb, 300)
+      })
+      
+      idle(() => {
+        const otherStores = [
+          { name: 'dashboard', fn: () => dashboard.fetchStats() },
+          { name: 'expenses',  fn: () => expenses.fetchAll() },
+          { name: 'debts',     fn: () => debts.fetchAll() },
+          { name: 'notes',     fn: () => notes.fetchAll() },
+          { name: 'wallets',   fn: () => wallets.fetchAll() }
+        ].filter(s => s.name !== route.name)
+
+        // Stagger the remaining fetches to avoid network flood
+        otherStores.forEach((store, index) => {
+          setTimeout(() => {
+            store.fn().catch(() => {})
+          }, 300 * (index + 1))
+        })
+      })
+    }
+
+    // Execute Wave 1 then Wave 2
+    await loadCurrentRouteData()
+    runWave2()
   }
 })
 

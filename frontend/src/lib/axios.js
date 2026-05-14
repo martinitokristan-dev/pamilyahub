@@ -2,14 +2,14 @@ import axios from 'axios'
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL,
-  withCredentials: true,
-  withXSRFToken: true,
   timeout: 30000, // 30 seconds to prevent infinite network hangs
   headers: {
     'Content-Type': 'application/json',
     Accept: 'application/json',
   },
 })
+
+api.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest'
 
 // ─── Attach Bearer token for cross-domain (production) requests ───
 api.interceptors.request.use((config) => {

@@ -295,7 +295,28 @@ async function remove(expense) {
       </div>
     </div>
 
-    <div v-if="store.loading && store.expenses.length === 0" class="text-sm text-muted-foreground">Loading…</div>
+    <!-- Skeletons / No Data -->
+    <template v-if="store.loading && !store.fetched">
+      <!-- Mobile Skeletons -->
+      <div class="flex flex-col gap-2 md:hidden">
+        <div v-for="i in 5" :key="i" class="rounded-2xl border border-border bg-card p-4 flex items-center gap-3">
+          <UiSkeleton class="h-12 w-12 rounded-xl" />
+          <div class="flex-1 space-y-2">
+            <UiSkeleton class="h-4 w-1/3" />
+            <UiSkeleton class="h-3 w-1/2" />
+          </div>
+          <UiSkeleton class="h-4 w-16" />
+        </div>
+      </div>
+      <!-- Desktop Skeletons -->
+      <UiCard class="overflow-hidden hidden md:block">
+        <div class="p-4 space-y-4">
+          <div v-for="i in 5" :key="i" class="flex items-center gap-4">
+            <UiSkeleton class="h-10 w-full" />
+          </div>
+        </div>
+      </UiCard>
+    </template>
 
     <div v-else-if="store.expenses.length === 0" class="flex flex-col items-center justify-center py-24 text-center border rounded-xl border-dashed bg-muted/20">
       <Receipt class="h-10 w-10 text-muted-foreground/40 mb-3" />

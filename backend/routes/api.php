@@ -12,6 +12,8 @@ use App\Http\Controllers\SalaryDepositController;
 use App\Http\Controllers\WalletController;
 use Illuminate\Support\Facades\Route;
 
+Route::get('/ping', fn() => response()->json(['status' => 'ok']));
+
 Route::prefix('auth')->group(function () {
     Route::post('/register', [AuthController::class, 'register']);
     Route::post('/login', [AuthController::class, 'login']);

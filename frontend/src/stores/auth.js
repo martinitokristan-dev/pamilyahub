@@ -6,17 +6,7 @@ import router from '@/router/index.js'
 import { getActivePinia } from 'pinia'
 import { useDashboardStore } from './dashboard.js'
 import { useWalletsStore } from './wallets.js'
-import { useNotesStore } from './notes.js'
 
-// Check if API is on a different origin (cross-domain = production)
-function isCrossDomain() {
-  try {
-    const apiUrl = new URL(import.meta.env.VITE_API_BASE_URL)
-    return apiUrl.origin !== window.location.origin
-  } catch {
-    return false
-  }
-}
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref(null)
@@ -27,11 +17,6 @@ export const useAuthStore = defineStore('auth', () => {
     loading.value = true
     error.value = null
     try {
-      // Only fetch CSRF cookie for same-origin (local dev) — not needed for token auth
-      if (!isCrossDomain()) {
-        await api.get('/sanctum/csrf-cookie', { baseURL: import.meta.env.VITE_API_BASE_URL.replace('/api', '') })
-      }
-      
       const res = await authService.register(data)
       user.value = res.data.data.user
 
@@ -54,11 +39,6 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       let res
       let usedCombined = false
-
-      // Only fetch CSRF cookie for same-origin (local dev) — not needed for token auth
-      if (!isCrossDomain()) {
-        await api.get('/sanctum/csrf-cookie', { baseURL: import.meta.env.VITE_API_BASE_URL.replace('/api', '') })
-      }
 
       // Try the optimized combined endpoint first
       try {
@@ -87,14 +67,6 @@ export const useAuthStore = defineStore('auth', () => {
           walletsStore.wallets = res.data.data.wallets
           walletsStore.fetched = true
           walletsStore.cacheTime = Date.now()
-        }
-
-        if (res.data.data.notes) {
-          const notesStore = useNotesStore()
-          notesStore.notes = res.data.data.notes
-          notesStore.folders = res.data.data.folders ?? []
-          notesStore.fetched = true
-          notesStore.cacheTime = Date.now()
         }
       }
 

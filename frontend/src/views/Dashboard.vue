@@ -17,6 +17,8 @@ import UiButton from '@/components/ui/Button.vue'
 import DepositSalaryModal from '@/components/financial/DepositSalaryModal.vue'
 import { formatCurrency } from '@/utils/format'
 
+import UiSkeleton from '@/components/ui/Skeleton.vue'
+
 const auth      = useAuthStore()
 const notes     = useNotesStore()
 const expenses  = useExpensesStore()
@@ -55,9 +57,21 @@ const currentDate = computed(() => {
 })
 
 onMounted(async () => {
-  const fetches = [dashboard.fetchStats(), salary.fetchCurrentMonth()]
-  if (!notes.fetched) fetches.push(notes.fetchAll())
+  // Wave 1: Fetch stats and salary (dashboard-critical)
+  const fetches = []
+  if (!dashboard.fetched) fetches.push(dashboard.fetchStats())
+  if (!salary.fetched) fetches.push(salary.fetchCurrentMonth())
+  
   await Promise.all(fetches)
+
+  // Wave 2: Fetch notes only if we have idle time or if they are not fetched
+  if (!notes.fetched) {
+    if ('requestIdleCallback' in window) {
+      window.requestIdleCallback(() => notes.fetchAll())
+    } else {
+      setTimeout(() => notes.fetchAll(), 500)
+    }
+  }
 })
 
 // ── Stat cards ───────────────────────────────────────────────────────────────
@@ -169,20 +183,29 @@ const stats = computed(() => {
 
       <!-- ── Financial Stats Grid ── -->
       <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-8">
-        <div
-          v-for="stat in stats"
-          :key="stat.label"
-          class="relative overflow-hidden rounded-2xl p-4 text-white shadow-sm"
-          :class="stat.bg"
-        >
-          <div class="flex items-start justify-between mb-2">
-            <div class="rounded-lg bg-white/20 p-1.5">
-              <component :is="stat.icon" class="h-3.5 w-3.5 text-white" />
-            </div>
+        <template v-if="dashboard.loading && !dashboard.fetched">
+          <div v-for="i in 6" :key="i" class="h-24 rounded-2xl bg-card border border-border p-4 flex flex-col justify-between">
+            <UiSkeleton class="h-6 w-6 rounded-lg mb-2" />
+            <UiSkeleton class="h-5 w-2/3" />
+            <UiSkeleton class="h-3 w-1/2" />
           </div>
-          <p class="text-lg font-bold leading-none mb-1 truncate">{{ stat.value }}</p>
-          <p class="text-[9px] font-bold text-white/80 uppercase tracking-widest">{{ stat.label }}</p>
-        </div>
+        </template>
+        <template v-else>
+          <div
+            v-for="stat in stats"
+            :key="stat.label"
+            class="relative overflow-hidden rounded-2xl p-4 text-white shadow-sm"
+            :class="stat.bg"
+          >
+            <div class="flex items-start justify-between mb-2">
+              <div class="rounded-lg bg-white/20 p-1.5">
+                <component :is="stat.icon" class="h-3.5 w-3.5 text-white" />
+              </div>
+            </div>
+            <p class="text-lg font-bold leading-none mb-1 truncate">{{ stat.value }}</p>
+            <p class="text-[9px] font-bold text-white/80 uppercase tracking-widest">{{ stat.label }}</p>
+          </div>
+        </template>
       </div>
 
       <!-- ── Recent Expenses Section ── -->
@@ -198,7 +221,18 @@ const stats = computed(() => {
         </div>
 
         <div class="bg-card border border-border/50 rounded-[32px] shadow-sm overflow-hidden">
-          <div v-if="expenses.expenses.length === 0" class="p-12 text-center">
+          <div v-if="expenses.loading && expenses.expenses.length === 0" class="divide-y divide-border/30">
+            <div v-for="i in 3" :key="i" class="flex items-center gap-3 p-4">
+              <UiSkeleton class="h-12 w-12 rounded-xl" />
+              <div class="flex-1 space-y-2">
+                <UiSkeleton class="h-4 w-1/3" />
+                <UiSkeleton class="h-3 w-1/2" />
+              </div>
+              <UiSkeleton class="h-4 w-16" />
+            </div>
+          </div>
+
+          <div v-else-if="expenses.expenses.length === 0" class="p-12 text-center">
             <div class="inline-flex h-16 w-16 items-center justify-center rounded-3xl bg-muted/30 mb-4">
               <Receipt class="h-8 w-8 text-muted-foreground/30" />
             </div>
