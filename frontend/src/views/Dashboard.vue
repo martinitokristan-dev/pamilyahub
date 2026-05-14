@@ -161,7 +161,7 @@ const stats = computed(() => {
               
               <div class="relative z-10">
                 <h3 class="font-black text-primary text-[10px] tracking-widest mb-1">EleFam</h3>
-                <p class="text-sm text-muted-foreground leading-snug font-semibold">
+                <p class="text-xs text-muted-foreground leading-snug font-semibold">
                   {{ auth.user?.name?.split(' ')[0] }}, ready to track those finances? Keep an eye on that budget before lifestyle creep sneaks in!
                 </p>
               </div>

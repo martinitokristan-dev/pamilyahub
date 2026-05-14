@@ -41,7 +41,7 @@ async function handleSignOut() {
 </script>
 
 <template>
-  <div class="p-6 max-w-3xl mx-auto animate-fade-in relative h-full">
+  <div class="p-6 pb-16 max-w-3xl mx-auto animate-fade-in relative">
     <div class="mb-8">
       <h1 class="text-[32px] sm:text-[40px] font-black tracking-tight text-foreground leading-none">Settings</h1>
     </div>
@@ -173,7 +173,7 @@ async function handleSignOut() {
     </UiCard>
 
     <!-- Sign out -->
-    <UiCard class="overflow-hidden">
+    <UiCard class="overflow-hidden mb-8">
       <UiCardContent class="p-0">
         <button
           @click="handleSignOut"
