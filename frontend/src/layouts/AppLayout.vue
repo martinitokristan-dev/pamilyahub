@@ -27,8 +27,6 @@ import {
 
 import { useDashboardStore } from '@/stores/dashboard.js'
 
-import { usePwaStore } from '@/stores/pwa.js'
-
 const auth = useAuthStore()
 const dashboard = useDashboardStore()
 const notes = useNotesStore()
@@ -36,7 +34,6 @@ const expenses = useExpensesStore()
 const debts = useDebtsStore()
 const files = useFilesStore()
 const wallets = useWalletsStore()
-const pwaStore = usePwaStore()
 const route = useRoute()
 const { isDark } = useDarkMode()
 const { toasts } = useToast()
@@ -57,32 +54,10 @@ const {
   }
 })
 
-// Store update function globally for Settings page
-pwaStore.updateServiceWorker = updateServiceWorker
-
-// Handle App Badge when an update is detected
+// Handle App Auto-Update when a new version is detected
 watch(needRefresh, (newValue) => {
-  pwaStore.setNeedRefresh(newValue)
   if (newValue) {
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches
-    
-    // If running as an installed PWA (Standalone/Add to Home Screen), DO NOT auto-update.
-    // This provides the premium "Software Update" UX for installed users.
-    if (isStandalone) {
-      // Try to set App Icon Badge (shows a dot or "1" on the home screen icon)
-      if ('setAppBadge' in navigator) {
-        navigator.setAppBadge(1).catch(err => console.error('Error setting badge:', err))
-      }
-      return
-    }
-
-    // Auto-update silently for EVERYONE ELSE (Desktop browsers and regular Mobile browsers)
     updateServiceWorker(true)
-  } else {
-    // Clear badge when update is handled
-    if ('clearAppBadge' in navigator) {
-      navigator.clearAppBadge().catch(err => console.error('Error clearing badge:', err))
-    }
   }
 })
 
