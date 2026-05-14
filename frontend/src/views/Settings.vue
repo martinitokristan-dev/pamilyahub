@@ -187,6 +187,6 @@ async function handleSignOut() {
       </UiCardContent>
     </UiCard>
 
-    <p class="text-center text-xs text-muted-foreground mt-6">Pamilya Hub v1.0</p>
+    <p class="text-center text-xs text-muted-foreground mt-6">EleFam v1.1.0</p>
   </div>
 </template>

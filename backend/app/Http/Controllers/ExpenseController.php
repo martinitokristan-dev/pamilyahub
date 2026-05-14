@@ -18,7 +18,7 @@ class ExpenseController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $filters = $request->only(['month', 'year']);
+        $filters = $request->only(['month', 'year', 'search']);
         $expenses = $this->expenseService->getAll($request->user()->id, $filters);
         return $this->success($expenses);
     }

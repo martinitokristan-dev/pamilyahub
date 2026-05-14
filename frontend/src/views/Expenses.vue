@@ -1,10 +1,11 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
+import { refDebounced } from '@vueuse/core'
 import { useRegisterAddAction } from '@/composables/usePageAction.js'
 import { useExpensesStore } from '@/stores/expenses.js'
 import { useWalletsStore } from '@/stores/wallets.js'
 import { useDashboardStore } from '@/stores/dashboard.js'
-import { Plus, Pencil, Trash2, X, Receipt, Search, TrendingUp, Calendar, ChevronDown } from 'lucide-vue-next'
+import { Plus, Pencil, Trash2, X, Receipt, Search, TrendingUp, Calendar, ChevronDown, Wallet, ChevronLeft, ChevronRight } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth.js'
 import UiButton from '@/components/ui/Button.vue'
 import UiInput from '@/components/ui/Input.vue'
@@ -60,19 +61,35 @@ const availableYears = computed(() => {
   return yearList.sort((a, b) => b - a) // Sort descending
 })
 
-watch([selectedMonth, selectedYear], () => {
-  store.fetchAll({ month: selectedMonth.value, year: selectedYear.value })
-  dashboard.fetchStats({ month: selectedMonth.value, year: selectedYear.value })
-}, { immediate: true })
+const currentPage = ref(1)
+
+const total = computed(() => dashboard.stats.expenses_total || 0)
 
 const showForm = ref(false)
 const editingId = ref(null)
 const search = ref('')
 const form = ref({ title: '', amount: '', category: '', description: '', date: '', wallet_id: null })
 
-const total = computed(() =>
-  store.expenses.reduce((sum, e) => sum + parseFloat(e.amount), 0).toFixed(2)
-)
+const debouncedSearch = refDebounced(search, 500)
+
+// Reset to page 1 when filter or search changes
+watch([selectedMonth, selectedYear, search], () => {
+  currentPage.value = 1
+})
+
+watch([selectedMonth, selectedYear], () => {
+  dashboard.fetchStats({ month: selectedMonth.value, year: selectedYear.value })
+}, { immediate: true })
+
+watch([selectedMonth, selectedYear, currentPage, debouncedSearch], () => {
+  store.fetchAll(currentPage.value, { 
+    month: selectedMonth.value, 
+    year: selectedYear.value,
+    search: debouncedSearch.value.trim() || undefined
+  })
+}, { immediate: true })
+
+// total is now computed from dashboard stats
 
 const effectiveLimit = computed(() => parseFloat(dashboard.stats.income_total ?? 0))
 
@@ -88,136 +105,6 @@ const spendingPercentage = computed(() => {
 })
 
 // Wallet type → emoji + color
-const typeEmoji = {
-  cash: '💵', gcash: '📱', maya: '💚', bpi: '🏦', bdo: '🏦',
-  unionbank: '🏦', metrobank: '🏦', credit_card: '💳',
-  debit_card: '🏧', shopeepay: '🛍️', coins_ph: '🪙', custom: '👛',
-}
-const typeColor = {
-  cash:        'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300',
-  gcash:       'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300',
-  maya:        'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300',
-  bpi:         'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300',
-  bdo:         'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300',
-  unionbank:   'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300',
-  metrobank:   'bg-blue-200 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300',
-  credit_card: 'bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300',
-  debit_card:  'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300',
-  shopeepay:   'bg-orange-100 dark:bg-orange-900/40 text-orange-600 dark:text-orange-300',
-  coins_ph:    'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300',
-  custom:      'bg-pink-100 dark:bg-pink-900/40 text-pink-700 dark:text-pink-300',
-}
-
-function walletEmoji(wallet) {
-  if (!wallet) return '💰'
-  return typeEmoji[wallet.type] ?? '👛'
-}
-
-function walletColor(wallet) {
-  if (!wallet) return 'bg-muted text-muted-foreground'
-  return typeColor[wallet.type] ?? typeColor.custom
-}
-
-// Category-based color system
-const categoryColors = {
-  food: {
-    border: 'border-l-[3px] border-l-orange-500',
-    badge: 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-800',
-    emoji: '🍔',
-  },
-  groceries: {
-    border: 'border-l-[3px] border-l-green-500',
-    badge: 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800',
-    emoji: '🛒',
-  },
-  transport: {
-    border: 'border-l-[3px] border-l-blue-500',
-    badge: 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800',
-    emoji: '🚗',
-  },
-  transportation: {
-    border: 'border-l-[3px] border-l-blue-500',
-    badge: 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800',
-    emoji: '🚗',
-  },
-  bills: {
-    border: 'border-l-[3px] border-l-red-500',
-    badge: 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800',
-    emoji: '📄',
-  },
-  utilities: {
-    border: 'border-l-[3px] border-l-yellow-500',
-    badge: 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300 border-yellow-200 dark:border-yellow-800',
-    emoji: '⚡',
-  },
-  entertainment: {
-    border: 'border-l-[3px] border-l-purple-500',
-    badge: 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800',
-    emoji: '🎬',
-  },
-  health: {
-    border: 'border-l-[3px] border-l-rose-500',
-    badge: 'bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800',
-    emoji: '💊',
-  },
-  shopping: {
-    border: 'border-l-[3px] border-l-pink-500',
-    badge: 'bg-pink-100 dark:bg-pink-900/40 text-pink-700 dark:text-pink-300 border-pink-200 dark:border-pink-800',
-    emoji: '🛍️',
-  },
-  education: {
-    border: 'border-l-[3px] border-l-indigo-500',
-    badge: 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800',
-    emoji: '📚',
-  },
-  travel: {
-    border: 'border-l-[3px] border-l-teal-500',
-    badge: 'bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800',
-    emoji: '✈️',
-  },
-  subscription: {
-    border: 'border-l-[3px] border-l-violet-500',
-    badge: 'bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 border-violet-200 dark:border-violet-800',
-    emoji: '📱',
-  },
-  snack: {
-    border: 'border-l-[3px] border-l-amber-500',
-    badge: 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800',
-    emoji: '🍿',
-  },
-  drinks: {
-    border: 'border-l-[3px] border-l-cyan-500',
-    badge: 'bg-cyan-100 dark:bg-cyan-900/40 text-cyan-700 dark:text-cyan-300 border-cyan-200 dark:border-cyan-800',
-    emoji: '🥤',
-  },
-  rent: {
-    border: 'border-l-[3px] border-l-stone-500',
-    badge: 'bg-stone-100 dark:bg-stone-900/40 text-stone-700 dark:text-stone-300 border-stone-200 dark:border-stone-800',
-    emoji: '🏠',
-  },
-  'already spent': {
-    border: 'border-l-[3px] border-l-slate-500',
-    badge: 'bg-slate-100 dark:bg-slate-900/40 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800',
-    emoji: '💸',
-  },
-}
-
-const defaultCategoryColor = {
-  border: 'border-l-[3px] border-l-slate-400',
-  badge: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700',
-  emoji: '📦',
-}
-
-function getCategoryColor(category) {
-  if (!category) return defaultCategoryColor
-  const key = category.toLowerCase().trim()
-  return categoryColors[key] ?? defaultCategoryColor
-}
-
-function getCategoryEmoji(category) {
-  return getCategoryColor(category).emoji
-}
-
 // Balance validation error
 const balanceError = ref('')
 
@@ -232,15 +119,7 @@ function formatDateTime(dateStr, createdAt) {
   return `${datePart} · ${timePart}`
 }
 
-const filteredExpenses = computed(() => {
-  const q = search.value.toLowerCase()
-  if (!q) return store.expenses
-  return store.expenses.filter(e =>
-    e.title.toLowerCase().includes(q) ||
-    (e.category ?? '').toLowerCase().includes(q) ||
-    (e.wallet?.name ?? '').toLowerCase().includes(q)
-  )
-})
+const filteredExpenses = computed(() => store.expenses)
 
 function openCreate() {
   editingId.value = null
@@ -297,11 +176,13 @@ async function submit() {
     if (newWalletId) walletsStore.adjustBalance(newWalletId, -newAmount)
   }
   showForm.value = false
+  dashboard.fetchStats({ month: selectedMonth.value, year: selectedYear.value })
 }
 
 async function remove(expense) {
   await store.remove(expense.id)
   if (expense.wallet_id) walletsStore.adjustBalance(expense.wallet_id, parseFloat(expense.amount))
+  dashboard.fetchStats({ month: selectedMonth.value, year: selectedYear.value })
 }
 </script>
 
@@ -311,30 +192,31 @@ async function remove(expense) {
       <div class="space-y-1">
         <h1 class="text-[32px] sm:text-[40px] font-black tracking-tight text-foreground leading-none">Expenses</h1>
       </div>
-      <div class="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto">
+      <div class="flex items-center justify-between sm:justify-end gap-2 sm:gap-3 w-full sm:w-auto">
+        <div class="bg-card border border-border shadow-sm px-3 sm:px-4 py-2 rounded-2xl flex flex-col items-center sm:items-end flex-1 sm:flex-none sm:min-w-[140px] transition-all hover:shadow-md min-w-0">
+          <span class="text-[9px] sm:text-[10px] font-bold text-muted-foreground uppercase tracking-widest leading-none mb-1 truncate w-full text-center sm:text-right">Total Expenses</span>
+          <span class="text-base sm:text-xl font-black text-foreground tabular-nums truncate w-full text-center sm:text-right">{{ formatCurrency(total) }}</span>
+        </div>
+
         <!-- iOS-style Date Filter -->
-        <div class="flex items-center gap-2 bg-card border border-border shadow-sm rounded-2xl px-1 py-1">
+        <div class="flex items-center gap-1 sm:gap-2 bg-card border border-border shadow-sm rounded-2xl px-1 py-1 shrink-0">
           <button
             @click="showMonthPicker = true"
-            class="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-muted hover:bg-muted/80 transition-colors min-h-[44px]"
+            class="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-2.5 rounded-xl bg-muted hover:bg-muted/80 transition-colors min-h-[40px] sm:min-h-[44px]"
           >
-            <Calendar class="h-4 w-4 text-muted-foreground" />
-            <span class="text-sm font-semibold">{{ months[selectedMonth - 1] }}</span>
-            <ChevronDown class="h-4 w-4 text-muted-foreground" />
+            <Calendar class="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground" />
+            <span class="text-xs sm:text-sm font-semibold">{{ months[selectedMonth - 1] }}</span>
+            <ChevronDown class="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground" />
           </button>
           <button
             @click="showYearPicker = true"
-            class="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-muted hover:bg-muted/80 transition-colors min-h-[44px]"
+            class="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-2.5 rounded-xl bg-muted hover:bg-muted/80 transition-colors min-h-[40px] sm:min-h-[44px]"
           >
-            <span class="text-sm font-semibold">{{ selectedYear }}</span>
-            <ChevronDown class="h-4 w-4 text-muted-foreground" />
+            <span class="text-xs sm:text-sm font-semibold">{{ selectedYear }}</span>
+            <ChevronDown class="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground" />
           </button>
         </div>
 
-        <div class="bg-card border border-border shadow-sm px-4 py-2 rounded-2xl flex flex-col items-start sm:items-end min-w-[140px] transition-all hover:shadow-md">
-          <span class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest leading-none mb-1">Total Expenses</span>
-          <span class="text-xl font-black text-foreground tabular-nums">{{ formatCurrency(total) }}</span>
-        </div>
         <UiButton @click="openCreate" class="hidden sm:flex h-12 px-6 rounded-2xl">
           <Plus class="h-5 w-5 mr-1" /> Add
         </UiButton>
@@ -386,6 +268,33 @@ async function remove(expense) {
       <UiInput v-model="search" placeholder="Search expenses…" class="pl-9" />
     </div>
 
+    <!-- Pagination Controls -->
+    <div v-if="store.pagination.total > 10" class="flex items-center justify-end mb-6">
+      <div class="flex items-center bg-card border border-border shadow-sm rounded-full p-1 gap-1">
+        <button 
+          class="h-11 w-11 flex items-center justify-center rounded-full transition-all duration-200 hover:bg-muted active:scale-90 disabled:opacity-30 disabled:pointer-events-none"
+          :disabled="currentPage <= 1"
+          @click="currentPage--"
+        >
+          <ChevronLeft class="h-5 w-5" />
+        </button>
+        
+        <div class="px-4 py-1 text-xs font-bold tracking-tight text-foreground flex items-center gap-1.5 border-x border-border/50">
+          <span class="text-primary">{{ currentPage }}</span>
+          <span class="text-muted-foreground/50">/</span>
+          <span>{{ store.pagination.last_page }}</span>
+        </div>
+
+        <button 
+          class="h-11 w-11 flex items-center justify-center rounded-full transition-all duration-200 hover:bg-muted active:scale-90 disabled:opacity-30 disabled:pointer-events-none"
+          :disabled="currentPage >= store.pagination.last_page"
+          @click="currentPage++"
+        >
+          <ChevronRight class="h-5 w-5" />
+        </button>
+      </div>
+    </div>
+
     <div v-if="store.loading && store.expenses.length === 0" class="text-sm text-muted-foreground">Loading…</div>
 
     <div v-else-if="store.expenses.length === 0" class="flex flex-col items-center justify-center py-24 text-center border rounded-xl border-dashed bg-muted/20">
@@ -409,17 +318,16 @@ async function remove(expense) {
               class="w-full h-full object-contain rounded" 
               @error="$event.target.style.display='none'; $event.target.nextElementSibling.style.display='block'"
             />
-            <span style="display:none">{{ walletEmoji(expense.wallet) }}</span>
+            <Wallet class="h-5 w-5 text-muted-foreground" style="display:none" />
           </template>
-          <span v-else class="text-xl">{{ getCategoryEmoji(expense.category) }}</span>
+          <span v-else class="text-xl">📦</span>
         </div>
         <div class="min-w-0 flex-1">
           <p class="font-semibold text-sm truncate">{{ expense.title }}</p>
           <div class="flex flex-wrap items-center gap-1.5 mt-0.5">
             <span
               v-if="expense.category"
-              class="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-medium border"
-              :class="getCategoryColor(expense.category).badge"
+              class="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-medium border bg-muted/50 text-muted-foreground border-border"
             >
               {{ expense.category }}
             </span>
@@ -469,10 +377,10 @@ async function remove(expense) {
                       class="w-full h-full object-contain rounded" 
                       @error="$event.target.style.display='none'; $event.target.nextElementSibling.style.display='block'"
                     />
-                    <span style="display:none" class="text-sm">{{ walletEmoji(expense.wallet) }}</span>
+                    <Wallet class="h-4 w-4 text-muted-foreground" style="display:none" />
                   </div>
                 </template>
-                <span v-else class="text-xl w-8 h-8 flex items-center justify-center">{{ getCategoryEmoji(expense.category) }}</span>
+                <span v-else class="text-xl w-8 h-8 flex items-center justify-center">📦</span>
                 {{ expense.title }}
               </div>
             </td>
@@ -484,7 +392,7 @@ async function remove(expense) {
                     class="w-full h-full object-contain rounded" 
                     @error="$event.target.style.display='none'; $event.target.nextElementSibling.style.display='block'"
                   />
-                  <span style="display:none" class="text-xs">{{ walletEmoji(expense.wallet) }}</span>
+                  <Wallet class="h-3 w-3 text-muted-foreground" style="display:none" />
                 </div>
                 <span class="text-muted-foreground font-medium">{{ expense.wallet.name }}</span>
               </span>
@@ -493,8 +401,7 @@ async function remove(expense) {
             <td class="px-4 py-3">
               <span
                 v-if="expense.category"
-                class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border"
-                :class="getCategoryColor(expense.category).badge"
+                class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border bg-muted/50 text-muted-foreground border-border"
               >
                 {{ expense.category }}
               </span>
@@ -519,104 +426,113 @@ async function remove(expense) {
 
     <!-- Form Modal -->
     <Teleport to="body">
-      <div v-if="showForm" class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm" @mousedown.self="showForm = false">
-        <UiCard class="w-full sm:max-w-lg shadow-xl animate-fade-in rounded-t-2xl sm:rounded-2xl max-h-[90vh] overflow-y-auto">
-          <div class="flex items-center justify-between p-5 pb-4 sticky top-0 bg-card border-b border-border">
-            <h2 class="text-lg font-semibold">{{ editingId ? 'Edit Expense' : 'New Expense' }}</h2>
-            <UiButton variant="ghost" size="icon" @click="showForm = false"><X class="h-4 w-4" /></UiButton>
+      <div v-if="showForm" class="fixed inset-0 z-[80] flex items-stretch justify-center bg-black/60 backdrop-blur-sm p-0 sm:items-center sm:p-4" @mousedown.self="showForm = false">
+        <UiCard class="flex w-full max-w-none flex-col overflow-hidden bg-card shadow-2xl animate-in fade-in zoom-in duration-200
+          max-sm:h-[100dvh] max-sm:max-h-[100dvh] max-sm:min-h-0 max-sm:rounded-none max-sm:pt-[env(safe-area-inset-top)]
+          sm:max-h-[90vh] sm:min-h-0 sm:max-w-lg sm:rounded-2xl" @mousedown.stop>
+          
+          <div class="shrink-0 p-6 border-b border-border bg-gradient-to-r from-destructive/10 to-transparent flex items-center justify-between">
+            <h2 class="text-xl font-bold tracking-tight">{{ editingId ? 'Edit Expense' : 'New Expense' }}</h2>
+            <UiButton variant="ghost" size="icon" @click="showForm = false" class="rounded-full h-8 w-8">
+              <X class="h-4 w-4" />
+            </UiButton>
           </div>
-          <UiCardContent class="p-5">
-            <form @submit.prevent="submit" class="space-y-5">
-              <div class="space-y-1.5">
-                <UiLabel>Title</UiLabel>
-                <UiInput v-model="form.title" placeholder="Groceries, Utilities…" required />
-              </div>
 
-              <div class="grid grid-cols-2 gap-4">
+          <div class="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
+            <UiCardContent class="p-6">
+              <form id="expense-form" @submit.prevent="submit" class="space-y-5">
                 <div class="space-y-1.5">
-                  <UiLabel>Amount (₱)</UiLabel>
-                  <UiInput v-model="form.amount" type="number" min="0" step="0.01" placeholder="0.00" required />
+                  <UiLabel>Title</UiLabel>
+                  <UiInput v-model="form.title" placeholder="Groceries, Utilities…" required />
                 </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                  <div class="space-y-1.5">
+                    <UiLabel>Amount (₱)</UiLabel>
+                    <UiInput v-model="form.amount" type="number" min="0" step="0.01" placeholder="0.00" required />
+                  </div>
+                  <div class="space-y-1.5">
+                    <UiLabel>Date</UiLabel>
+                    <DatePicker v-model="form.date" placeholder="Pick a date" />
+                  </div>
+                </div>
+
                 <div class="space-y-1.5">
-                  <UiLabel>Date</UiLabel>
-                  <DatePicker v-model="form.date" placeholder="Pick a date" />
+                  <UiLabel>Category</UiLabel>
+                  <UiInput v-model="form.category" placeholder="Food, Transport…" />
                 </div>
-              </div>
 
-              <div class="space-y-1.5">
-                <UiLabel>Category</UiLabel>
-                <UiInput v-model="form.category" placeholder="Food, Transport…" />
-              </div>
-
-              <!-- Wallet Picker -->
-              <div class="space-y-2">
-                <UiLabel>Pay from Wallet</UiLabel>
-                <div v-if="walletsStore.wallets.length === 0" class="text-sm text-muted-foreground rounded-xl border border-dashed p-4 text-center">
-                  No wallets yet — add one in the <strong>Wallets</strong> tab.
-                </div>
-                <div v-else class="grid grid-cols-2 gap-2">
-                  <button
-                    v-for="wallet in walletsStore.wallets"
-                    :key="wallet.id"
-                    type="button"
-                    @click="form.wallet_id = wallet.id"
-                    class="flex items-center gap-2.5 rounded-xl border-2 p-3 text-left transition-all duration-150"
-                    :class="form.wallet_id === wallet.id
-                      ? 'border-primary bg-primary/5 scale-[1.02]'
-                      : 'border-border hover:border-muted-foreground/40'"
-                  >
-                    <div class="h-8 w-8 shrink-0 flex items-center justify-center rounded-lg bg-white/20">
-                      <img 
-                        :src="wallet.icon_url || `/icons/wallets/${wallet.type === 'metrobank' ? 'metrobank.jpg' : wallet.type + '.png'}`" 
-                        class="w-full h-full object-contain rounded" 
-                        @error="$event.target.style.display='none'; $event.target.nextElementSibling.style.display='block'"
-                      />
-                      <span class="text-xl leading-none" style="display:none">{{ walletEmoji(wallet) }}</span>
+                <!-- Wallet Picker -->
+                <div class="space-y-2">
+                  <UiLabel>Pay from Wallet</UiLabel>
+                  <div v-if="walletsStore.wallets.length === 0" class="text-sm text-muted-foreground rounded-xl border border-dashed p-4 text-center">
+                    No wallets yet — add one in the <strong>Wallets</strong> tab.
+                  </div>
+                  <div v-else class="max-h-[160px] overflow-y-auto pr-1 py-1 -mr-1">
+                    <div class="grid grid-cols-2 gap-2">
+                      <button
+                        v-for="wallet in walletsStore.wallets"
+                        :key="wallet.id"
+                        type="button"
+                        @click="form.wallet_id = wallet.id"
+                        class="flex items-center gap-2.5 rounded-xl border-2 p-3 text-left transition-all duration-150"
+                        :class="form.wallet_id === wallet.id
+                          ? 'border-primary bg-primary/5 scale-[1.02]'
+                          : 'border-border hover:border-muted-foreground/40'"
+                      >
+                        <div class="h-8 w-8 shrink-0 flex items-center justify-center rounded-lg bg-white/20">
+                          <img 
+                            :src="wallet.icon_url || `/icons/wallets/${wallet.type === 'metrobank' ? 'metrobank.jpg' : wallet.type + '.png'}`" 
+                            class="w-full h-full object-contain rounded" 
+                            @error="$event.target.style.display='none'; $event.target.nextElementSibling.style.display='block'"
+                          />
+                          <Wallet class="h-4 w-4 text-muted-foreground" style="display:none" />
+                        </div>
+                        <div class="min-w-0">
+                          <p class="text-xs font-semibold truncate">{{ wallet.name }}</p>
+                          <p class="text-[10px] text-muted-foreground">{{ formatCurrency(wallet.balance) }}</p>
+                        </div>
+                      </button>
+                      <button
+                        type="button"
+                        @click="form.wallet_id = null"
+                        class="flex items-center gap-2.5 rounded-xl border-2 p-3 text-left transition-all duration-150"
+                        :class="form.wallet_id === null
+                          ? 'border-primary bg-primary/5 scale-[1.02]'
+                          : 'border-border hover:border-muted-foreground/40'"
+                      >
+                        <span class="text-xl leading-none">💰</span>
+                        <div><p class="text-xs font-semibold">No wallet</p></div>
+                      </button>
                     </div>
-                    <div class="min-w-0">
-                      <p class="text-xs font-semibold truncate">{{ wallet.name }}</p>
-                      <p class="text-[10px] text-muted-foreground">{{ formatCurrency(wallet.balance) }}</p>
-                    </div>
-                  </button>
-                  <button
-                    type="button"
-                    @click="form.wallet_id = null"
-                    class="flex items-center gap-2.5 rounded-xl border-2 p-3 text-left transition-all duration-150"
-                    :class="form.wallet_id === null
-                      ? 'border-primary bg-primary/5 scale-[1.02]'
-                      : 'border-border hover:border-muted-foreground/40'"
-                  >
-                    <span class="text-xl leading-none">💰</span>
-                    <div><p class="text-xs font-semibold">No wallet</p></div>
-                  </button>
+                  </div>
                 </div>
-              </div>
 
-              <p v-if="balanceError" class="text-sm text-destructive font-medium rounded-xl bg-destructive/10 px-3 py-2">
-                {{ balanceError }}
-              </p>
+                <p v-if="balanceError" class="text-sm text-destructive font-medium rounded-xl bg-destructive/10 px-3 py-2">
+                  {{ balanceError }}
+                </p>
+              </form>
+            </UiCardContent>
+          </div>
 
-              <div class="flex justify-between items-center pt-1">
-                <UiButton v-if="editingId" type="button" variant="destructive" size="icon" class="h-9 w-9" @click="remove({ id: editingId, amount: form.amount, wallet_id: form.wallet_id }); showForm = false">
-                  <Trash2 class="h-4 w-4" />
-                </UiButton>
-                <div v-else></div>
-                <div class="flex gap-2">
-                  <UiButton type="button" variant="outline" @click="showForm = false">Cancel</UiButton>
-                  <UiButton type="submit" :disabled="store.loading">
-                    {{ store.loading ? 'Saving…' : (editingId ? 'Save changes' : 'Add expense') }}
-                  </UiButton>
-                </div>
-              </div>
-            </form>
-          </UiCardContent>
+          <div class="shrink-0 border-t border-border bg-muted/20 p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] flex flex-col gap-3 sm:flex-row-reverse">
+            <UiButton type="submit" form="expense-form" :disabled="store.loading" class="rounded-xl h-11 px-8 bg-primary text-primary-foreground font-bold">
+              {{ store.loading ? (editingId ? 'Saving…' : 'Adding…') : (editingId ? 'Save changes' : 'Add expense') }}
+            </UiButton>
+            <UiButton variant="outline" @click="showForm = false" class="rounded-xl h-11 px-6">
+              Cancel
+            </UiButton>
+            <UiButton v-if="editingId" type="button" variant="destructive" @click="remove({ id: editingId, amount: form.amount, wallet_id: form.wallet_id }); showForm = false" class="rounded-xl h-11 px-4 sm:mr-auto">
+              <Trash2 class="h-4 w-4 mr-2" /> Delete
+            </UiButton>
+          </div>
         </UiCard>
       </div>
     </Teleport>
 
     <!-- Month Picker Bottom Sheet -->
     <Teleport to="body">
-      <div v-if="showMonthPicker" class="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm" @click.self="showMonthPicker = false">
+      <div v-if="showMonthPicker" class="fixed inset-0 z-[80] flex items-end justify-center bg-black/50 backdrop-blur-sm" @click.self="showMonthPicker = false">
         <div class="w-full max-w-md bg-card rounded-t-2xl sm:rounded-2xl shadow-xl animate-slide-up">
           <div class="p-4 border-b border-border">
             <h3 class="text-lg font-semibold text-center">Select Month</h3>
@@ -638,7 +554,7 @@ async function remove(expense) {
 
     <!-- Year Picker Bottom Sheet -->
     <Teleport to="body">
-      <div v-if="showYearPicker" class="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm" @click.self="showYearPicker = false">
+      <div v-if="showYearPicker" class="fixed inset-0 z-[80] flex items-end justify-center bg-black/50 backdrop-blur-sm" @click.self="showYearPicker = false">
         <div class="w-full max-w-md bg-card rounded-t-2xl sm:rounded-2xl shadow-xl animate-slide-up">
           <div class="p-4 border-b border-border">
             <h3 class="text-lg font-semibold text-center">Select Year</h3>

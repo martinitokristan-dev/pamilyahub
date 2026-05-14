@@ -20,6 +20,7 @@ class StoreDebtRequest extends FormRequest
             'description' => ['nullable', 'string'],
             'due_date'    => ['nullable', 'date'],
             'is_paid'     => ['sometimes', 'boolean'],
+            'wallet_id'   => ['nullable', 'integer', 'exists:wallets,id'],
         ];
     }
 }

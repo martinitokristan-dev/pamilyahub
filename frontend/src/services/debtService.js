@@ -1,8 +1,8 @@
 import api from "@/lib/axios.js";
 
 export const debtService = {
-  getAll: (page = 1, perPage = 20) =>
-    api.get("/debts", { params: { page, per_page: perPage } }),
+  getAll: (page = 1, perPage = 20, filters = {}) =>
+    api.get("/debts", { params: { page, per_page: perPage, ...filters } }),
   create: (data) => api.post("/debts", data),
   update: (id, data) => api.put(`/debts/${id}`, data),
   markPaid: (id, walletId = null) =>

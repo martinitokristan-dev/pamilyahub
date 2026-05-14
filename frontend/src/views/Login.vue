@@ -23,7 +23,7 @@ const form = reactive({ email: '', password: '' })
           <Home class="h-5 w-5 text-primary-foreground" />
         </div>
         <h1 class="text-2xl font-bold tracking-tight">Welcome back</h1>
-        <p class="text-sm text-muted-foreground">Sign in to your Pamilya Hub account</p>
+        <p class="text-sm text-muted-foreground">Sign in to your EleFam account</p>
       </div>
 
       <UiCard>

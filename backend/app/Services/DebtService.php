@@ -24,9 +24,9 @@ class DebtService
         return $this->repository->getByUser($userId);
     }
 
-    public function getAllPaginated(int $userId, int $perPage = 20, int $page = 1): array
+    public function getAllPaginated(int $userId, int $perPage = 20, int $page = 1, ?string $type = null, ?string $search = null): array
     {
-        return $this->repository->getByUserPaginated($userId, $perPage, $page);
+        return $this->repository->getByUserPaginated($userId, $perPage, $page, $type, $search);
     }
 
     public function create(int $userId, array $data): Debt
@@ -35,6 +35,14 @@ class DebtService
             $data['user_id'] = $userId;
             $debt = $this->repository->create($data);
             
+            // Handle Wallet Balance Adjustment on creation
+            if (!empty($data['wallet_id'])) {
+                // If I am lending money (Owed to Me), deduct from wallet
+                // If I am borrowing money (I Owe), add to wallet
+                $delta = $data['type'] === 'owed_to_me' ? -(float)$data['amount'] : (float)$data['amount'];
+                $this->walletRepository->adjustBalance($data['wallet_id'], $delta);
+            }
+
             // If I am lending money (Owed to Me), log it as an expense immediately
             if ($data['type'] === 'owed_to_me') {
                 $this->expenseRepository->create([
@@ -47,6 +55,18 @@ class DebtService
                     'description' => $data['description'] ?? 'Lending money'
                 ]);
                 $this->stats->adjust($userId, 'expenses_total', (float) $data['amount']);
+            } else {
+                // If I am borrowing money (I Owe), log it as a general Income
+                DB::table('incomes')->insert([
+                    'user_id'     => $userId,
+                    'wallet_id'   => $data['wallet_id'] ?? null,
+                    'amount'      => $data['amount'],
+                    'source'      => 'Debt (Borrowed)',
+                    'date'        => now()->toDateString(),
+                    'description' => "Borrowed money from: " . $data['name'],
+                    'created_at'  => now(),
+                    'updated_at'  => now(),
+                ]);
             }
 
             $field = $data['type'] === 'i_owe' ? 'debts_i_owe' : 'debts_owed_to_me';

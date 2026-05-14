@@ -394,7 +394,7 @@ function getPreviewLines(content) {
     <!-- Full-screen notepad editor -->
     <Teleport to="body">
       <transition name="note-editor">
-        <div v-if="showEditor" class="fixed inset-0 z-50 flex flex-col bg-background">
+        <div v-if="showEditor" class="fixed inset-0 z-[80] flex flex-col bg-background">
           <!-- Header bar -->
           <div class="flex items-center justify-between px-4 py-3 border-b border-border bg-card/95 backdrop-blur-sm shrink-0">
             <button
@@ -405,20 +405,11 @@ function getPreviewLines(content) {
               <span>Notes</span>
             </button>
             <div class="flex items-center gap-1 sm:gap-2">
-              <UiButton
-                size="sm"
-                @click="saveNote"
-                :disabled="store.loading"
-                class="px-4"
-              >
-                <Check class="h-4 w-4" />
-                {{ store.loading ? 'Saving…' : 'Done' }}
-              </UiButton>
             </div>
           </div>
 
           <!-- Editor body -->
-          <div class="flex-1 flex flex-col overflow-y-auto">
+          <div class="flex-1 flex flex-col overflow-y-auto relative pb-32">
             <div class="max-w-3xl w-full mx-auto flex flex-col flex-1 px-4 sm:px-6 py-4">
               <!-- Title input -->
               <input
@@ -477,6 +468,19 @@ function getPreviewLines(content) {
                 </div>
               </bubble-menu>
             </div>
+
+            <!-- Floating Save Button -->
+            <div class="fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] w-full max-w-[200px] px-4">
+              <UiButton
+                size="lg"
+                @click="saveNote"
+                :disabled="store.loading"
+                class="w-full shadow-2xl shadow-primary/40 rounded-full h-14 text-base font-bold gap-2"
+              >
+                <Check class="h-5 w-5" />
+                {{ store.loading ? (editing ? 'Saving…' : 'Adding…') : (editing ? 'Save' : 'Add Note') }}
+              </UiButton>
+            </div>
           </div>
         </div>
       </transition>
@@ -486,8 +490,8 @@ function getPreviewLines(content) {
 
     <!-- Folder Selection Modal -->
     <Teleport to="body">
-      <div v-if="showFolderModal" class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm" @mousedown.self="showFolderModal = false">
-        <UiCard class="w-full sm:max-w-md shadow-xl animate-fade-in rounded-t-2xl sm:rounded-2xl p-5">
+      <div v-if="showFolderModal" class="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" @mousedown.self="showFolderModal = false">
+        <UiCard class="w-full sm:max-w-md shadow-xl animate-fade-in rounded-2xl p-5">
           <div class="flex items-center justify-between mb-4">
             <h2 class="text-lg font-semibold">Move to Folder</h2>
             <UiButton variant="ghost" size="icon" @click="showFolderModal = false">
@@ -528,8 +532,8 @@ function getPreviewLines(content) {
 
     <!-- Create Folder Modal -->
     <Teleport to="body">
-      <div v-if="showCreateFolderModal" class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm" @mousedown.self="showCreateFolderModal = false">
-        <UiCard class="w-full sm:max-w-sm shadow-xl animate-fade-in rounded-t-2xl sm:rounded-2xl p-5">
+      <div v-if="showCreateFolderModal" class="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" @mousedown.self="showCreateFolderModal = false">
+        <UiCard class="w-full sm:max-w-sm shadow-xl animate-fade-in rounded-2xl p-5">
           <h2 class="text-lg font-semibold mb-4">New Folder</h2>
           <div class="space-y-4">
             <div>
@@ -565,8 +569,8 @@ function getPreviewLines(content) {
 
     <!-- Password Prompt Modal -->
     <Teleport to="body">
-      <div v-if="showPasswordModal" class="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-md">
-        <UiCard class="w-full sm:max-w-xs shadow-2xl animate-fade-in rounded-t-3xl sm:rounded-2xl p-6 text-center">
+      <div v-if="showPasswordModal" class="fixed inset-0 z-[90] flex items-center justify-center bg-black/70 backdrop-blur-md p-4">
+        <UiCard class="w-full sm:max-w-xs shadow-2xl animate-fade-in rounded-2xl p-6 text-center">
           <div class="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center text-primary mx-auto mb-4">
             <Lock class="h-7 w-7" />
           </div>

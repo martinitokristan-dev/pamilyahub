@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, computed } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { RouterView, RouterLink, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.js'
 import { useNotesStore } from '@/stores/notes.js'
@@ -23,7 +23,10 @@ import {
   Wallet,
 } from 'lucide-vue-next'
 
+import { useDashboardStore } from '@/stores/dashboard.js'
+
 const auth = useAuthStore()
+const dashboard = useDashboardStore()
 const notes = useNotesStore()
 const expenses = useExpensesStore()
 const debts = useDebtsStore()
@@ -36,14 +39,21 @@ const { toasts } = useToast()
 onMounted(async () => {
   if (!auth.user) await auth.fetchMe()
 
-  // Load only critical stores on app init
-  // Skip if already populated from login-with-data response
-  // Debts, files, and expenses are loaded when needed by their respective pages
-  if (!wallets.fetched) {
-    await wallets.fetchAll()
+  // Preload all essential data in the background for an instant-load experience
+  // This happens silently thanks to our new storeHelper
+  if (auth.user) {
+    // Grouped background preloading
+    Promise.all([
+      dashboard.fetchStats(),
+      expenses.fetchAll(),
+      debts.fetchAll(),
+      notes.fetchAll(),
+      wallets.fetchAll()
+    ]).catch(err => console.error('Silent preload failed:', err))
   }
 })
 
+const showMoreMenu = ref(false)
 const nav = [
   { name: 'Dashboard', to: '/', icon: LayoutDashboard },
   { name: 'Notes', to: '/notes', icon: NotebookPen },
@@ -54,13 +64,17 @@ const nav = [
   { name: 'Settings', to: '/settings', icon: Settings },
 ]
 
-// Bottom nav — all pages, scrollable on mobile
-const bottomNav = [
+// Main tabs for the bottom dock (2 on each side of the center button)
+const mainBottomNav = [
   { name: 'Home',     to: '/',         icon: LayoutDashboard },
-  { name: 'Notes',    to: '/notes',    icon: NotebookPen },
   { name: 'Expenses', to: '/expenses', icon: Receipt },
-  { name: 'Wallets',  to: '/wallets',  icon: Wallet },
   { name: 'Debts',    to: '/debts',    icon: HandCoins },
+]
+
+// Secondary items for the "More" menu
+const moreNav = [
+  { name: 'Wallets',  to: '/wallets',  icon: Wallet },
+  { name: 'Notes',    to: '/notes',    icon: NotebookPen },
   { name: 'Files',    to: '/files',    icon: FolderOpen },
   { name: 'Settings', to: '/settings', icon: Settings },
 ]
@@ -77,27 +91,27 @@ function isActive(path) {
 </script>
 
 <template>
-  <div class="flex h-screen overflow-hidden bg-background">
+  <div class="flex h-screen overflow-hidden bg-background font-sans">
 
     <!-- Desktop Sidebar -->
-    <aside class="hidden lg:flex w-[220px] shrink-0 flex-col border-r border-sidebar-border bg-sidebar">
-      <div class="flex h-14 shrink-0 items-center gap-2.5 border-b border-sidebar-border px-4">
-        <div class="h-8 w-8 rounded-lg bg-emerald-600 flex items-center justify-center shrink-0">
-          <span class="text-white font-bold text-lg leading-none">E</span>
+    <aside class="hidden lg:flex w-[240px] shrink-0 flex-col border-r border-sidebar-border bg-sidebar shadow-sm">
+      <div class="flex h-16 shrink-0 items-center gap-3 border-b border-sidebar-border px-6">
+        <div class="h-9 w-9 rounded-xl bg-primary flex items-center justify-center shrink-0 shadow-lg shadow-primary/20">
+          <span class="text-white font-black text-xl leading-none">E</span>
         </div>
-        <span class="font-bold text-xl tracking-tight hidden md:block">EleFam</span>
+        <span class="font-black text-xl tracking-tight hidden md:block text-foreground">EleFam</span>
       </div>
 
-      <nav class="flex flex-1 flex-col gap-0.5 overflow-y-auto p-3">
+      <nav class="flex flex-1 flex-col gap-1 overflow-y-auto p-4">
         <RouterLink
           v-for="item in nav"
           :key="item.to"
           :to="item.to"
-          class="flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors"
+          class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all duration-200"
           :class="
             isActive(item.to)
-              ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-              : 'text-sidebar-foreground hover:bg-accent hover:text-accent-foreground'
+              ? 'bg-primary text-primary-foreground shadow-md shadow-primary/10'
+              : 'text-muted-foreground hover:bg-muted hover:text-foreground'
           "
         >
           <component :is="item.icon" class="h-4 w-4 shrink-0" />
@@ -105,19 +119,19 @@ function isActive(path) {
         </RouterLink>
       </nav>
 
-      <div class="shrink-0 border-t border-sidebar-border p-3">
-        <div class="flex items-center gap-2.5 rounded-md px-2 py-2 mb-1">
-          <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground">
+      <div class="shrink-0 border-t border-sidebar-border p-4 bg-muted/20">
+        <div class="flex items-center gap-3 px-2 py-3 mb-2 rounded-xl bg-card border border-border/50 shadow-sm">
+          <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary text-sm font-bold border border-primary/20">
             {{ initials }}
           </div>
           <div class="min-w-0">
-            <p class="truncate text-xs font-semibold text-foreground leading-none">{{ auth.user?.name }}</p>
-            <p class="truncate text-[11px] text-muted-foreground mt-0.5">{{ auth.user?.email }}</p>
+            <p class="truncate text-xs font-black text-foreground">{{ auth.user?.name }}</p>
+            <p class="truncate text-[10px] text-muted-foreground font-medium uppercase tracking-tight">{{ auth.user?.email }}</p>
           </div>
         </div>
         <button
           @click="auth.logout()"
-          class="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors"
+          class="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold text-destructive hover:bg-destructive/10 transition-all duration-200"
         >
           <LogOut class="h-4 w-4" />
           Sign out
@@ -127,52 +141,161 @@ function isActive(path) {
 
     <!-- Content area -->
     <div class="flex min-w-0 flex-1 flex-col overflow-hidden relative">
-      <!-- Page content — extra bottom padding on mobile for bottom nav -->
-      <main class="flex-1 overflow-y-auto pb-24 lg:pb-0">
+      <!-- Page content -->
+      <main class="flex-1 overflow-y-auto pb-32 lg:pb-0">
         <RouterView />
       </main>
 
       <!-- Mobile Bottom Navigation -->
-      <nav class="fixed bottom-0 inset-x-0 z-50 lg:hidden">
+      <nav class="fixed bottom-0 inset-x-0 z-[60] lg:hidden pb-safe px-4 mb-6">
+        <!-- Backdrop to close More Menu -->
+        <div 
+          v-if="showMoreMenu" 
+          class="fixed inset-0 z-40 bg-black/5 backdrop-blur-[2px]" 
+          @click="showMoreMenu = false"
+        ></div>
 
-        <!-- + FAB floats above the nav on the right -->
+        <!-- More Menu Overlay -->
         <Transition
-          enter-active-class="transition-all duration-200"
-          enter-from-class="opacity-0 scale-75"
-          enter-to-class="opacity-100 scale-100"
-          leave-active-class="transition-all duration-150"
-          leave-from-class="opacity-100 scale-100"
-          leave-to-class="opacity-0 scale-75"
+          enter-active-class="transition duration-300 ease-out"
+          enter-from-class="opacity-0 translate-y-10 scale-95"
+          enter-to-class="opacity-100 translate-y-0 scale-100"
+          leave-active-class="transition duration-200 ease-in"
+          leave-from-class="opacity-100 translate-y-0 scale-100"
+          leave-to-class="opacity-0 translate-y-10 scale-95"
         >
-          <button
-            v-if="pageAddAction"
-            @click="pageAddAction()"
-            class="absolute bottom-full right-4 mb-4 flex h-[52px] w-[52px] items-center justify-center rounded-[15px] bg-primary text-primary-foreground shadow-xl active:scale-95 transition-transform z-10"
-            aria-label="Add new"
-          >
-            <Plus class="h-6 w-6" />
-          </button>
+          <div v-if="showMoreMenu" class="absolute bottom-[calc(100%+16px)] inset-x-0 z-50">
+            <div class="bg-card/95 backdrop-blur-2xl border border-border/50 rounded-[32px] shadow-[0_20px_50px_rgba(0,0,0,0.2)] p-5 overflow-hidden mx-1">
+              <div class="grid grid-cols-3 gap-4">
+                <RouterLink
+                  v-for="item in moreNav"
+                  :key="item.to"
+                  :to="item.to"
+                  @click="showMoreMenu = false"
+                  class="flex flex-col items-center gap-2 p-3 rounded-2xl transition-all active:scale-90"
+                  :class="isActive(item.to) ? 'bg-primary/10 text-primary' : 'hover:bg-muted/50 text-muted-foreground hover:text-foreground'"
+                >
+                  <div class="h-12 w-12 flex items-center justify-center rounded-2xl bg-muted/50 shadow-sm border border-border/30">
+                    <component :is="item.icon" class="h-6 w-6" />
+                  </div>
+                  <span class="text-[10px] font-black tracking-wider uppercase">{{ item.name }}</span>
+                </RouterLink>
+              </div>
+            </div>
+          </div>
         </Transition>
 
-        <!-- Nav pill — full width, all items equal, no scrolling -->
-        <div class="mx-3 mb-6 rounded-2xl border border-border bg-background/95 backdrop-blur-md shadow-xl">
-          <div class="flex items-center justify-around px-1 py-1">
-            <RouterLink
-              v-for="item in bottomNav"
-              :key="item.to"
-              :to="item.to"
-              class="flex flex-1 flex-col items-center gap-1 rounded-xl py-2.5 transition-all duration-200 max-w-[56px]"
-              :class="isActive(item.to) ? 'text-primary' : 'text-muted-foreground hover:text-foreground'"
-            >
-              <div
-                class="flex h-8 w-8 items-center justify-center rounded-lg transition-all duration-200"
-                :class="isActive(item.to) ? 'bg-primary/10' : ''"
+        <!-- The Dock Container -->
+        <div class="relative h-20 bg-card/80 backdrop-blur-2xl border border-border/40 rounded-[28px] shadow-[0_10px_40px_rgba(0,0,0,0.15)] flex items-center px-2 overflow-visible transition-all duration-500">
+          
+          <!-- Case 1: With FAB (2-FAB-2 Layout) -->
+          <template v-if="pageAddAction">
+            <!-- Left Side Tabs -->
+            <div class="flex flex-1 justify-around items-center h-full">
+              <RouterLink
+                v-for="item in mainBottomNav.slice(0, 2)"
+                :key="item.to"
+                :to="item.to"
+                @click="showMoreMenu = false"
+                class="relative flex flex-col items-center justify-center w-14 h-full transition-all group"
+                :class="isActive(item.to) ? 'text-primary' : 'text-muted-foreground/60 hover:text-foreground'"
               >
-                <component :is="item.icon" class="h-[20px] w-[20px]" />
-              </div>
-              <span class="text-[10px] font-medium leading-none">{{ item.name }}</span>
-            </RouterLink>
-          </div>
+                <component :is="item.icon" class="h-6 w-6 transition-transform duration-300 group-active:scale-90" :class="{ 'scale-110 drop-shadow-[0_0_8px_rgba(var(--primary-rgb),0.3)]': isActive(item.to) }" />
+                <span class="text-[9px] font-black mt-1 uppercase tracking-tighter">{{ item.name }}</span>
+              </RouterLink>
+            </div>
+
+            <!-- Centered FAB -->
+            <div class="relative w-20 flex justify-center -mt-10">
+              <div class="absolute inset-0 bg-background rounded-full scale-125 blur-xl opacity-50 -z-10"></div>
+              <button
+                @click="pageAddAction(); showMoreMenu = false"
+                class="h-16 w-16 rounded-full bg-primary text-primary-foreground shadow-[0_8px_25px_rgba(var(--primary-rgb),0.5)] flex items-center justify-center active:scale-90 transition-all duration-300 hover:rotate-90 group border-4 border-background"
+              >
+                <Plus class="h-8 w-8 stroke-[3px] transition-transform group-hover:scale-110" />
+              </button>
+            </div>
+
+            <!-- Right Side Tabs -->
+            <div class="flex flex-1 justify-around items-center h-full">
+              <RouterLink
+                :to="mainBottomNav[2].to"
+                @click="showMoreMenu = false"
+                class="relative flex flex-col items-center justify-center w-14 h-full transition-all group"
+                :class="isActive(mainBottomNav[2].to) ? 'text-primary' : 'text-muted-foreground/60 hover:text-foreground'"
+              >
+                <component :is="mainBottomNav[2].icon" class="h-6 w-6 transition-transform duration-300 group-active:scale-90" :class="{ 'scale-110 drop-shadow-[0_0_8px_rgba(var(--primary-rgb),0.3)]': isActive(mainBottomNav[2].to) }" />
+                <span class="text-[9px] font-black mt-1 uppercase tracking-tighter">{{ mainBottomNav[2].name }}</span>
+              </RouterLink>
+
+              <!-- More Trigger -->
+              <button
+                @click="showMoreMenu = !showMoreMenu"
+                class="relative flex flex-col items-center justify-center w-14 h-full transition-all group"
+                :class="showMoreMenu ? 'text-primary' : 'text-muted-foreground/60 hover:text-foreground'"
+              >
+                <div class="flex flex-col gap-0.5 items-center justify-center h-6 w-6 transition-transform duration-300 group-active:scale-90">
+                  <div class="w-1.5 h-1.5 rounded-full bg-current transition-all" :class="{ 'scale-125': showMoreMenu }" />
+                  <div class="w-1.5 h-1.5 rounded-full bg-current transition-all" :class="{ 'scale-125': showMoreMenu }" />
+                  <div class="w-1.5 h-1.5 rounded-full bg-current transition-all" :class="{ 'scale-125': showMoreMenu }" />
+                </div>
+                <span class="text-[9px] font-black mt-1 uppercase tracking-tighter">More</span>
+              </button>
+            </div>
+          </template>
+
+          <!-- Case 2: Without FAB (Balanced 4-item Layout) -->
+          <template v-else>
+            <div class="flex w-full justify-around items-center h-full">
+              <!-- Home -->
+              <RouterLink
+                :to="mainBottomNav[0].to"
+                @click="showMoreMenu = false"
+                class="relative flex flex-col items-center justify-center flex-1 h-full transition-all group"
+                :class="isActive(mainBottomNav[0].to) ? 'text-primary' : 'text-muted-foreground/60 hover:text-foreground'"
+              >
+                <component :is="mainBottomNav[0].icon" class="h-6 w-6 transition-transform duration-300 group-active:scale-90" :class="{ 'scale-110 drop-shadow-[0_0_8px_rgba(var(--primary-rgb),0.3)]': isActive(mainBottomNav[0].to) }" />
+                <span class="text-[9px] font-black mt-1 uppercase tracking-tighter">{{ mainBottomNav[0].name }}</span>
+              </RouterLink>
+
+              <!-- Expenses -->
+              <RouterLink
+                :to="mainBottomNav[1].to"
+                @click="showMoreMenu = false"
+                class="relative flex flex-col items-center justify-center flex-1 h-full transition-all group"
+                :class="isActive(mainBottomNav[1].to) ? 'text-primary' : 'text-muted-foreground/60 hover:text-foreground'"
+              >
+                <component :is="mainBottomNav[1].icon" class="h-6 w-6 transition-transform duration-300 group-active:scale-90" :class="{ 'scale-110 drop-shadow-[0_0_8px_rgba(var(--primary-rgb),0.3)]': isActive(mainBottomNav[1].to) }" />
+                <span class="text-[9px] font-black mt-1 uppercase tracking-tighter">{{ mainBottomNav[1].name }}</span>
+              </RouterLink>
+
+              <!-- Debts -->
+              <RouterLink
+                :to="mainBottomNav[2].to"
+                @click="showMoreMenu = false"
+                class="relative flex flex-col items-center justify-center flex-1 h-full transition-all group"
+                :class="isActive(mainBottomNav[2].to) ? 'text-primary' : 'text-muted-foreground/60 hover:text-foreground'"
+              >
+                <component :is="mainBottomNav[2].icon" class="h-6 w-6 transition-transform duration-300 group-active:scale-90" :class="{ 'scale-110 drop-shadow-[0_0_8px_rgba(var(--primary-rgb),0.3)]': isActive(mainBottomNav[2].to) }" />
+                <span class="text-[9px] font-black mt-1 uppercase tracking-tighter">{{ mainBottomNav[2].name }}</span>
+              </RouterLink>
+
+              <!-- More -->
+              <button
+                @click="showMoreMenu = !showMoreMenu"
+                class="relative flex flex-col items-center justify-center flex-1 h-full transition-all group"
+                :class="showMoreMenu ? 'text-primary' : 'text-muted-foreground/60 hover:text-foreground'"
+              >
+                <div class="flex flex-col gap-0.5 items-center justify-center h-6 w-6 transition-transform duration-300 group-active:scale-90">
+                  <div class="w-1.5 h-1.5 rounded-full bg-current transition-all" :class="{ 'scale-125': showMoreMenu }" />
+                  <div class="w-1.5 h-1.5 rounded-full bg-current transition-all" :class="{ 'scale-125': showMoreMenu }" />
+                  <div class="w-1.5 h-1.5 rounded-full bg-current transition-all" :class="{ 'scale-125': showMoreMenu }" />
+                </div>
+                <span class="text-[9px] font-black mt-1 uppercase tracking-tighter">More</span>
+              </button>
+            </div>
+          </template>
+
         </div>
       </nav>
 

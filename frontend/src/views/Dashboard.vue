@@ -7,7 +7,7 @@ import { useExpensesStore } from '@/stores/expenses.js'
 import { useDashboardStore } from '@/stores/dashboard.js'
 import { useSalaryStore } from '@/stores/salary.js'
 import {
-  NotebookPen, Receipt, TrendingUp, TrendingDown, Banknote, Plus
+  NotebookPen, Receipt, TrendingUp, TrendingDown, Banknote, Plus, Wallet
 } from 'lucide-vue-next'
 import UiCard from '@/components/ui/Card.vue'
 import UiCardHeader from '@/components/ui/CardHeader.vue'
@@ -115,95 +115,154 @@ const stats = computed(() => {
 </script>
 
 <template>
-  <div class="p-6 max-w-6xl mx-auto animate-fade-in">
+  <div class="animate-fade-in bg-background min-h-screen">
+    <!-- ── Top Greeting (White Background) ── -->
+    <div class="bg-background pt-4 px-8 pb-4 max-w-6xl mx-auto">
+      <p class="text-[10px] font-black text-muted-foreground tracking-widest uppercase mb-1">
+        {{ currentDate }}
+      </p>
+      <h1 class="text-2xl font-medium tracking-tight text-foreground">
+        {{ greeting }}, <span class="font-black">{{ auth.user?.name?.split(' ')[0] }}!</span>
+      </h1>
+    </div>
 
-    <!-- ── Page header ── -->
-    <div class="mb-6 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-      <!-- Mascot Greeting UI (Takes full available width on left) -->
-      <div class="flex flex-col w-full relative">
-        <div class="mb-3 pl-2">
-          <p class="text-[11px] font-bold text-muted-foreground/80 tracking-widest uppercase mb-1">
-            {{ currentDate }}
-          </p>
-          <h1 class="text-2xl font-medium tracking-tight text-foreground">
-            {{ greeting }}, <span class="font-extrabold">{{ auth.user?.name?.split(' ')[0] }}!</span>
-          </h1>
-        </div>
-        <div class="flex items-center gap-0 w-full relative">
-          <!-- Mascot Image Container -->
-          <div class="w-36 h-40 shrink-0 overflow-hidden rounded-bl-3xl z-10 flex items-start justify-center bg-transparent -ml-2">
-            <img 
-              src="/icons/wallets/elefam.png" 
-              alt="EleFam Mascot" 
-              class="w-[110%] max-w-none h-auto object-cover -translate-y-[5%] -translate-x-[6%]" 
-            />
-          </div>
-          
-          <!-- Chat Bubble (Expands to fill remaining space) -->
-          <div class="bg-card border border-border shadow-sm rounded-2xl p-4 relative ml-2 z-0 flex-1 min-w-0">
-            <!-- Speech bubble tail pointing to EleFam -->
-            <div class="absolute top-1/2 -translate-y-1/2 -left-[7px] w-4 h-4 bg-card border-l border-b border-border rotate-45 rounded-sm"></div>
+    <!-- ── Mascot Section (Triple Split: White / Purple / White) ── -->
+    <div class="relative z-0" style="background: linear-gradient(to bottom, transparent 40%, #9333ea 40%, #9333ea 82%, transparent 82%)">
+      <div class="max-w-6xl mx-auto px-6 pt-2 pb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+        <div class="flex flex-col w-full relative">
+          <div class="flex items-center gap-0 w-full relative">
+            <!-- Mascot Image Container -->
+            <div class="w-32 h-36 shrink-0 overflow-hidden z-10 flex items-start justify-center bg-transparent -ml-4">
+              <img 
+                src="/icons/wallets/elefam.png" 
+                alt="EleFam Mascot" 
+                class="w-[110%] max-w-none h-auto object-cover -translate-y-[5%]" 
+              />
+            </div>
             
-            <div class="relative z-10">
-              <h3 class="font-bold text-emerald-600 text-sm mb-1">EleFam</h3>
-              <p class="text-sm text-muted-foreground leading-snug">
-                Ready to track those finances? Keep an eye on that budget before lifestyle creep sneaks in!
-              </p>
+            <!-- Chat Bubble (Solid White) -->
+            <div class="bg-white shadow-2xl rounded-[32px] p-5 relative ml-2 z-0 flex-1 min-w-0 border border-purple-100 mt-[-32px]">
+              <!-- Speech bubble tail (Pointed to mouth) -->
+              <div class="absolute top-[75%] -translate-y-1/2 -left-[8px] w-4 h-4 bg-white border-l border-b border-purple-100 rotate-45 rounded-sm"></div>
+              
+              <div class="relative z-10">
+                <h3 class="font-black text-primary text-[10px] tracking-widest mb-1">EleFam</h3>
+                <p class="text-sm text-muted-foreground leading-snug font-semibold">
+                  {{ auth.user?.name?.split(' ')[0] }}, ready to track those finances? Keep an eye on that budget before lifestyle creep sneaks in!
+                </p>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <!-- Deposit Button (Aligned to the right) -->
-      <div class="flex items-center justify-end sm:mb-4 shrink-0">
-        <UiButton @click="openDeposit" class="hidden sm:flex h-12 px-6 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-md shadow-emerald-500/20">
-          <Plus class="h-5 w-5 mr-1" /> Deposit
-        </UiButton>
-      </div>
-    </div>
-
-    <!-- ── Stat Cards ── -->
-    <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 mb-6">
-      <div
-        v-for="stat in stats"
-        :key="stat.label"
-        class="relative overflow-hidden rounded-2xl p-4 text-white shadow-md"
-        :class="stat.bg"
-      >
-        <div class="flex items-start justify-between mb-3">
-          <div class="rounded-xl bg-white/20 p-2">
-            <component :is="stat.icon" class="h-4 w-4 text-white" />
-          </div>
+        <!-- Desktop Deposit Button -->
+        <div class="hidden sm:flex items-center justify-end mb-4 shrink-0">
+          <UiButton @click="openDeposit" class="h-12 px-6 rounded-2xl bg-white text-purple-700 hover:bg-purple-50 font-bold shadow-xl border-none">
+            <Plus class="h-5 w-5 mr-1" /> Deposit
+          </UiButton>
         </div>
-        <p class="text-xl font-bold leading-none mb-1 truncate">{{ stat.value }}</p>
-        <p class="text-[11px] font-medium text-white/80 uppercase tracking-wider">{{ stat.label }}</p>
-        <div class="absolute -bottom-3 -right-3 h-16 w-16 rounded-full bg-white/10" />
       </div>
     </div>
 
-    <!-- ── Bottom grid ── -->
-    <div class="grid grid-cols-1 gap-6">
-      <UiCard>
-        <UiCardHeader>
-          <UiCardTitle class="text-sm">Recent Expenses</UiCardTitle>
-        </UiCardHeader>
-        <UiCardContent>
-          <p v-if="expenses.expenses.length === 0" class="text-sm text-muted-foreground">No expenses yet.</p>
-          <div v-else class="space-y-2">
+    <!-- ── Main Content Area ── -->
+    <div class="px-6 pt-4 pb-24 max-w-6xl mx-auto relative z-10">
+
+      <!-- ── Financial Stats Grid ── -->
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-8">
+        <div
+          v-for="stat in stats"
+          :key="stat.label"
+          class="relative overflow-hidden rounded-2xl p-4 text-white shadow-sm"
+          :class="stat.bg"
+        >
+          <div class="flex items-start justify-between mb-2">
+            <div class="rounded-lg bg-white/20 p-1.5">
+              <component :is="stat.icon" class="h-3.5 w-3.5 text-white" />
+            </div>
+          </div>
+          <p class="text-lg font-bold leading-none mb-1 truncate">{{ stat.value }}</p>
+          <p class="text-[9px] font-bold text-white/80 uppercase tracking-widest">{{ stat.label }}</p>
+        </div>
+      </div>
+
+      <!-- ── Recent Expenses Section ── -->
+      <div class="mt-4">
+        <div class="flex items-center justify-between mb-4 px-2">
+          <h2 class="text-xl font-black tracking-tight text-foreground flex items-center gap-2">
+            Recent Expenses
+            <span class="inline-flex h-2 w-2 rounded-full bg-destructive animate-pulse"></span>
+          </h2>
+          <RouterLink to="/expenses" class="text-xs font-black uppercase tracking-widest text-primary hover:opacity-70 transition-opacity">
+            See All
+          </RouterLink>
+        </div>
+
+        <div class="bg-card border border-border/50 rounded-[32px] shadow-sm overflow-hidden">
+          <div v-if="expenses.expenses.length === 0" class="p-12 text-center">
+            <div class="inline-flex h-16 w-16 items-center justify-center rounded-3xl bg-muted/30 mb-4">
+              <Receipt class="h-8 w-8 text-muted-foreground/30" />
+            </div>
+            <p class="text-sm font-bold text-muted-foreground">No recent expenses found</p>
+            <p class="text-xs text-muted-foreground/60 mt-1">Start tracking to see them here.</p>
+          </div>
+          
+          <div v-else class="divide-y divide-border/30">
             <div
               v-for="expense in expenses.expenses.slice(0, 5)"
               :key="expense.id"
-              class="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2.5"
+              class="flex items-center gap-3 p-4 transition-all active:bg-muted/50"
             >
-              <div>
-                <p class="text-sm font-medium leading-none mb-1">{{ expense.title }}</p>
-                <p class="text-xs text-muted-foreground">{{ expense.category ?? 'Uncategorized' }}</p>
+              <!-- Category/Wallet Icon -->
+              <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl overflow-hidden bg-muted/50 border border-border shadow-sm">
+                <template v-if="expense.wallet">
+                  <img 
+                    :src="expense.wallet.icon_url || `/icons/wallets/${expense.wallet.type === 'metrobank' ? 'metrobank.jpg' : expense.wallet.type + '.png'}`" 
+                    class="w-full h-full object-contain rounded" 
+                    @error="$event.target.style.display='none'; $event.target.nextElementSibling.style.display='block'"
+                  />
+                  <Wallet class="h-5 w-5 text-muted-foreground" style="display:none" />
+                </template>
+                <Receipt v-else class="h-6 w-6 text-primary/60" />
               </div>
-              <span class="text-sm font-semibold tabular-nums text-destructive">-{{ formatCurrency(expense.amount) }}</span>
+
+              <!-- Details -->
+              <div class="min-w-0 flex-1">
+                <p class="font-semibold text-sm truncate">{{ expense.title }}</p>
+                <div class="flex flex-wrap items-center gap-1.5 mt-0.5">
+                  <span
+                    v-if="expense.category"
+                    class="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-medium border bg-muted/50 text-muted-foreground border-border uppercase tracking-tight"
+                  >
+                    {{ expense.category }}
+                  </span>
+                  <span v-if="expense.wallet" class="text-[10px] text-muted-foreground font-medium lowercase first-letter:uppercase">
+                    {{ expense.wallet.name }}
+                  </span>
+                </div>
+                <p class="text-[10px] text-muted-foreground mt-0.5 opacity-70">
+                  Today
+                </p>
+              </div>
+
+              <!-- Amount -->
+              <div class="shrink-0 text-right">
+                <p class="font-bold text-sm text-destructive">-{{ formatCurrency(expense.amount) }}</p>
+              </div>
             </div>
           </div>
-        </UiCardContent>
-      </UiCard>
+
+          <!-- Add Expense Shortcut -->
+          <div class="p-4 bg-muted/10 border-t border-border/20">
+            <RouterLink 
+              to="/expenses" 
+              class="flex items-center justify-center gap-2 py-3 w-full rounded-2xl bg-muted/50 text-[11px] font-black uppercase tracking-widest text-muted-foreground hover:bg-muted transition-colors"
+            >
+              <Plus class="h-3 w-3" />
+              Track New Expense
+            </RouterLink>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- ── Deposit Modal ── -->
@@ -213,6 +272,5 @@ const stats = computed(() => {
       @close="showDepositModal = false"
       @success="handleDepositSuccess"
     />
-
   </div>
 </template>

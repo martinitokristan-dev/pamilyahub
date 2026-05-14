@@ -1,8 +1,8 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useRegisterAddAction } from '@/composables/usePageAction.js'
 import { useFilesStore } from '@/stores/files.js'
-import { Upload, Trash2, ExternalLink, FileText, Loader2, FolderOpen, ArrowLeft } from 'lucide-vue-next'
+import { Upload, Trash2, ExternalLink, FileText, Loader2, FolderOpen, ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-vue-next'
 import UiButton from '@/components/ui/Button.vue'
 import UiCard from '@/components/ui/Card.vue'
 import UiInput from '@/components/ui/Input.vue'
@@ -10,7 +10,14 @@ import UiLabel from '@/components/ui/Label.vue'
 import imageCompression from 'browser-image-compression'
 
 const store = useFilesStore()
-onMounted(() => store.fetchAll())
+const currentPage = ref(1)
+
+onMounted(() => store.fetchAll(false, currentPage.value))
+
+watch(currentPage, (val) => {
+  store.fetchAll(false, val)
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+})
 
 const showUploadModal = ref(false)
 const activeAlbum = ref(null)
@@ -260,11 +267,38 @@ function formatSize(bytes) {
         </div>
       </div>
     </div>
+    
+    <!-- Pagination Controls -->
+    <div v-if="store.pagination.total > 10" class="flex items-center justify-end mt-8 mb-6">
+      <div class="flex items-center bg-card border border-border shadow-sm rounded-full p-1 gap-1">
+        <button 
+          class="h-11 w-11 flex items-center justify-center rounded-full transition-all duration-200 hover:bg-muted active:scale-90 disabled:opacity-30 disabled:pointer-events-none"
+          :disabled="currentPage <= 1"
+          @click="currentPage--"
+        >
+          <ChevronLeft class="h-5 w-5" />
+        </button>
+        
+        <div class="px-4 py-1 text-xs font-bold tracking-tight text-foreground flex items-center gap-1.5 border-x border-border/50">
+          <span class="text-primary">{{ currentPage }}</span>
+          <span class="text-muted-foreground/50">/</span>
+          <span>{{ store.pagination.last_page }}</span>
+        </div>
+
+        <button 
+          class="h-11 w-11 flex items-center justify-center rounded-full transition-all duration-200 hover:bg-muted active:scale-90 disabled:opacity-30 disabled:pointer-events-none"
+          :disabled="currentPage >= store.pagination.last_page"
+          @click="currentPage++"
+        >
+          <ChevronRight class="h-5 w-5" />
+        </button>
+      </div>
+    </div>
 
     <!-- Upload Modal -->
     <Teleport to="body">
-      <div v-if="showUploadModal" class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm" @mousedown.self="showUploadModal = false">
-        <UiCard class="w-full sm:max-w-md shadow-xl animate-fade-in rounded-t-2xl sm:rounded-2xl p-5">
+      <div v-if="showUploadModal" class="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" @mousedown.self="showUploadModal = false">
+        <UiCard class="w-full sm:max-w-md shadow-xl animate-fade-in rounded-2xl p-5">
           <h2 class="text-lg font-semibold mb-4">Upload Files</h2>
           <div class="space-y-4">
             <div>

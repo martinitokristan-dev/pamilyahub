@@ -12,7 +12,7 @@ class FileRepository
         return File::where('user_id', $userId)->latest()->get();
     }
 
-    public function getByUserPaginated(int $userId, int $perPage = 20, int $page = 1): array
+    public function getByUserPaginated(int $userId, int $perPage = 10, int $page = 1): array
     {
         $query = File::where('user_id', $userId)->latest();
         $total = $query->count();

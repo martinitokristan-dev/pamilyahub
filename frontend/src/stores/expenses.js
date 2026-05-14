@@ -3,6 +3,7 @@ import { ref } from "vue";
 import { expenseService } from "@/services/expenseService.js";
 import { useDashboardStore } from "./dashboard.js";
 import { useToast } from "@/composables/useToast.js";
+import { performSilentFetch } from "@/utils/storeHelper.js";
 
 export const useExpensesStore = defineStore("expenses", () => {
   const expenses = ref([]);
@@ -10,35 +11,47 @@ export const useExpensesStore = defineStore("expenses", () => {
   const error = ref(null);
   const fetched = ref(false);
   const cacheTime = ref(0);
-  const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-
-  function isCacheValid() {
-    return Date.now() - cacheTime.value < CACHE_TTL;
-  }
+  const pagination = ref({ page: 1, per_page: 20, total: 0, last_page: 1 });
+  const lastFilters = ref(null);
 
   async function fetchAll(page = 1, filters = {}) {
-    // Invalidate cache when filters are provided to ensure fresh data
-    if (Object.keys(filters).length > 0) {
+    const filtersStr = JSON.stringify(filters);
+    const filtersChanged = lastFilters.value !== filtersStr;
+
+    if (filtersChanged) {
       fetched.value = false;
     }
-    if (fetched.value && isCacheValid() && Object.keys(filters).length === 0) return;
-    loading.value = true;
-    try {
-      const res = await expenseService.getAll({ page, ...filters });
-      if (res.data && res.data.data && Array.isArray(res.data.data.data)) {
-        expenses.value = res.data.data.data;
-      } else if (res.data && Array.isArray(res.data.data)) {
-        expenses.value = res.data.data;
-      } else {
-        expenses.value = [];
+    
+    lastFilters.value = filtersStr;
+    
+    await performSilentFetch({
+      loading,
+      fetched,
+      cacheTime,
+      currentData: expenses.value,
+      force: filtersChanged,
+      backgroundTtl: 60000,
+      fetchFn: async () => {
+        const res = await expenseService.getAll({ page, ...filters });
+        if (res.data && res.data.data && Array.isArray(res.data.data.data)) {
+          expenses.value = res.data.data.data;
+          pagination.value = {
+            page: res.data.data.current_page,
+            per_page: res.data.data.per_page,
+            total: res.data.data.total,
+            last_page: res.data.data.last_page,
+          };
+        } else if (res.data && Array.isArray(res.data.data)) {
+          expenses.value = res.data.data;
+          pagination.value = { page: 1, per_page: expenses.value.length, total: expenses.value.length, last_page: 1 };
+        } else {
+          expenses.value = [];
+          pagination.value = { page: 1, per_page: 20, total: 0, last_page: 1 };
+        }
       }
-      fetched.value = true;
-      cacheTime.value = Date.now();
-    } catch (e) {
+    }).catch(e => {
       error.value = e.response?.data?.message ?? "Failed to load expenses";
-    } finally {
-      loading.value = false;
-    }
+    });
   }
 
   async function create(data) {
@@ -93,6 +106,7 @@ export const useExpensesStore = defineStore("expenses", () => {
     error,
     fetched,
     cacheTime,
+    pagination,
     fetchAll,
     create,
     update,

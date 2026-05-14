@@ -27,7 +27,7 @@ class DebtController extends Controller
             return $this->success($debts);
         }
         
-        $result = $this->debtService->getAllPaginated($request->user()->id, $perPage, $page);
+        $result = $this->debtService->getAllPaginated($request->user()->id, $perPage, $page, $request->query('type'), $request->query('search'));
         return $this->success($result);
     }
 

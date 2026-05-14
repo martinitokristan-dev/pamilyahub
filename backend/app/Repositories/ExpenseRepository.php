@@ -49,6 +49,15 @@ class ExpenseRepository
                   ->whereMonth('date', $filters['month']);
         }
 
+        if (!empty($filters['search'])) {
+            $search = $filters['search'];
+            $query->where(function($q) use ($search) {
+                $q->where('title', 'like', "%{$search}%")
+                  ->orWhere('category', 'like', "%{$search}%")
+                  ->orWhere('description', 'like', "%{$search}%");
+            });
+        }
+
         return $query->latest()->paginate(10);
     }
 }

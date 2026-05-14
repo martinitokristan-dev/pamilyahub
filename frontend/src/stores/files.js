@@ -20,6 +20,7 @@ export const useFilesStore = defineStore("files", () => {
     total: 0,
     last_page: 1,
   });
+  const lastPage = ref(1);
 
   function isCacheValid() {
     if (!cacheTime.value) return false;
@@ -27,8 +28,9 @@ export const useFilesStore = defineStore("files", () => {
   }
 
   async function fetchAll(force = false, page = 1, perPage = 20) {
-    if (fetched.value && !force && isCacheValid()) return;
+    if (fetched.value && !force && isCacheValid() && page === lastPage.value) return;
     loading.value = true;
+    lastPage.value = page;
     try {
       const res = await fileService.getAll(page, perPage);
 

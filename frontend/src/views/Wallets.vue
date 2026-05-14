@@ -128,78 +128,86 @@ const netWorth = computed(() =>
 
     <!-- Modal -->
     <Teleport to="body">
-      <div v-if="showForm" class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm" @mousedown.self="showForm = false">
-        <UiCard class="w-full sm:max-w-md shadow-xl animate-fade-in rounded-t-2xl sm:rounded-2xl max-h-[90vh] overflow-y-auto">
-          <div class="flex items-center justify-between p-5 pb-4 sticky top-0 bg-card border-b border-border">
-            <h2 class="text-lg font-semibold">{{ editingId ? 'Edit Wallet' : 'New Wallet' }}</h2>
-            <UiButton variant="ghost" size="icon" @click="showForm = false"><X class="h-4 w-4" /></UiButton>
+      <div v-if="showForm" class="fixed inset-0 z-[80] flex items-stretch justify-center bg-black/60 backdrop-blur-sm p-0 sm:items-center sm:p-4" @mousedown.self="showForm = false">
+        <UiCard class="flex w-full max-w-none flex-col overflow-hidden bg-card shadow-2xl animate-in fade-in zoom-in duration-200
+          max-sm:h-[100dvh] max-sm:max-h-[100dvh] max-sm:min-h-0 max-sm:rounded-none max-sm:pt-[env(safe-area-inset-top)]
+          sm:max-h-[90vh] sm:min-h-0 sm:max-w-md sm:rounded-2xl" @mousedown.stop>
+          
+          <div class="shrink-0 p-6 border-b border-border bg-gradient-to-r from-primary/10 to-transparent flex items-center justify-between">
+            <h2 class="text-xl font-bold tracking-tight">{{ editingId ? 'Edit Wallet' : 'New Wallet' }}</h2>
+            <UiButton variant="ghost" size="icon" @click="showForm = false" class="rounded-full h-8 w-8">
+              <X class="h-4 w-4" />
+            </UiButton>
           </div>
-          <UiCardContent class="p-5">
-            <form @submit.prevent="submit" class="space-y-5">
 
-              <div class="space-y-1.5">
-                <UiLabel>Wallet Name</UiLabel>
-                <UiInput v-model="form.name" placeholder="e.g. My GCash, BDO Savings" required />
-              </div>
+          <div class="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
+            <UiCardContent class="p-6">
+              <form id="wallet-form" @submit.prevent="submit" class="space-y-6">
+                <div class="space-y-1.5">
+                  <UiLabel>Wallet Name</UiLabel>
+                  <UiInput v-model="form.name" placeholder="e.g. My GCash, BDO Savings" required />
+                </div>
 
-              <div class="space-y-2">
-                <UiLabel>Type</UiLabel>
-                <div class="grid grid-cols-4 gap-2">
-                  <button
-                    v-for="wt in walletTypes"
-                    :key="wt.id"
-                    type="button"
-                    @click="() => {
-                      const oldTypeLabel = walletTypes.find(w => w.id === form.type)?.label
-                      if (!form.name || form.name === oldTypeLabel) {
-                        form.name = wt.label
-                      }
-                      form.type = wt.id
-                    }"
-                    class="flex flex-col items-center justify-center gap-1.5 rounded-xl border-2 p-2 transition-all duration-150"
-                    :class="form.type === wt.id ? 'border-primary bg-primary/5 scale-105' : 'border-border hover:border-muted-foreground/30'"
-                  >
-                    <div class="h-6 w-6 shrink-0 flex items-center justify-center rounded overflow-hidden">
-                      <img 
-                        :src="wt.icon" 
-                        class="w-full h-full object-contain" 
-                        @error="$event.target.style.display='none'"
-                      />
+                <div class="space-y-2">
+                  <UiLabel>Type</UiLabel>
+                  <div class="max-h-[180px] overflow-y-auto pr-1 py-1 -mr-1">
+                    <div class="grid grid-cols-4 gap-2">
+                      <button
+                        v-for="wt in walletTypes"
+                        :key="wt.id"
+                        type="button"
+                        @click="() => {
+                          const oldTypeLabel = walletTypes.find(w => w.id === form.type)?.label
+                          if (!form.name || form.name === oldTypeLabel) {
+                            form.name = wt.label
+                          }
+                          form.type = wt.id
+                        }"
+                        class="flex flex-col items-center justify-center gap-1.5 rounded-xl border-2 p-2 transition-all duration-150"
+                        :class="form.type === wt.id ? 'border-primary bg-primary/5 scale-105' : 'border-border hover:border-muted-foreground/30'"
+                      >
+                        <div class="h-6 w-6 shrink-0 flex items-center justify-center rounded overflow-hidden">
+                          <img 
+                            :src="wt.icon" 
+                            class="w-full h-full object-contain" 
+                            @error="$event.target.style.display='none'"
+                          />
+                        </div>
+                        <span class="text-[10px] font-medium text-center leading-none">{{ wt.label }}</span>
+                      </button>
                     </div>
-                    <span class="text-[10px] font-medium text-center leading-none">{{ wt.label }}</span>
-                  </button>
+                  </div>
                 </div>
-              </div>
 
-              <div class="space-y-1.5">
-                <UiLabel class="font-semibold">Current Balance</UiLabel>
-                <UiInput
-                  v-model="form.balance"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder="How much do you have in this wallet right now?"
-                  required
-                />
-                <p class="text-xs text-muted-foreground leading-relaxed">
-                  Enter your actual current balance. You can always update this later.
-                </p>
-              </div>
-
-              <div class="flex justify-between items-center pt-1">
-                <UiButton v-if="editingId" type="button" variant="destructive" size="icon" class="h-9 w-9" @click="store.remove(editingId); showForm = false">
-                  <Trash2 class="h-4 w-4" />
-                </UiButton>
-                <div v-else></div>
-                <div class="flex gap-2">
-                  <UiButton type="button" variant="outline" @click="showForm = false">Cancel</UiButton>
-                  <UiButton type="submit" :disabled="store.loading">
-                    {{ store.loading ? 'Saving…' : (editingId ? 'Save changes' : 'Add wallet') }}
-                  </UiButton>
+                <div class="space-y-1.5">
+                  <UiLabel class="font-semibold">Current Balance</UiLabel>
+                  <UiInput
+                    v-model="form.balance"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="How much do you have in this wallet right now?"
+                    required
+                  />
+                  <p class="text-xs text-muted-foreground leading-relaxed">
+                    Enter your actual current balance. You can always update this later.
+                  </p>
                 </div>
-              </div>
-            </form>
-          </UiCardContent>
+              </form>
+            </UiCardContent>
+          </div>
+
+          <div class="shrink-0 border-t border-border bg-muted/20 p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] flex flex-col gap-3 sm:flex-row-reverse">
+            <UiButton type="submit" form="wallet-form" :disabled="store.loading" class="rounded-xl h-11 px-8 bg-primary text-primary-foreground font-bold">
+              {{ store.loading ? (editingId ? 'Saving…' : 'Adding…') : (editingId ? 'Save changes' : 'Add wallet') }}
+            </UiButton>
+            <UiButton variant="outline" @click="showForm = false" class="rounded-xl h-11 px-6">
+              Cancel
+            </UiButton>
+            <UiButton v-if="editingId" type="button" variant="destructive" @click="store.remove(editingId); showForm = false" class="rounded-xl h-11 px-4 sm:mr-auto">
+              <Trash2 class="h-4 w-4 mr-2" /> Delete
+            </UiButton>
+          </div>
         </UiCard>
       </div>
     </Teleport>

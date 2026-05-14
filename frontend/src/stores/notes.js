@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { noteService } from '@/services/noteService.js'
 import { useDashboardStore } from './dashboard.js'
 import { useToast } from '@/composables/useToast.js'
+import { performSilentFetch } from '@/utils/storeHelper.js'
 
 export const useNotesStore = defineStore('notes', () => {
   const notes = ref([])
@@ -11,35 +12,31 @@ export const useNotesStore = defineStore('notes', () => {
   const error = ref(null)
   const fetched = ref(false)
   const cacheTime = ref(0)
-  const CACHE_TTL = 5 * 60 * 1000 // 5 minutes
-
-  function isCacheValid() {
-    return Date.now() - cacheTime.value < CACHE_TTL
-  }
 
   async function fetchAll(force = false) {
-    if (fetched.value && !force && isCacheValid()) return
-    loading.value = true
-    try {
-      const [notesResult, foldersResult] = await Promise.allSettled([
-        noteService.getAll(),
-        noteService.getFolders()
-      ])
+    await performSilentFetch({
+      loading,
+      fetched,
+      cacheTime,
+      currentData: notes.value,
+      force,
+      backgroundTtl: 60000,
+      fetchFn: async () => {
+        const [notesResult, foldersResult] = await Promise.allSettled([
+          noteService.getAll(),
+          noteService.getFolders()
+        ])
 
-      if (notesResult.status === 'fulfilled') {
-        notes.value = notesResult.value.data.data
+        if (notesResult.status === 'fulfilled') {
+          notes.value = notesResult.value.data.data
+        }
+        if (foldersResult.status === 'fulfilled') {
+          folders.value = foldersResult.value.data.data
+        }
       }
-      if (foldersResult.status === 'fulfilled') {
-        folders.value = foldersResult.value.data.data
-      }
-
-      fetched.value = true
-      cacheTime.value = Date.now()
-    } catch (e) {
+    }).catch(e => {
       error.value = e.response?.data?.message ?? 'Failed to load notes'
-    } finally {
-      loading.value = false
-    }
+    })
   }
 
   async function create(data) {

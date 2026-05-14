@@ -149,7 +149,7 @@ async function handleConfirm() {
   <Teleport to="body">
     <div
       v-if="show"
-      class="fixed inset-0 z-50 flex items-stretch justify-center bg-black/60 backdrop-blur-sm p-0 sm:items-center sm:p-4"
+      class="fixed inset-0 z-[80] flex items-stretch justify-center bg-black/60 backdrop-blur-sm p-0 sm:items-center sm:p-4"
       @mousedown.self="emit('close')"
     >
       <UiCard
