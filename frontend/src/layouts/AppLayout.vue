@@ -57,7 +57,15 @@ const {
 // Handle App Badge when an update is detected
 watch(needRefresh, (newValue) => {
   if (newValue) {
-    // Set App Icon Badge (shows a dot or "1" on the home screen icon)
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+    
+    // Auto-update silently on desktop browsers
+    if (!isMobile) {
+      updateServiceWorker(true)
+      return
+    }
+
+    // On mobile, set App Icon Badge (shows a dot or "1" on the home screen icon)
     if ('setAppBadge' in navigator) {
       navigator.setAppBadge(1).catch(err => console.error('Error setting badge:', err))
     }
@@ -81,9 +89,11 @@ onMounted(async () => {
     })
   }
 
-  // On fresh install (first time opening the app), ask for notification permission
+  // On fresh install (first time opening the app), ask for notification permission ONLY ON MOBILE
   // This ensures users will see update notifications from the service worker later
-  if (import.meta.env.PROD && 'Notification' in window && Notification.permission === 'default') {
+  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+  
+  if (isMobile && import.meta.env.PROD && 'Notification' in window && Notification.permission === 'default') {
     // Wait a bit after mount so it doesn't feel too intrusive
     setTimeout(() => {
       Notification.requestPermission().catch(err => console.error('Notification permission denied:', err))

@@ -1,6 +1,7 @@
 <script setup>
 import { RefreshCw, X } from 'lucide-vue-next'
 import Button from './Button.vue'
+import { computed } from 'vue'
 
 const props = defineProps({
   offlineReady: Boolean,
@@ -16,6 +17,11 @@ const close = () => {
 const update = () => {
   emit('update')
 }
+
+// Only show on mobile devices
+const isMobile = computed(() => {
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+})
 </script>
 
 <template>
@@ -28,7 +34,7 @@ const update = () => {
     leave-to-class="opacity-0 translate-y-10 scale-95"
   >
     <div
-      v-if="offlineReady || needRefresh"
+      v-if="isMobile && (offlineReady || needRefresh)"
       class="fixed bottom-24 left-4 right-4 z-[100] lg:bottom-6 lg:right-6 lg:left-auto lg:w-96"
     >
       <div class="bg-card/95 backdrop-blur-2xl border border-border shadow-2xl rounded-2xl p-4 flex flex-col gap-3">

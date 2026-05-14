@@ -21,9 +21,11 @@ class AuthService
         $user  = $this->repository->create($data);
         $token = $user->createToken('auth_token')->plainTextToken;
 
-        // Establish session-based authentication for SPA
-        Auth::login($user);
-        request()->session()->regenerate();
+        // Establish session-based authentication for SPA (only if stateful)
+        if (request()->hasSession()) {
+            Auth::guard('web')->login($user);
+            request()->session()->regenerate();
+        }
 
         return ['user' => $user, 'token' => $token];
     }
@@ -38,9 +40,11 @@ class AuthService
             ]);
         }
 
-        // Establish session-based authentication for SPA
-        Auth::login($user);
-        request()->session()->regenerate();
+        // Establish session-based authentication for SPA (only if stateful)
+        if (request()->hasSession()) {
+            Auth::guard('web')->login($user);
+            request()->session()->regenerate();
+        }
 
         $token = $user->createToken('auth_token')->plainTextToken;
 
@@ -55,8 +59,10 @@ class AuthService
             // TransientToken from session auth doesn't support delete — safe to ignore
         }
 
-        Auth::guard('web')->logout();
-        request()->session()->invalidate();
-        request()->session()->regenerateToken();
+        if (request()->hasSession()) {
+            Auth::guard('web')->logout();
+            request()->session()->invalidate();
+            request()->session()->regenerateToken();
+        }
     }
 }

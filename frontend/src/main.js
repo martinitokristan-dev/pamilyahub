@@ -25,4 +25,8 @@ const app = createApp(App)
 
 app.use(createPinia())
 app.use(router)
-app.mount('#app')
+// Wait for the router to finish its initial async guard (fetching user)
+// This keeps the HTML splash screen (EleFam logo) visible instead of showing a blank white page!
+router.isReady().then(() => {
+  app.mount('#app')
+})
