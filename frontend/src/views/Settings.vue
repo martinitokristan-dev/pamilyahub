@@ -9,11 +9,13 @@ import UiCard from '@/components/ui/Card.vue'
 import UiCardContent from '@/components/ui/CardContent.vue'
 import UiButton from '@/components/ui/Button.vue'
 import { parseCurrency } from '@/utils/format'
+import { useToast } from '@/composables/useToast.js'
 
 const auth = useAuthStore()
 const pwaStore = usePwaStore()
 const route = useRoute()
 const { isDark, toggle } = useDarkMode()
+const { toasts } = useToast()
 
 onMounted(() => {
   // If user clicked the notification, scroll to update section
@@ -26,6 +28,14 @@ onMounted(() => {
     }, 300)
   }
 })
+
+function handleUpdateClick() {
+  if (pwaStore.needRefresh) {
+    pwaStore.triggerUpdate()
+  } else {
+    toasts.addSuccess('App is up to date', 'You are already running the latest version of EleFam.')
+  }
+}
 
 const initials = computed(() => {
   const name = auth.user?.name ?? ''
@@ -238,6 +248,26 @@ async function handleSignOut() {
             </div>
           </div>
           <ChevronRight class="h-4 w-4 text-muted-foreground" />
+        </div>
+
+        <div @click="handleUpdateClick" class="flex items-center justify-between px-5 py-4 cursor-pointer hover:bg-muted/50 transition-colors">
+          <div class="flex items-center gap-3">
+            <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-100 dark:bg-sky-900/30 relative">
+              <DownloadCloud class="h-4 w-4 text-sky-600 dark:text-sky-400" />
+              <!-- Notification Dot -->
+              <span v-if="pwaStore.needRefresh" class="absolute -top-1 -right-1 flex h-3 w-3">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-3 w-3 bg-primary border-2 border-background"></span>
+              </span>
+            </div>
+            <div>
+              <p class="text-sm font-medium">System Update</p>
+              <p class="text-xs text-primary font-semibold" v-if="pwaStore.needRefresh">New update available!</p>
+              <p class="text-xs text-muted-foreground" v-else>Check for updates</p>
+            </div>
+          </div>
+          <Loader2 v-if="pwaStore.isUpdating" class="h-4 w-4 text-primary animate-spin" />
+          <ChevronRight v-else class="h-4 w-4 text-muted-foreground" />
         </div>
       </UiCardContent>
     </UiCard>
