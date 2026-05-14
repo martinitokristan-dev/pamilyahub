@@ -252,7 +252,7 @@ async function handleSignOut() {
           </span>
         </div>
 
-        <h3 class="text-2xl font-black mb-1 tracking-tight">EleFam OS</h3>
+        <h3 class="text-2xl font-black mb-1 tracking-tight">EleFam</h3>
         <p class="text-muted-foreground text-sm font-medium mb-12">EleFam Inc.</p>
 
         <!-- Status -->
@@ -279,7 +279,7 @@ async function handleSignOut() {
 
           <div v-else class="space-y-2">
             <p class="text-sm text-foreground/80 leading-relaxed">
-              EleFam OS is up to date.
+              EleFam app is up to date.
             </p>
             <p class="text-xs text-muted-foreground mt-4">
               Last checked: Today
