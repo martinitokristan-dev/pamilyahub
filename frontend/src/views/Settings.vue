@@ -4,7 +4,7 @@ import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.js'
 import { usePwaStore } from '@/stores/pwa.js'
 import { useDarkMode } from '@/composables/useDarkMode.js'
-import { Moon, Sun, User, LogOut, ChevronRight, Bell, Shield, Palette, Banknote, DownloadCloud, Loader2 } from 'lucide-vue-next'
+import { Moon, Sun, User, LogOut, ChevronRight, ChevronLeft, Bell, Shield, Palette, Banknote, DownloadCloud, Loader2 } from 'lucide-vue-next'
 import UiCard from '@/components/ui/Card.vue'
 import UiCardContent from '@/components/ui/CardContent.vue'
 import UiButton from '@/components/ui/Button.vue'
@@ -17,24 +17,18 @@ const route = useRoute()
 const { isDark, toggle } = useDarkMode()
 const { toasts } = useToast()
 
+// Handle showing the update screen
+const showUpdateScreen = ref(false)
+
 onMounted(() => {
-  // If user clicked the notification, scroll to update section
+  // If user clicked the notification, instantly show update screen
   if (route.query.update) {
-    setTimeout(() => {
-      const updateEl = document.getElementById('update-section')
-      if (updateEl) {
-        updateEl.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      }
-    }, 300)
+    showUpdateScreen.value = true
   }
 })
 
 function handleUpdateClick() {
-  if (pwaStore.needRefresh) {
-    pwaStore.triggerUpdate()
-  } else {
-    toasts.addSuccess('App is up to date', 'You are already running the latest version of EleFam.')
-  }
+  showUpdateScreen.value = true
 }
 
 const initials = computed(() => {
@@ -48,11 +42,8 @@ const savingSalary = ref(false)
 async function saveSalary() {
   savingSalary.value = true
   try {
-    // Since input is type="number", salaryInput.value is already a number
-    // No need for parseCurrency - just ensure it's a valid number
     const salaryValue = parseFloat(salaryInput.value) || 0
     await auth.updateProfile({ monthly_salary: salaryValue })
-    // Update the input to reflect the saved value
     salaryInput.value = auth.user?.monthly_salary ?? 0
   } catch (e) {
     console.error('Failed to save salary:', e)
@@ -67,7 +58,7 @@ async function handleSignOut() {
 </script>
 
 <template>
-  <div class="p-6 max-w-3xl mx-auto animate-fade-in">
+  <div class="p-6 max-w-3xl mx-auto animate-fade-in relative h-full">
     <div class="mb-8">
       <h1 class="text-[32px] sm:text-[40px] font-black tracking-tight text-foreground leading-none">Settings</h1>
     </div>
@@ -90,60 +81,6 @@ async function handleSignOut() {
         </div>
       </UiCardContent>
     </UiCard>
-    
-    <!-- App Update -->
-    <div v-if="pwaStore.needRefresh || pwaStore.isUpdating" id="update-section" class="mb-6 animate-fade-in">
-      <p class="text-xs font-semibold text-primary uppercase tracking-wider px-1 mb-2 flex items-center gap-1.5">
-        <span class="relative flex h-2 w-2">
-          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-          <span class="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
-        </span>
-        System Update
-      </p>
-      <UiCard class="overflow-hidden border-primary/20 shadow-primary/5 bg-gradient-to-br from-primary/5 to-transparent relative">
-        <!-- Progress bar animation overlay when updating -->
-        <div v-if="pwaStore.isUpdating" class="absolute inset-0 bg-primary/5">
-          <div class="h-full bg-primary/10 animate-pulse w-full transition-all duration-1000 ease-in-out"></div>
-        </div>
-        
-        <UiCardContent class="p-5 relative z-10">
-          <div class="flex items-start gap-4">
-            <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl" :class="pwaStore.isUpdating ? 'bg-primary/20 animate-pulse' : 'bg-primary/10'">
-              <Loader2 v-if="pwaStore.isUpdating" class="h-6 w-6 text-primary animate-spin" />
-              <DownloadCloud v-else class="h-6 w-6 text-primary" />
-            </div>
-            <div class="flex-1 min-w-0">
-              <h3 class="text-base font-bold text-foreground">
-                {{ pwaStore.isUpdating ? 'Installing Update...' : 'New Version Available' }}
-              </h3>
-              <p class="text-sm text-muted-foreground mt-0.5 leading-snug">
-                {{ pwaStore.isUpdating 
-                  ? 'Please wait while we apply the latest features and fixes. The app will restart automatically.' 
-                  : 'A new version of EleFam is ready. Update now to get the latest features and performance improvements.' }}
-              </p>
-              
-              <div class="mt-4 flex items-center gap-3">
-                <UiButton 
-                  v-if="!pwaStore.isUpdating" 
-                  @click="pwaStore.triggerUpdate()" 
-                  class="h-10 px-6 rounded-xl font-bold w-full sm:w-auto shadow-md"
-                >
-                  Update Now
-                </UiButton>
-                <div v-else class="flex items-center gap-2 text-sm font-semibold text-primary">
-                  <span class="animate-bounce">Downloading resources</span>
-                  <span class="flex gap-0.5">
-                    <span class="animate-bounce" style="animation-delay: 0ms">.</span>
-                    <span class="animate-bounce" style="animation-delay: 150ms">.</span>
-                    <span class="animate-bounce" style="animation-delay: 300ms">.</span>
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </UiCardContent>
-      </UiCard>
-    </div>
 
     <!-- Financial -->
     <p class="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1 mb-2">Financial</p>
@@ -288,5 +225,76 @@ async function handleSignOut() {
     </UiCard>
 
     <p class="text-center text-xs text-muted-foreground mt-6">EleFam v1.1.0</p>
+
+    <!-- iOS-Style Full Screen Update Modal -->
+    <div v-if="showUpdateScreen" class="fixed inset-0 z-[100] bg-background flex flex-col animate-in slide-in-from-right-8 duration-300">
+      <!-- Header -->
+      <div class="flex items-center justify-between px-4 py-4 border-b border-border/50 bg-background/80 backdrop-blur-md sticky top-0 z-10">
+        <button @click="showUpdateScreen = false" class="flex items-center text-primary font-medium hover:opacity-80 transition-opacity">
+          <ChevronLeft class="h-6 w-6 -ml-2" />
+          Settings
+        </button>
+        <h2 class="text-base font-bold absolute left-1/2 -translate-x-1/2">Software Update</h2>
+        <div class="w-16"></div> <!-- Spacer for centering -->
+      </div>
+
+      <!-- Content -->
+      <div class="flex-1 overflow-y-auto px-6 py-12 flex flex-col items-center text-center">
+        <!-- Big Icon -->
+        <div class="relative mb-6">
+          <div class="h-24 w-24 rounded-[2rem] bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center shadow-xl shadow-primary/20">
+            <DownloadCloud v-if="pwaStore.needRefresh || pwaStore.isUpdating" class="h-10 w-10 text-white" />
+            <Shield v-else class="h-10 w-10 text-white" />
+          </div>
+          <span v-if="pwaStore.needRefresh" class="absolute -top-1 -right-1 flex h-6 w-6">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75"></span>
+            <span class="relative inline-flex h-6 w-6 rounded-full bg-red-500 border-2 border-background text-[10px] font-bold text-white items-center justify-center">1</span>
+          </span>
+        </div>
+
+        <h3 class="text-2xl font-black mb-1 tracking-tight">EleFam OS</h3>
+        <p class="text-muted-foreground text-sm font-medium mb-12">EleFam Inc.</p>
+
+        <!-- Status -->
+        <div class="w-full max-w-sm">
+          <div v-if="pwaStore.isUpdating" class="space-y-4">
+            <p class="text-sm font-semibold text-primary animate-pulse">Downloading update...</p>
+            <div class="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+              <div class="h-full bg-primary rounded-full w-full origin-left animate-[progress_2s_ease-in-out_infinite]" style="transform-origin: 0% 50%;"></div>
+            </div>
+            <p class="text-xs text-muted-foreground">The app will automatically restart when finished.</p>
+          </div>
+          
+          <div v-else-if="pwaStore.needRefresh" class="space-y-6">
+            <p class="text-sm text-foreground/80 leading-relaxed text-left">
+              A new version of EleFam is ready to install. This update includes the latest bug fixes and performance improvements.
+            </p>
+            <UiButton 
+              @click="pwaStore.triggerUpdate()" 
+              class="w-full h-12 rounded-xl text-base font-bold shadow-md"
+            >
+              Update Now
+            </UiButton>
+          </div>
+
+          <div v-else class="space-y-2">
+            <p class="text-sm text-foreground/80 leading-relaxed">
+              EleFam OS is up to date.
+            </p>
+            <p class="text-xs text-muted-foreground mt-4">
+              Last checked: Today
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
+
+<style>
+@keyframes progress {
+  0% { transform: scaleX(0); }
+  50% { transform: scaleX(0.7); }
+  100% { transform: scaleX(1); }
+}
+</style>
