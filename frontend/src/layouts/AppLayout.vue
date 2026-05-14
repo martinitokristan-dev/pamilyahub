@@ -11,7 +11,7 @@ import { useDarkMode } from '@/composables/useDarkMode.js'
 import { pageAddAction } from '@/composables/usePageAction.js'
 import { useToast } from '@/composables/useToast.js'
 import { useRegisterSW } from 'virtual:pwa-register/vue'
-import UpdateNotification from '@/components/ui/UpdateNotification.vue'
+
 import {
   LayoutDashboard,
   NotebookPen,
@@ -27,6 +27,8 @@ import {
 
 import { useDashboardStore } from '@/stores/dashboard.js'
 
+import { usePwaStore } from '@/stores/pwa.js'
+
 const auth = useAuthStore()
 const dashboard = useDashboardStore()
 const notes = useNotesStore()
@@ -34,6 +36,7 @@ const expenses = useExpensesStore()
 const debts = useDebtsStore()
 const files = useFilesStore()
 const wallets = useWalletsStore()
+const pwaStore = usePwaStore()
 const route = useRoute()
 const { isDark } = useDarkMode()
 const { toasts } = useToast()
@@ -54,8 +57,12 @@ const {
   }
 })
 
+// Store update function globally for Settings page
+pwaStore.updateServiceWorker = updateServiceWorker
+
 // Handle App Badge when an update is detected
 watch(needRefresh, (newValue) => {
+  pwaStore.setNeedRefresh(newValue)
   if (newValue) {
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
     
@@ -407,12 +414,7 @@ function isActive(path) {
       </div>
 
       <!-- Update Notification -->
-      <UpdateNotification 
-        :offline-ready="offlineReady"
-        :need-refresh="needRefresh"
-        @update="updateServiceWorker()"
-        @close="offlineReady = false; needRefresh = false"
-      />
+      <!-- Removed UpdateNotification modal because update UI is now in Settings page -->
 
     </div>
   </div>

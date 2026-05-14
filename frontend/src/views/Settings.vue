@@ -1,15 +1,31 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.js'
+import { usePwaStore } from '@/stores/pwa.js'
 import { useDarkMode } from '@/composables/useDarkMode.js'
-import { Moon, Sun, User, LogOut, ChevronRight, Bell, Shield, Palette, Banknote } from 'lucide-vue-next'
+import { Moon, Sun, User, LogOut, ChevronRight, Bell, Shield, Palette, Banknote, DownloadCloud, Loader2 } from 'lucide-vue-next'
 import UiCard from '@/components/ui/Card.vue'
 import UiCardContent from '@/components/ui/CardContent.vue'
 import UiButton from '@/components/ui/Button.vue'
 import { parseCurrency } from '@/utils/format'
 
 const auth = useAuthStore()
+const pwaStore = usePwaStore()
+const route = useRoute()
 const { isDark, toggle } = useDarkMode()
+
+onMounted(() => {
+  // If user clicked the notification, scroll to update section
+  if (route.query.update) {
+    setTimeout(() => {
+      const updateEl = document.getElementById('update-section')
+      if (updateEl) {
+        updateEl.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }
+    }, 300)
+  }
+})
 
 const initials = computed(() => {
   const name = auth.user?.name ?? ''
@@ -64,6 +80,60 @@ async function handleSignOut() {
         </div>
       </UiCardContent>
     </UiCard>
+    
+    <!-- App Update -->
+    <div v-if="pwaStore.needRefresh || pwaStore.isUpdating" id="update-section" class="mb-6 animate-fade-in">
+      <p class="text-xs font-semibold text-primary uppercase tracking-wider px-1 mb-2 flex items-center gap-1.5">
+        <span class="relative flex h-2 w-2">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+          <span class="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+        </span>
+        System Update
+      </p>
+      <UiCard class="overflow-hidden border-primary/20 shadow-primary/5 bg-gradient-to-br from-primary/5 to-transparent relative">
+        <!-- Progress bar animation overlay when updating -->
+        <div v-if="pwaStore.isUpdating" class="absolute inset-0 bg-primary/5">
+          <div class="h-full bg-primary/10 animate-pulse w-full transition-all duration-1000 ease-in-out"></div>
+        </div>
+        
+        <UiCardContent class="p-5 relative z-10">
+          <div class="flex items-start gap-4">
+            <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl" :class="pwaStore.isUpdating ? 'bg-primary/20 animate-pulse' : 'bg-primary/10'">
+              <Loader2 v-if="pwaStore.isUpdating" class="h-6 w-6 text-primary animate-spin" />
+              <DownloadCloud v-else class="h-6 w-6 text-primary" />
+            </div>
+            <div class="flex-1 min-w-0">
+              <h3 class="text-base font-bold text-foreground">
+                {{ pwaStore.isUpdating ? 'Installing Update...' : 'New Version Available' }}
+              </h3>
+              <p class="text-sm text-muted-foreground mt-0.5 leading-snug">
+                {{ pwaStore.isUpdating 
+                  ? 'Please wait while we apply the latest features and fixes. The app will restart automatically.' 
+                  : 'A new version of EleFam is ready. Update now to get the latest features and performance improvements.' }}
+              </p>
+              
+              <div class="mt-4 flex items-center gap-3">
+                <UiButton 
+                  v-if="!pwaStore.isUpdating" 
+                  @click="pwaStore.triggerUpdate()" 
+                  class="h-10 px-6 rounded-xl font-bold w-full sm:w-auto shadow-md"
+                >
+                  Update Now
+                </UiButton>
+                <div v-else class="flex items-center gap-2 text-sm font-semibold text-primary">
+                  <span class="animate-bounce">Downloading resources</span>
+                  <span class="flex gap-0.5">
+                    <span class="animate-bounce" style="animation-delay: 0ms">.</span>
+                    <span class="animate-bounce" style="animation-delay: 150ms">.</span>
+                    <span class="animate-bounce" style="animation-delay: 300ms">.</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </UiCardContent>
+      </UiCard>
+    </div>
 
     <!-- Financial -->
     <p class="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1 mb-2">Financial</p>

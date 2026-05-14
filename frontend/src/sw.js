@@ -48,14 +48,15 @@ self.addEventListener('notificationclick', (event) => {
     self.clients
       .matchAll({ type: 'window', includeUncontrolled: true })
       .then((clientList) => {
-        // Focus an existing window if one is open
+        // Focus an existing window if one is open and navigate to settings
         for (const client of clientList) {
-          if ('focus' in client) {
+          if ('focus' in client && 'navigate' in client) {
+            client.navigate('/settings?update=1')
             return client.focus()
           }
         }
-        // Otherwise open a fresh window
-        return self.clients.openWindow('/')
+        // Otherwise open a fresh window directly to settings
+        return self.clients.openWindow('/settings?update=1')
       })
   )
 })
