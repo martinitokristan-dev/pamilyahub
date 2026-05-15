@@ -27,13 +27,15 @@ class DashboardController extends Controller
             $stats = $this->stats->get($userId);
             $user = $request->user();
 
+            $startDate = sprintf('%04d-%02d-01 00:00:00', $year, $month);
+            $endDate = date('Y-m-t 23:59:59', strtotime($startDate));
+
             // ONE query for all expense aggregates
             $monthly = DB::table('expenses')
                 ->selectRaw('COALESCE(SUM(amount), 0) as expenses_total')
                 ->selectRaw('COALESCE(SUM(CASE WHEN wallet_id IS NULL THEN amount ELSE 0 END), 0) as unallocated_expenses')
                 ->where('user_id', $userId)
-                ->whereYear('date', $year)
-                ->whereMonth('date', $month)
+                ->whereBetween('date', [$startDate, $endDate])
                 ->first();
 
             // Total Income from salary_deposits table
@@ -46,8 +48,7 @@ class DashboardController extends Controller
             // Total Income from general incomes table
             $otherIncome = DB::table('incomes')
                 ->where('user_id', $userId)
-                ->whereYear('date', $year)
-                ->whereMonth('date', $month)
+                ->whereBetween('date', [$startDate, $endDate])
                 ->sum('amount');
 
             $totalIncome = (float) $salaryData + (float) $otherIncome;

@@ -12,11 +12,12 @@ class ExpenseRepository
         $query = Expense::with('wallet')->where('user_id', $userId);
 
         if (!empty($filters['month']) && !empty($filters['year'])) {
-            $query->whereYear('date', $filters['year'])
-                  ->whereMonth('date', $filters['month']);
+            $startDate = sprintf('%04d-%02d-01', $filters['year'], $filters['month']);
+            $endDate = date('Y-m-t', strtotime($startDate));
+            $query->whereBetween('date', [$startDate, $endDate]);
         }
 
-        return $query->latest()->get();
+        return $query->orderByDesc('date')->orderByDesc('id')->get();
     }
 
     public function findByUser(int $id, int $userId): ?Expense
@@ -45,8 +46,11 @@ class ExpenseRepository
         $query = Expense::with('wallet')->where('user_id', $userId);
 
         if (!empty($filters['month']) && !empty($filters['year'])) {
-            $query->whereYear('date', $filters['year'])
-                  ->whereMonth('date', $filters['month']);
+            // Use date-range query instead of whereYear/whereMonth
+            // so the expenses_user_date_idx index can be used
+            $startDate = sprintf('%04d-%02d-01', $filters['year'], $filters['month']);
+            $endDate = date('Y-m-t', strtotime($startDate));
+            $query->whereBetween('date', [$startDate, $endDate]);
         }
 
         if (!empty($filters['search'])) {
@@ -58,6 +62,7 @@ class ExpenseRepository
             });
         }
 
-        return $query->latest()->paginate(10);
+        // Order by indexed 'date' column instead of 'created_at' for index coverage
+        return $query->orderByDesc('date')->orderByDesc('id')->paginate(10);
     }
 }

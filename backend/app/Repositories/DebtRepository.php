@@ -22,16 +22,16 @@ class DebtRepository
                        ->orWhere('description', 'like', "%{$search}%");
                 });
             })
-            ->latest();
-        $total = $query->count();
-        $debts = $query->offset(($page - 1) * $perPage)->limit($perPage)->get();
-        
+            ->orderByDesc('id');
+
+        $paginated = $query->paginate($perPage, ['*'], 'page', $page);
+
         return [
-            'data' => $debts,
-            'total' => $total,
-            'page' => $page,
-            'per_page' => $perPage,
-            'last_page' => ceil($total / $perPage)
+            'data' => $paginated->items(),
+            'total' => $paginated->total(),
+            'page' => $paginated->currentPage(),
+            'per_page' => $paginated->perPage(),
+            'last_page' => $paginated->lastPage()
         ];
     }
 

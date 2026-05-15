@@ -126,12 +126,21 @@ async function handleConfirm() {
         .map(a => ({ wallet_id: a.wallet_id, amount: parseFloat(a.amount) })),
     })
 
-    // Invalidate all relevant stores
+    // Optimistically update wallet balances
+    allocations.value.forEach(a => {
+      const amt = parseFloat(a.amount)
+      if (amt > 0) {
+        walletsStore.adjustBalance(a.wallet_id, amt)
+      }
+    })
+
+    // Fetch the updated data in the background so the UI reflects the new totals instantly
+    dashboardStore.fetchStats()
+    salaryStore.fetchCurrentMonth()
+    
+    // Invalidate caches
     walletsStore.invalidate()
-    dashboardStore.invalidate()
-    salaryStore.invalidate()
     import('@/stores/expenses').then(m => m.useExpensesStore().invalidate())
-    await salaryStore.fetchCurrentMonth()
 
     toastSuccess('Salary deposited successfully!')
     emit('success')

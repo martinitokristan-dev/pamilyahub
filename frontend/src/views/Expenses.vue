@@ -276,6 +276,7 @@ async function remove(expense) {
           class="h-11 w-11 flex items-center justify-center rounded-full transition-all duration-200 hover:bg-muted active:scale-90 disabled:opacity-30 disabled:pointer-events-none"
           :disabled="currentPage <= 1"
           @click="currentPage--"
+          @mouseenter="currentPage > 1 && store.fetchAll(currentPage - 1, { month: selectedMonth, year: selectedYear, search: debouncedSearch })"
         >
           <ChevronLeft class="h-5 w-5" />
         </button>
@@ -290,6 +291,7 @@ async function remove(expense) {
           class="h-11 w-11 flex items-center justify-center rounded-full transition-all duration-200 hover:bg-muted active:scale-90 disabled:opacity-30 disabled:pointer-events-none"
           :disabled="currentPage >= store.pagination.last_page"
           @click="currentPage++"
+          @mouseenter="currentPage < store.pagination.last_page && store.fetchAll(currentPage + 1, { month: selectedMonth, year: selectedYear, search: debouncedSearch })"
         >
           <ChevronRight class="h-5 w-5" />
         </button>

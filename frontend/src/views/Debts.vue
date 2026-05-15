@@ -38,7 +38,7 @@ watch([activeTab, currentPage, debouncedSearch], () => {
     ...(activeTab.value !== 'all' ? { type: activeTab.value } : {}),
     ...(debouncedSearch.value.trim() ? { search: debouncedSearch.value.trim() } : {})
   }
-  store.fetchAll(true, currentPage.value, 20, filters)
+  store.fetchAll(false, currentPage.value, 20, filters)
   dashboardStore.fetchStats()
 })
 
@@ -245,6 +245,7 @@ const totalBalance = computed(() => {
           class="h-11 w-11 flex items-center justify-center rounded-full transition-all duration-200 hover:bg-muted active:scale-90 disabled:opacity-30 disabled:pointer-events-none"
           :disabled="currentPage <= 1"
           @click="currentPage--"
+          @mouseenter="currentPage > 1 && store.fetchAll(false, currentPage - 1, 20, { ...(activeTab !== 'all' ? { type: activeTab } : {}), ...(debouncedSearch.trim() ? { search: debouncedSearch.trim() } : {}) })"
         >
           <ChevronLeft class="h-5 w-5" />
         </button>
@@ -259,6 +260,7 @@ const totalBalance = computed(() => {
           class="h-11 w-11 flex items-center justify-center rounded-full transition-all duration-200 hover:bg-muted active:scale-90 disabled:opacity-30 disabled:pointer-events-none"
           :disabled="currentPage >= store.pagination.last_page"
           @click="currentPage++"
+          @mouseenter="currentPage < store.pagination.last_page && store.fetchAll(false, currentPage + 1, 20, { ...(activeTab !== 'all' ? { type: activeTab } : {}), ...(debouncedSearch.trim() ? { search: debouncedSearch.trim() } : {}) })"
         >
           <ChevronRight class="h-5 w-5" />
         </button>

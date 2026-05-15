@@ -3,7 +3,6 @@ import { ref } from "vue";
 import { expenseService } from "@/services/expenseService.js";
 import { useDashboardStore } from "./dashboard.js";
 import { useToast } from "@/composables/useToast.js";
-import { performSilentFetch } from "@/utils/storeHelper.js";
 
 export const useExpensesStore = defineStore("expenses", () => {
   const expenses = ref([]);
@@ -11,47 +10,58 @@ export const useExpensesStore = defineStore("expenses", () => {
   const error = ref(null);
   const fetched = ref(false);
   const cacheTime = ref(0);
-  const pagination = ref({ page: 1, per_page: 20, total: 0, last_page: 1 });
-  const lastFilters = ref(null);
+  const pagination = ref({ page: 1, per_page: 10, total: 0, last_page: 1 });
+  const lastCacheKey = ref(null);
 
+  /**
+   * Fetch expenses with proper cache-key awareness.
+   * The cache key includes BOTH page AND filters so page changes
+   * always trigger a new fetch instead of returning stale data.
+   */
   async function fetchAll(page = 1, filters = {}) {
-    const filtersStr = JSON.stringify(filters);
-    const filtersChanged = lastFilters.value !== filtersStr;
+    // Build a cache key that includes the page number
+    const cacheKey = JSON.stringify({ page, ...filters });
+    const isNewRequest = lastCacheKey.value !== cacheKey;
 
-    if (filtersChanged) {
-      fetched.value = false;
+    if (!isNewRequest && fetched.value) {
+      // Same page + same filters + already fetched → skip
+      return;
     }
-    
-    lastFilters.value = filtersStr;
-    
-    await performSilentFetch({
-      loading,
-      fetched,
-      cacheTime,
-      currentData: expenses.value,
-      force: filtersChanged,
-      backgroundTtl: 60000,
-      fetchFn: async () => {
-        const res = await expenseService.getAll({ page, ...filters });
-        if (res.data && res.data.data && Array.isArray(res.data.data.data)) {
-          expenses.value = res.data.data.data;
-          pagination.value = {
-            page: res.data.data.current_page,
-            per_page: res.data.data.per_page,
-            total: res.data.data.total,
-            last_page: res.data.data.last_page,
-          };
-        } else if (res.data && Array.isArray(res.data.data)) {
-          expenses.value = res.data.data;
-          pagination.value = { page: 1, per_page: expenses.value.length, total: expenses.value.length, last_page: 1 };
-        } else {
-          expenses.value = [];
-          pagination.value = { page: 1, per_page: 20, total: 0, last_page: 1 };
-        }
+
+    // Only show the loading spinner if we have NO data yet (initial load)
+    // Page changes should feel instant with just data swap
+    const isInitialLoad = expenses.value.length === 0 && !fetched.value;
+    if (isInitialLoad) {
+      loading.value = true;
+    }
+
+    lastCacheKey.value = cacheKey;
+
+    try {
+      const res = await expenseService.getAll({ page, ...filters });
+      if (res.data && res.data.data && Array.isArray(res.data.data.data)) {
+        expenses.value = res.data.data.data;
+        pagination.value = {
+          page: res.data.data.current_page,
+          per_page: res.data.data.per_page,
+          total: res.data.data.total,
+          last_page: res.data.data.last_page,
+        };
+      } else if (res.data && Array.isArray(res.data.data)) {
+        expenses.value = res.data.data;
+        pagination.value = { page: 1, per_page: expenses.value.length, total: expenses.value.length, last_page: 1 };
+      } else {
+        expenses.value = [];
+        pagination.value = { page: 1, per_page: 10, total: 0, last_page: 1 };
       }
-    }).catch(e => {
+
+      fetched.value = true;
+      cacheTime.value = Date.now();
+    } catch (e) {
       error.value = e.response?.data?.message ?? "Failed to load expenses";
-    });
+    } finally {
+      loading.value = false;
+    }
   }
 
   async function create(data) {
@@ -98,6 +108,7 @@ export const useExpensesStore = defineStore("expenses", () => {
 
   function invalidate() {
     fetched.value = false;
+    lastCacheKey.value = null;
   }
 
   return {

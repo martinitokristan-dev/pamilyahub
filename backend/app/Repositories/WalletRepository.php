@@ -14,16 +14,16 @@ class WalletRepository
 
     public function getByUserPaginated(int $userId, int $perPage = 20, int $page = 1): array
     {
-        $query = Wallet::where('user_id', $userId)->orderBy('created_at');
-        $total = $query->count();
-        $wallets = $query->offset(($page - 1) * $perPage)->limit($perPage)->get();
+        $paginated = Wallet::where('user_id', $userId)
+            ->orderBy('id')
+            ->paginate($perPage, ['*'], 'page', $page);
         
         return [
-            'data' => $wallets,
-            'total' => $total,
-            'page' => $page,
-            'per_page' => $perPage,
-            'last_page' => ceil($total / $perPage)
+            'data' => $paginated->items(),
+            'total' => $paginated->total(),
+            'page' => $paginated->currentPage(),
+            'per_page' => $paginated->perPage(),
+            'last_page' => $paginated->lastPage()
         ];
     }
 

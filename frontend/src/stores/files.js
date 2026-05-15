@@ -29,7 +29,11 @@ export const useFilesStore = defineStore("files", () => {
 
   async function fetchAll(force = false, page = 1, perPage = 20) {
     if (fetched.value && !force && isCacheValid() && page === lastPage.value) return;
-    loading.value = true;
+    // Only show spinner on initial load — page changes swap data silently
+    const isInitialLoad = files.value.length === 0 && !fetched.value;
+    if (isInitialLoad || force) {
+      loading.value = true;
+    }
     lastPage.value = page;
     try {
       const res = await fileService.getAll(page, perPage);

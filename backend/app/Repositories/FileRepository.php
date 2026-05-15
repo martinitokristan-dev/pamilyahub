@@ -14,16 +14,16 @@ class FileRepository
 
     public function getByUserPaginated(int $userId, int $perPage = 10, int $page = 1): array
     {
-        $query = File::where('user_id', $userId)->latest();
-        $total = $query->count();
-        $files = $query->offset(($page - 1) * $perPage)->limit($perPage)->get();
+        $paginated = File::where('user_id', $userId)
+            ->orderByDesc('id')
+            ->paginate($perPage, ['*'], 'page', $page);
         
         return [
-            'data' => $files,
-            'total' => $total,
-            'page' => $page,
-            'per_page' => $perPage,
-            'last_page' => ceil($total / $perPage)
+            'data' => $paginated->items(),
+            'total' => $paginated->total(),
+            'page' => $paginated->currentPage(),
+            'per_page' => $paginated->perPage(),
+            'last_page' => $paginated->lastPage()
         ];
     }
 
