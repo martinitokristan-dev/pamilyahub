@@ -15,6 +15,12 @@ class Note extends Model
         'is_prioritized',
     ];
 
+    protected $casts = [
+        'is_prioritized' => 'boolean',
+        'title' => 'encrypted',
+        'content' => 'encrypted',
+    ];
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
