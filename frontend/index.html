@@ -26,10 +26,36 @@
         z-index: 9999;
         transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.6s ease;
       }
+      .splash-container {
+        position: relative;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+      .ripple {
+        position: absolute;
+        bottom: -15px;
+        width: 120px;
+        height: 30px;
+        border: 3px solid rgba(147, 51, 234, 0.6);
+        background: rgba(147, 51, 234, 0.15);
+        border-radius: 50%;
+        opacity: 0;
+        animation: water-ripple 1s infinite cubic-bezier(0.2, 0.8, 0.4, 1);
+        z-index: 1;
+      }
+      .ripple-delay {
+        animation-delay: 0.2s;
+      }
       .splash-logo {
         width: 180px;
-        height: auto;
-        animation: pulse 2s infinite cubic-bezier(0.4, 0, 0.2, 1);
+        height: 180px;
+        object-fit: cover;
+        border-radius: 50%;
+        position: relative;
+        z-index: 2;
+        animation: smooth-bounce 1s infinite;
+        box-shadow: 0 10px 30px rgba(147, 51, 234, 0.3);
       }
       #splash.zoom-out {
         transform: scale(8);
@@ -39,13 +65,19 @@
       .dark #splash {
         background-color: #09090b;
       }
-      @keyframes pulse {
-        0%, 100% {
-          transform: scale(1);
+      @keyframes smooth-bounce {
+        0%, 100% { 
+          transform: translateY(0) scale(1.05, 0.95); 
+          animation-timing-function: ease-out; 
         }
-        50% {
-          transform: scale(1.05);
+        50% { 
+          transform: translateY(-50px) scale(0.95, 1.05); 
+          animation-timing-function: ease-in; 
         }
+      }
+      @keyframes water-ripple {
+        0% { transform: scale(0.5); opacity: 1; }
+        100% { transform: scale(2.5); opacity: 0; }
       }
     </style>
     <script>
@@ -65,7 +97,11 @@
   </head>
   <body>
     <div id="splash">
-      <img src="/icons/wallets/EF-logo.png" alt="EleFam Logo" class="splash-logo" />
+      <div class="splash-container">
+        <div class="ripple"></div>
+        <div class="ripple ripple-delay"></div>
+        <img src="/icons/wallets/EF-logo.png" alt="EleFam Logo" class="splash-logo" />
+      </div>
     </div>
     <div id="app"></div>
     <script type="module" src="/src/main.js"></script>
