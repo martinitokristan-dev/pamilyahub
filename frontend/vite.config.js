@@ -18,8 +18,8 @@ export default defineConfig(({ mode }) => {
           name: 'EleFam',
           short_name: 'EleFam',
           description: 'Personal family expenses tracker',
-          theme_color: '#9333ea',
-          background_color: '#9333ea',
+          theme_color: '#2a0057',
+          background_color: '#2a0057',
           display: 'standalone',
           icons: [
             {
