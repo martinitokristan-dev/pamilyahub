@@ -78,9 +78,7 @@ onMounted(async () => {
 const stats = computed(() => {
   const baseStats = []
 
-  const incomeTotal   = parseFloat(dashboard.stats.income_total ?? 0)
-  const expensesTotal = parseFloat(dashboard.stats.expenses_total ?? 0)
-  const remaining     = parseFloat(dashboard.stats.remaining_salary ?? 0)
+  const remaining = parseFloat(dashboard.stats.remaining_salary ?? 0)
 
   baseStats.push({
     label: 'Budget Left',
@@ -100,13 +98,13 @@ const stats = computed(() => {
     },
     {
       label: 'Income (Monthly)',
-      value: formatCurrency(incomeTotal),
+      value: formatCurrency(dashboard.stats.monthly_income),
       icon: TrendingUp,
       bg: 'bg-gradient-to-br from-emerald-400 to-teal-500',
     },
     {
       label: 'Expenses (Monthly)',
-      value: formatCurrency(expensesTotal),
+      value: formatCurrency(dashboard.stats.monthly_expenses),
       icon: Receipt,
       bg: 'bg-gradient-to-br from-orange-500 to-amber-500',
     },
