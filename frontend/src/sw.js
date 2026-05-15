@@ -47,12 +47,14 @@ registerRoute(
   })
 )
 
-// Cache API calls (NetworkFirst/StaleWhileRevalidate)
-// This ensures the app is fast on repeat visits even with spotty connection
+// Cache API calls (NetworkFirst)
+// NetworkFirst ensures we ALWAYS get the live, correct data when online (fixing the deposit bug),
+// but falls back to the cache if the user is offline or the network is failing.
 registerRoute(
   ({ url }) => url.pathname.startsWith('/api/'),
-  new StaleWhileRevalidate({
+  new NetworkFirst({
     cacheName: 'api-cache',
+    networkTimeoutSeconds: 3,
     plugins: [
       new CacheableResponsePlugin({
         statuses: [0, 200],
