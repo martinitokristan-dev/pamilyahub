@@ -49,7 +49,7 @@ const {
       // This ensures users get update notifications even if the app stays open
       setInterval(() => {
         registration.update()
-      }, 30 * 60 * 1000)
+      }, 1 * 60 * 1000) // Fast check for testing (1 min)
     }
   }
 })

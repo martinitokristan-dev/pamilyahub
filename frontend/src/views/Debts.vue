@@ -16,6 +16,7 @@ import UiCard from '@/components/ui/Card.vue'
 import UiCardContent from '@/components/ui/CardContent.vue'
 import UiBadge from '@/components/ui/Badge.vue'
 import DatePicker from '@/components/ui/DatePicker.vue'
+import { SkeletonListItem } from '@/components/skeletons'
 import { formatCurrency, parseCurrency } from '@/utils/format'
 
 const store = useDebtsStore()
@@ -264,7 +265,9 @@ const totalBalance = computed(() => {
       </div>
     </div>
 
-    <div v-if="store.loading" class="text-sm text-muted-foreground">Loading…</div>
+    <div v-if="store.loading" class="space-y-2">
+      <SkeletonListItem v-for="i in 4" :key="i" :show-icon="false" />
+    </div>
 
     <div v-else-if="filtered.length === 0" class="flex flex-col items-center justify-center py-24 text-center border rounded-xl border-dashed bg-muted/20">
       <HandCoins class="h-10 w-10 text-muted-foreground/40 mb-3" />

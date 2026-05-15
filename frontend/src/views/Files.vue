@@ -7,6 +7,7 @@ import UiButton from '@/components/ui/Button.vue'
 import UiCard from '@/components/ui/Card.vue'
 import UiInput from '@/components/ui/Input.vue'
 import UiLabel from '@/components/ui/Label.vue'
+import { SkeletonGrid } from '@/components/skeletons'
 import imageCompression from 'browser-image-compression'
 
 const store = useFilesStore()
@@ -146,7 +147,9 @@ function formatSize(bytes) {
       {{ store.error }}
     </div>
 
-    <div v-if="store.loading" class="text-sm text-muted-foreground">Loading…</div>
+    <div v-if="store.loading">
+      <SkeletonGrid :count="6" variant="wallet" cols="grid-cols-2 sm:grid-cols-3 lg:grid-cols-4" />
+    </div>
 
     <div v-else-if="store.files.length === 0" class="flex flex-col items-center justify-center py-24 text-center border rounded-xl border-dashed bg-muted/20">
       <Upload class="h-10 w-10 text-muted-foreground/40 mb-3" />

@@ -39,16 +39,15 @@ class DashboardController extends Controller
             // Total Income from salary_deposits table
             $salaryData = DB::table('salary_deposits')
                 ->where('user_id', $userId)
-                ->whereYear('deposited_at', $year)
-                ->whereMonth('deposited_at', $month)
+                ->where('year', $year)
+                ->where('month', $month)
                 ->sum('amount');
 
-            // Total Income from general incomes table (e.g. Debt Collections)
+            // Total Income from general incomes table
             $otherIncome = DB::table('incomes')
                 ->where('user_id', $userId)
                 ->whereYear('date', $year)
                 ->whereMonth('date', $month)
-                ->where('source', '!=', 'Salary') // Avoid double counting if salary also goes here
                 ->sum('amount');
 
             $totalIncome = (float) $salaryData + (float) $otherIncome;

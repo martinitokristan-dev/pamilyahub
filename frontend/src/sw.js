@@ -51,9 +51,8 @@ registerRoute(
 // This ensures the app is fast on repeat visits even with spotty connection
 registerRoute(
   ({ url }) => url.pathname.startsWith('/api/'),
-  new NetworkFirst({
+  new StaleWhileRevalidate({
     cacheName: 'api-cache',
-    networkTimeoutSeconds: 3,
     plugins: [
       new CacheableResponsePlugin({
         statuses: [0, 200],

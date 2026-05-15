@@ -8,6 +8,7 @@ import { useToast } from '@/composables/useToast.js'
 import UiInput from '@/components/ui/Input.vue'
 import UiLabel from '@/components/ui/Label.vue'
 import UiCard from '@/components/ui/Card.vue'
+import { SkeletonNoteCard } from '@/components/skeletons'
 import { Editor, EditorContent } from '@tiptap/vue-3'
 import { BubbleMenu } from '@tiptap/vue-3/menus'
 import StarterKit from '@tiptap/starter-kit'
@@ -290,7 +291,11 @@ function getPreviewLines(content) {
         />
       </div>
 
-      <div v-if="store.notes.length === 0" class="flex flex-col items-center justify-center py-24 text-center border rounded-xl border-dashed bg-muted/20">
+      <div v-if="store.loading && store.notes.length === 0">
+        <SkeletonNoteCard :count="6" />
+      </div>
+
+      <div v-else-if="store.notes.length === 0" class="flex flex-col items-center justify-center py-24 text-center border rounded-xl border-dashed bg-muted/20">
         <NotebookPen class="h-10 w-10 text-muted-foreground/40 mb-3" />
         <p class="text-sm text-muted-foreground">No notes yet. Create your first one!</p>
       </div>

@@ -8,6 +8,7 @@ import UiInput from '@/components/ui/Input.vue'
 import UiLabel from '@/components/ui/Label.vue'
 import UiCard from '@/components/ui/Card.vue'
 import UiCardContent from '@/components/ui/CardContent.vue'
+import { SkeletonGrid } from '@/components/skeletons'
 import { formatCurrency, parseCurrency } from '@/utils/format'
 
 const store = useWalletsStore()
@@ -88,7 +89,9 @@ const netWorth = computed(() =>
       </div>
     </div>
 
-    <div v-if="store.loading && store.wallets.length === 0" class="text-sm text-muted-foreground">Loading…</div>
+    <div v-if="store.loading && store.wallets.length === 0">
+      <SkeletonGrid :count="4" variant="wallet" cols="grid-cols-2" />
+    </div>
 
     <div v-else-if="store.wallets.length === 0" class="flex flex-col items-center justify-center py-24 text-center border rounded-2xl border-dashed bg-muted/20">
       <Wallet class="h-10 w-10 text-muted-foreground/40 mb-3" />

@@ -14,6 +14,7 @@ import UiCard from '@/components/ui/Card.vue'
 import UiCardContent from '@/components/ui/CardContent.vue'
 import UiBadge from '@/components/ui/Badge.vue'
 import DatePicker from '@/components/ui/DatePicker.vue'
+import { SkeletonListItem, SkeletonTable } from '@/components/skeletons'
 import { formatCurrency, parseCurrency } from '@/utils/format'
 
 const store = useExpensesStore()
@@ -299,23 +300,12 @@ async function remove(expense) {
     <template v-if="store.loading && !store.fetched">
       <!-- Mobile Skeletons -->
       <div class="flex flex-col gap-2 md:hidden">
-        <div v-for="i in 5" :key="i" class="rounded-2xl border border-border bg-card p-4 flex items-center gap-3">
-          <UiSkeleton class="h-12 w-12 rounded-xl" />
-          <div class="flex-1 space-y-2">
-            <UiSkeleton class="h-4 w-1/3" />
-            <UiSkeleton class="h-3 w-1/2" />
-          </div>
-          <UiSkeleton class="h-4 w-16" />
-        </div>
+        <SkeletonListItem v-for="i in 5" :key="i" />
       </div>
       <!-- Desktop Skeletons -->
-      <UiCard class="overflow-hidden hidden md:block">
-        <div class="p-4 space-y-4">
-          <div v-for="i in 5" :key="i" class="flex items-center gap-4">
-            <UiSkeleton class="h-10 w-full" />
-          </div>
-        </div>
-      </UiCard>
+      <div class="hidden md:block">
+        <SkeletonTable :rows="5" :columns="5" />
+      </div>
     </template>
 
     <div v-else-if="store.expenses.length === 0" class="flex flex-col items-center justify-center py-24 text-center border rounded-xl border-dashed bg-muted/20">

@@ -17,7 +17,7 @@ import UiButton from '@/components/ui/Button.vue'
 import DepositSalaryModal from '@/components/financial/DepositSalaryModal.vue'
 import { formatCurrency } from '@/utils/format'
 
-import UiSkeleton from '@/components/ui/Skeleton.vue'
+import { SkeletonGrid, SkeletonListItem } from '@/components/skeletons'
 
 const auth      = useAuthStore()
 const notes     = useNotesStore()
@@ -184,11 +184,7 @@ const stats = computed(() => {
       <!-- ── Financial Stats Grid ── -->
       <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-8">
         <template v-if="dashboard.loading && !dashboard.fetched">
-          <div v-for="i in 6" :key="i" class="h-24 rounded-2xl bg-card border border-border p-4 flex flex-col justify-between">
-            <UiSkeleton class="h-6 w-6 rounded-lg mb-2" />
-            <UiSkeleton class="h-5 w-2/3" />
-            <UiSkeleton class="h-3 w-1/2" />
-          </div>
+          <SkeletonGrid :count="6" variant="stat" />
         </template>
         <template v-else>
           <div
@@ -222,13 +218,8 @@ const stats = computed(() => {
 
         <div class="bg-card border border-border/50 rounded-[32px] shadow-sm overflow-hidden">
           <div v-if="expenses.loading && expenses.expenses.length === 0" class="divide-y divide-border/30">
-            <div v-for="i in 3" :key="i" class="flex items-center gap-3 p-4">
-              <UiSkeleton class="h-12 w-12 rounded-xl" />
-              <div class="flex-1 space-y-2">
-                <UiSkeleton class="h-4 w-1/3" />
-                <UiSkeleton class="h-3 w-1/2" />
-              </div>
-              <UiSkeleton class="h-4 w-16" />
+            <div v-for="i in 3" :key="i" class="p-4">
+              <SkeletonListItem />
             </div>
           </div>
 
