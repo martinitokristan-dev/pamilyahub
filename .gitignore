@@ -47,3 +47,4 @@ backend/.phpunit.cache
 # Misc
 .phpunit.result.cache
 /storage/pail
+development_rules.md
