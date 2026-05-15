@@ -106,10 +106,9 @@ async function submit() {
     await store.update(editingId.value, data)
   } else {
     await store.create(data)
-    // Optimistic balance adjustment
-    if (data.wallet_id) {
-      const delta = data.type === 'owed_to_me' ? -data.amount : data.amount
-      walletsStore.adjustBalance(data.wallet_id, delta)
+    // Optimistic balance adjustment (only for lending)
+    if (data.wallet_id && data.type === 'owed_to_me') {
+      walletsStore.adjustBalance(data.wallet_id, -data.amount)
     }
   }
   showForm.value = false
@@ -393,9 +392,9 @@ const totalBalance = computed(() => {
                     </div>
                   </div>
 
-                  <!-- Wallet Picker -->
-                  <div class="space-y-2 col-span-2">
-                    <UiLabel>{{ form.type === 'owed_to_me' ? 'Lend from Wallet' : 'Receive to Wallet' }}</UiLabel>
+                  <!-- Wallet Picker (Only for Lending) -->
+                  <div class="space-y-2 col-span-2" v-if="form.type === 'owed_to_me'">
+                    <UiLabel>Lend from Wallet</UiLabel>
                     <div v-if="walletsStore.wallets.length === 0" class="text-sm text-muted-foreground rounded-xl border border-dashed p-4 text-center">
                       No wallets yet — add one in the <strong>Wallets</strong> tab.
                     </div>

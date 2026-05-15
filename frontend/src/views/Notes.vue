@@ -2,9 +2,8 @@
 import { ref, onMounted, computed, nextTick, watch, onBeforeUnmount } from 'vue'
 import { useRegisterAddAction } from '@/composables/usePageAction.js'
 import { useNotesStore } from '@/stores/notes.js'
-import { Plus, Pencil, Trash2, X, NotebookPen, Search, ArrowLeft, Check, MoreVertical, Star, FolderPlus, Lock, FolderOpen, Eye, EyeOff, FileText } from 'lucide-vue-next'
+import { Plus, Pencil, Trash2, X, NotebookPen, Search, ArrowLeft, ChevronLeft, Check, Undo, Redo, MoreVertical, Star, FolderPlus, Lock, FolderOpen, Eye, EyeOff, FileText } from 'lucide-vue-next'
 import UiButton from '@/components/ui/Button.vue'
-import { useToast } from '@/composables/useToast.js'
 import UiInput from '@/components/ui/Input.vue'
 import UiLabel from '@/components/ui/Label.vue'
 import UiCard from '@/components/ui/Card.vue'
@@ -15,14 +14,16 @@ import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 
 const store = useNotesStore()
-const toast = useToast()
 const showEditor = ref(false)
 const editing = ref(null)
 const form = ref({ title: '', content: '', folder_id: null })
 const searchQuery = ref('')
 const editor = ref(null)
 const expandTools = ref(false)
+const currentEditorHTML = ref('')
 const isMobile = ref(false)
+const autoSaveTimer = ref(null)
+const isSaving = ref(false)
 
 // Folder & Priority State
 const activeFolderId = ref(null)
@@ -44,9 +45,49 @@ onMounted(() => {
   window.addEventListener('resize', () => isMobile.value = window.innerWidth < 640)
 })
 onBeforeUnmount(() => {
+  if (autoSaveTimer.value) clearTimeout(autoSaveTimer.value)
   if (editor.value) editor.value.destroy()
 })
 useRegisterAddAction(openCreate)
+
+// --- Auto-save (debounced 500ms) ---
+function scheduleAutoSave() {
+  if (autoSaveTimer.value) clearTimeout(autoSaveTimer.value)
+  autoSaveTimer.value = setTimeout(() => performAutoSave(), 500)
+}
+
+async function performAutoSave() {
+  if (!showEditor.value || isSaving.value) return
+  const contentHTML = currentEditorHTML.value
+  const title = form.value.title
+  const isEmpty = !title.trim() && (!contentHTML || contentHTML === '<p></p>')
+  if (isEmpty) return
+
+  const data = {
+    title,
+    content: contentHTML,
+    folder_id: form.value.folder_id
+  }
+
+  isSaving.value = true
+  try {
+    if (editing.value) {
+      await store.update(editing.value.id, data)
+    } else {
+      const created = await store.create(data)
+      if (created) editing.value = created // switch to editing mode so future saves update
+    }
+  } finally {
+    isSaving.value = false
+  }
+}
+
+// Watch title changes to trigger auto-save
+watch(() => form.value.title, (newVal, oldVal) => {
+  if (showEditor.value && newVal !== oldVal) {
+    scheduleAutoSave()
+  }
+})
 
 function initEditor(content = '') {
   if (editor.value) {
@@ -66,6 +107,10 @@ function initEditor(content = '') {
         spellcheck: 'true',
         autocorrect: 'on',
       },
+    },
+    onUpdate({ editor: e }) {
+      currentEditorHTML.value = e.getHTML()
+      scheduleAutoSave()
     },
     onSelectionUpdate() {
       if (!isMobile.value) {
@@ -130,6 +175,7 @@ function openCreate() {
     content: '', 
     folder_id: activeFolderId.value || null
   }
+  currentEditorHTML.value = ''
   showEditor.value = true
   initEditor('')
   nextTick(() => {
@@ -144,32 +190,19 @@ function openNote(note) {
     content: note.content,
     folder_id: note.folder_id
   }
+  currentEditorHTML.value = note.content
   showEditor.value = true
   initEditor(note.content)
 }
 
-async function saveNote() {
-  const contentHTML = editor.value ? editor.value.getHTML() : form.value.content
-  if (!form.value.title.trim() && (!contentHTML || contentHTML === '<p></p>')) {
-    closeEditor()
-    return
-  }
-  
-  const data = { 
-    title: form.value.title,
-    content: contentHTML,
-    folder_id: form.value.folder_id
-  }
-
-  if (editing.value) {
-    await store.update(editing.value.id, data)
-  } else {
-    await store.create(data)
-  }
-  closeEditor()
-}
-
 function closeEditor() {
+  // Flush any pending auto-save immediately
+  if (autoSaveTimer.value) {
+    clearTimeout(autoSaveTimer.value)
+    autoSaveTimer.value = null
+    performAutoSave()
+  }
+
   showEditor.value = false
   if (editor.value) {
     editor.value.destroy()
@@ -401,20 +434,45 @@ function getPreviewLines(content) {
       <transition name="note-editor">
         <div v-if="showEditor" class="fixed inset-0 z-[80] flex flex-col bg-background">
           <!-- Header bar -->
-          <div class="flex items-center justify-between px-4 py-3 border-b border-border bg-card/95 backdrop-blur-sm shrink-0">
+          <div class="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-border bg-card/95 backdrop-blur-sm shrink-0">
             <button
               @click="closeEditor"
-              class="flex items-center gap-1.5 text-sm font-medium text-primary hover:text-primary/80 transition-colors"
+              class="w-10 h-10 rounded-full border border-border flex items-center justify-center text-foreground hover:bg-muted transition-all active:scale-90"
             >
-              <ArrowLeft class="h-4 w-4" />
-              <span>Notes</span>
+              <ChevronLeft class="h-5 w-5" />
             </button>
-            <div class="flex items-center gap-1 sm:gap-2">
+
+            <div class="flex items-center gap-2">
+              <!-- Undo/Redo Pill -->
+              <div class="flex items-center border border-border rounded-full overflow-hidden bg-card/50">
+                <button
+                  @click="editor?.chain().focus().undo().run()"
+                  :disabled="!editor?.can().undo()"
+                  class="w-10 h-10 flex items-center justify-center text-foreground hover:bg-muted disabled:opacity-30 disabled:pointer-events-none transition-all active:scale-90 border-r border-border"
+                >
+                  <Undo class="h-4 w-4" />
+                </button>
+                <button
+                  @click="editor?.chain().focus().redo().run()"
+                  :disabled="!editor?.can().redo()"
+                  class="w-10 h-10 flex items-center justify-center text-foreground hover:bg-muted disabled:opacity-30 disabled:pointer-events-none transition-all active:scale-90"
+                >
+                  <Redo class="h-4 w-4" />
+                </button>
+              </div>
+
+              <!-- Check Button -->
+              <button
+                @click="closeEditor"
+                class="w-10 h-10 rounded-full border border-border flex items-center justify-center text-foreground hover:bg-muted transition-all active:scale-90"
+              >
+                <Check class="h-5 w-5" />
+              </button>
             </div>
           </div>
 
           <!-- Editor body -->
-          <div class="flex-1 flex flex-col overflow-y-auto relative pb-32">
+          <div class="flex-1 flex flex-col overflow-y-auto relative">
             <div class="max-w-3xl w-full mx-auto flex flex-col flex-1 px-4 sm:px-6 py-4">
               <!-- Title input -->
               <input
@@ -424,13 +482,7 @@ function getPreviewLines(content) {
                 class="w-full bg-transparent text-2xl sm:text-3xl font-bold text-foreground placeholder:text-muted-foreground/40 border-none outline-none mb-3 pb-2"
               />
 
-              <!-- Date stamp -->
-              <p class="text-xs text-muted-foreground/60 mb-4">
-                {{ editing ? formatDate(editing.updated_at) : new Date().toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) }}
-              </p>
 
-              <!-- Divider -->
-              <div class="h-px bg-border mb-4"></div>
 
               <!-- Content textarea -->
               <editor-content :editor="editor" class="flex-1 flex flex-col [&>div]:flex-1" />
@@ -472,19 +524,6 @@ function getPreviewLines(content) {
                   </button>
                 </div>
               </bubble-menu>
-            </div>
-
-            <!-- Floating Save Button -->
-            <div class="fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] w-full max-w-[200px] px-4">
-              <UiButton
-                size="lg"
-                @click="saveNote"
-                :disabled="store.loading"
-                class="w-full shadow-2xl shadow-primary/40 rounded-full h-14 text-base font-bold gap-2"
-              >
-                <Check class="h-5 w-5" />
-                {{ store.loading ? (editing ? 'Saving…' : 'Adding…') : (editing ? 'Save' : 'Add Note') }}
-              </UiButton>
             </div>
           </div>
         </div>

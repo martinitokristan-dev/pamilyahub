@@ -40,31 +40,27 @@ export const useNotesStore = defineStore('notes', () => {
   }
 
   async function create(data) {
-    loading.value = true
     try {
       const res = await noteService.create(data)
       notes.value.unshift(res.data.data)
       useDashboardStore().invalidate()
       invalidate()
-      useToast().success('Note created')
       return res.data.data
-    } finally {
-      loading.value = false
+    } catch (e) {
+      // silent
     }
   }
 
   async function update(id, data) {
-    loading.value = true
     try {
       const res = await noteService.update(id, data)
       const idx = notes.value.findIndex((n) => n.id === id)
       if (idx !== -1) notes.value[idx] = res.data.data
       useDashboardStore().invalidate()
       invalidate()
-      useToast().success('Note updated')
       return res.data.data
-    } finally {
-      loading.value = false
+    } catch (e) {
+      // silent
     }
   }
 

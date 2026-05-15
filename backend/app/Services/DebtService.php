@@ -33,44 +33,34 @@ class DebtService
     {
         return DB::transaction(function () use ($userId, $data) {
             $data['user_id'] = $userId;
+            // 1. Create debt record
             $debt = $this->repository->create($data);
             
-            // Handle Wallet Balance Adjustment on creation
-            if (!empty($data['wallet_id'])) {
-                // If I am lending money (Owed to Me), deduct from wallet
-                // If I am borrowing money (I Owe), add to wallet
-                $delta = $data['type'] === 'owed_to_me' ? -(float)$data['amount'] : (float)$data['amount'];
-                $this->walletRepository->adjustBalance($data['wallet_id'], $delta);
-            }
-
-            // If I am lending money (Owed to Me), log it as an expense immediately
+            // 2. Handle Financial Side Effects
             if ($data['type'] === 'owed_to_me') {
+                // Lend money: Deduct from wallet and log as expense
+                if (!empty($data['wallet_id'])) {
+                    $this->walletRepository->adjustBalance($data['wallet_id'], -(float)$data['amount']);
+                }
+
                 $this->expenseRepository->create([
-                    'user_id' => $userId,
-                    'title' => "Lent money to: " . $data['name'],
-                    'amount' => $data['amount'],
-                    'category' => 'Bills/Debt',
-                    'date' => now()->toDateString(),
-                    'wallet_id' => $data['wallet_id'] ?? null,
+                    'user_id'     => $userId,
+                    'title'       => "Lent money to: " . $data['name'],
+                    'amount'      => $data['amount'],
+                    'category'    => 'Bills/Debt',
+                    'date'        => now()->toDateString(),
+                    'wallet_id'   => $data['wallet_id'] ?? null,
                     'description' => $data['description'] ?? 'Lending money'
                 ]);
+
                 $this->stats->adjust($userId, 'expenses_total', (float) $data['amount']);
+                $this->stats->adjust($userId, 'debts_owed_to_me', (float) $data['amount']);
             } else {
-                // If I am borrowing money (I Owe), log it as a general Income
-                DB::table('incomes')->insert([
-                    'user_id'     => $userId,
-                    'wallet_id'   => $data['wallet_id'] ?? null,
-                    'amount'      => $data['amount'],
-                    'source'      => 'Debt (Borrowed)',
-                    'date'        => now()->toDateString(),
-                    'description' => "Borrowed money from: " . $data['name'],
-                    'created_at'  => now(),
-                    'updated_at'  => now(),
-                ]);
+                // I Owe: Just a record, no wallet movement or income logging upon creation.
+                // It will be logged as an expense and deducted from wallet only when PAID.
+                $this->stats->adjust($userId, 'debts_i_owe', (float) $data['amount']);
             }
 
-            $field = $data['type'] === 'i_owe' ? 'debts_i_owe' : 'debts_owed_to_me';
-            $this->stats->adjust($userId, $field, (float) $data['amount']);
             \App\Http\Controllers\DashboardController::invalidateCache($userId);
             return $debt;
         });
