@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Casts\EncryptedValue;
 
 class UserStat extends Model
 {
@@ -16,14 +17,16 @@ class UserStat extends Model
         'expenses_total',
         'debts_owed_to_me',
         'debts_i_owe',
+        'income_total',
         'files_count',
     ];
 
     protected $casts = [
         'notes_count'      => 'integer',
-        'expenses_total'   => 'float',
-        'debts_owed_to_me' => 'float',
-        'debts_i_owe'      => 'float',
+        'expenses_total'   => EncryptedValue::class,
+        'debts_owed_to_me' => EncryptedValue::class,
+        'debts_i_owe'      => EncryptedValue::class,
+        'income_total'     => EncryptedValue::class,
         'files_count'      => 'integer',
     ];
 }

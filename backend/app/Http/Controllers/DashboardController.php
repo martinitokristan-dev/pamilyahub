@@ -56,11 +56,11 @@ class DashboardController extends Controller
 
             $totalIncome = (float) $salaryData + (float) $otherIncome;
 
-            $stats->expenses_total   = $expensesTotal;
-            $stats->income_total     = $totalIncome;
+            $stats->monthly_expenses = $expensesTotal;
+            $stats->monthly_income   = $totalIncome;
             $stats->remaining_salary = $totalIncome - $expensesTotal;
             
-            // Add unallocated if needed by frontend (currently used in DashboardController query but not returned in object properties explicitly, though stats is dynamic)
+            // Add unallocated if needed by frontend
             $stats->unallocated_expenses = $unallocatedTotal;
 
             return $stats;

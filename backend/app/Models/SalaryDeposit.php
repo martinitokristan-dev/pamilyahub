@@ -23,7 +23,7 @@ class SalaryDeposit extends Model
     {
         return [
             'amount'        => EncryptedValue::class,
-            'already_spent' => 'decimal:2', // already_spent is NOT encrypted
+            'already_spent' => EncryptedValue::class,
             'deposited_at'  => 'datetime',
             'is_delayed'    => 'boolean',
         ];

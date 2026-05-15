@@ -12,8 +12,18 @@ class IncomeRepository
         return Income::with('wallet')->where('user_id', $userId)->latest()->get();
     }
 
-    public function create(array $data): Income
+    public function findById(int $id): ?Income
     {
-        return Income::create($data);
+        return Income::find($id);
+    }
+
+    public function update(Income $income, array $data): bool
+    {
+        return $income->update($data);
+    }
+
+    public function delete(Income $income): bool
+    {
+        return $income->delete();
     }
 }

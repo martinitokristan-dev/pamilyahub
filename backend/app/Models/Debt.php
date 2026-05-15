@@ -22,6 +22,7 @@ class Debt extends Model
     ];
 
     protected $casts = [
+        'name'        => EncryptedValue::class,
         'amount'      => EncryptedValue::class,
         'description' => EncryptedValue::class,
         'due_date'    => 'date:Y-m-d',

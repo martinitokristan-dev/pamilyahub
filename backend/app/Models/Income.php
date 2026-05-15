@@ -18,8 +18,10 @@ class Income extends Model
     ];
 
     protected $casts = [
-        'amount' => EncryptedValue::class,
-        'date'   => 'date',
+        'amount'      => EncryptedValue::class,
+        'source'      => EncryptedValue::class,
+        'description' => EncryptedValue::class,
+        'date'        => 'date',
     ];
 
     public function user(): BelongsTo

@@ -28,7 +28,10 @@ class EncryptSensitiveData extends Command
      */
     public function handle()
     {
-        $sample = DB::table('expenses')->whereNotNull('amount')->value('amount');
+        // Check if the NEW columns added in v1.2.2 are encrypted to prevent double-running.
+        // We check salary_deposits.already_spent instead of expenses.amount because expenses
+        // were encrypted in an earlier pass.
+        $sample = DB::table('salary_deposits')->whereNotNull('already_spent')->value('already_spent');
 
         if ($sample && Str::startsWith((string)$sample, 'eyJ')) {
             $this->info('Data already encrypted. Skipping.');
@@ -46,9 +49,10 @@ class EncryptSensitiveData extends Command
             'wallets'         => ['balance'],
             'users'           => ['monthly_salary'],
             'notes'           => ['title', 'content'],
-            'debts'           => ['amount', 'description'],
-            'incomes'         => ['amount'],
-            'salary_deposits' => ['amount'],
+            'debts'           => ['amount', 'description', 'name'],
+            'incomes'         => ['amount', 'source', 'description'],
+            'salary_deposits' => ['amount', 'already_spent'],
+            'user_stats'      => ['expenses_total', 'debts_owed_to_me', 'debts_i_owe', 'income_total'],
         ];
 
         DB::transaction(function () use ($tables, $dryRun) {
@@ -57,7 +61,8 @@ class EncryptSensitiveData extends Command
                 $this->info("Processing {$table} ({$count} records)...");
 
                 $processed = 0;
-                DB::table($table)->orderBy('id')->chunk(100, function ($records) use ($table, $columns, $dryRun, &$processed) {
+                $orderColumn = $table === 'user_stats' ? 'user_id' : 'id';
+                DB::table($table)->orderBy($orderColumn)->chunk(100, function ($records) use ($table, $columns, $dryRun, &$processed, $orderColumn) {
                     foreach ($records as $record) {
                         $updates = [];
                         foreach ($columns as $column) {
@@ -73,7 +78,7 @@ class EncryptSensitiveData extends Command
 
                         if (!empty($updates)) {
                             if (!$dryRun) {
-                                DB::table($table)->where('id', $record->id)->update($updates);
+                                DB::table($table)->where($orderColumn, $record->{$orderColumn})->update($updates);
                             }
                         }
                         $processed++;

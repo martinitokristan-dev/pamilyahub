@@ -6,6 +6,7 @@ use App\Repositories\SalaryDepositRepository;
 use App\Repositories\IncomeRepository;
 use App\Repositories\WalletRepository;
 use App\Services\ExpenseService;
+use App\Services\UserStatsService;
 use App\Http\Controllers\DashboardController;
 use Illuminate\Support\Facades\DB;
 
@@ -16,6 +17,7 @@ class SalaryDepositService
         private IncomeRepository        $incomeRepo,
         private WalletRepository        $walletRepo,
         private ExpenseService          $expenseService,
+        private UserStatsService        $statsService,
     ) {}
 
     /**
@@ -55,12 +57,6 @@ class SalaryDepositService
      *  2. Create income rows per wallet (for dashboard stats)
      *  3. Adjust each wallet balance atomically
      *  4. Invalidate dashboard cache
-     *
-     * @param int   $userId
-     * @param float $totalAmount    Total salary received
-     * @param float $alreadySpent   Money spent before this deposit
-     * @param array $walletAllocations  [['wallet_id'=>X,'amount'=>Y], ...]
-     * @param string|null $notes
      */
     public function deposit(
         int    $userId,
@@ -111,7 +107,45 @@ class SalaryDepositService
                 ]);
             }
 
+            // 2.6 Adjust User Stats
+            $this->statsService->adjust($userId, 'income_total', $totalAmount);
+
             // 3. Invalidate dashboard cache
+            DashboardController::invalidateCache($userId);
+        });
+    }
+
+    public function update(int $userId, int $id, array $data): void
+    {
+        DB::transaction(function () use ($userId, $id, $data) {
+            $deposit = $this->depositRepo->findById($id);
+            if (!$deposit || $deposit->user_id !== $userId) return;
+
+            $oldAmount = (float) $deposit->amount;
+            $newAmount = (float) ($data['amount'] ?? $oldAmount);
+
+            $this->depositRepo->update($deposit, $data);
+            
+            $delta = $newAmount - $oldAmount;
+            if ($delta !== 0.0) {
+                $this->statsService->adjust($userId, 'income_total', $delta);
+            }
+
+            DashboardController::invalidateCache($userId);
+        });
+    }
+
+    public function delete(int $userId, int $id): void
+    {
+        DB::transaction(function () use ($userId, $id) {
+            $deposit = $this->depositRepo->findById($id);
+            if (!$deposit || $deposit->user_id !== $userId) return;
+
+            $amount = (float) $deposit->amount;
+            $this->depositRepo->delete($deposit);
+            
+            $this->statsService->adjust($userId, 'income_total', -$amount);
+
             DashboardController::invalidateCache($userId);
         });
     }

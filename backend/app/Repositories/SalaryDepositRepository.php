@@ -35,16 +35,13 @@ class SalaryDepositRepository
         return SalaryDeposit::create($data);
     }
 
-    /**
-     * Sum of already_spent for a user in a given month/year.
-     * already_spent is NOT encrypted, so SQL sum works fine.
-     */
     public function sumAlreadySpent(int $userId, int $month, int $year): float
     {
         return (float) SalaryDeposit::where('user_id', $userId)
             ->where('month', $month)
             ->where('year', $year)
-            ->sum('already_spent');
+            ->get()
+            ->sum(fn($s) => (float) $s->already_spent);
     }
 
     /**
