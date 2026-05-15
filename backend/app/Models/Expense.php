@@ -2,25 +2,31 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Casts\EncryptedValue;
 
 class Expense extends Model
 {
+    use HasFactory;
+
     protected $fillable = [
         'user_id',
+        'wallet_id',
         'title',
         'amount',
         'category',
         'description',
         'date',
         'payment_method',
-        'wallet_id',
     ];
 
     protected $casts = [
-        'amount' => 'decimal:2',
-        'date'   => 'date:Y-m-d',
+        'amount'      => EncryptedValue::class,
+        'title'       => EncryptedValue::class,
+        'description' => EncryptedValue::class,
+        'date'        => 'date:Y-m-d',
     ];
 
     public function user(): BelongsTo
@@ -28,8 +34,13 @@ class Expense extends Model
         return $this->belongsTo(User::class);
     }
 
-    public function wallet(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    public function wallet(): BelongsTo
     {
-        return $this->belongsTo(\App\Models\Wallet::class);
+        return $this->belongsTo(Wallet::class);
+    }
+
+    public function getAmountAsFloat(): float
+    {
+        return (float) $this->amount;
     }
 }

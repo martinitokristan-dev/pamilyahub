@@ -2,23 +2,27 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Casts\EncryptedValue;
 
 class Note extends Model
 {
+    use HasFactory;
+
     protected $fillable = [
         'user_id',
+        'folder_id',
         'title',
         'content',
-        'folder_id',
         'is_prioritized',
     ];
 
     protected $casts = [
+        'title'          => EncryptedValue::class,
+        'content'        => EncryptedValue::class,
         'is_prioritized' => 'boolean',
-        'title' => 'encrypted',
-        'content' => 'encrypted',
     ];
 
     public function user(): BelongsTo

@@ -3,8 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Casts\EncryptedValue;
 
 class Income extends Model
 {
@@ -18,7 +18,7 @@ class Income extends Model
     ];
 
     protected $casts = [
-        'amount' => 'decimal:2',
+        'amount' => EncryptedValue::class,
         'date'   => 'date',
     ];
 
@@ -30,5 +30,10 @@ class Income extends Model
     public function wallet(): BelongsTo
     {
         return $this->belongsTo(Wallet::class);
+    }
+
+    public function getAmountAsFloat(): float
+    {
+        return (float) $this->amount;
     }
 }

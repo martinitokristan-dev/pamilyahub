@@ -53,8 +53,17 @@ class WalletRepository
         $wallet->delete();
     }
 
+    /**
+     * Adjust wallet balance.
+     * Replaced SQL increment() with fetch-calculate-save for encryption support.
+     */
     public function adjustBalance(int $id, float $delta): void
     {
-        Wallet::where('id', $id)->increment('balance', $delta);
+        $wallet = Wallet::find($id);
+        if ($wallet) {
+            // PHP-side math after decryption
+            $wallet->balance = max(0, (float) $wallet->balance + $delta);
+            $wallet->save();
+        }
     }
 }

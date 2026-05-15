@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Casts\EncryptedValue;
 
 class SalaryDeposit extends Model
 {
@@ -21,8 +22,8 @@ class SalaryDeposit extends Model
     protected function casts(): array
     {
         return [
-            'amount'        => 'decimal:2',
-            'already_spent' => 'decimal:2',
+            'amount'        => EncryptedValue::class,
+            'already_spent' => 'decimal:2', // already_spent is NOT encrypted
             'deposited_at'  => 'datetime',
             'is_delayed'    => 'boolean',
         ];
@@ -31,5 +32,10 @@ class SalaryDeposit extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function getAmountAsFloat(): float
+    {
+        return (float) $this->amount;
     }
 }

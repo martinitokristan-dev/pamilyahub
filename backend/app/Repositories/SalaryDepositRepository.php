@@ -36,7 +36,8 @@ class SalaryDepositRepository
     }
 
     /**
-     * Sum of already_spent for a user in a given month/year (counts as real spending).
+     * Sum of already_spent for a user in a given month/year.
+     * already_spent is NOT encrypted, so SQL sum works fine.
      */
     public function sumAlreadySpent(int $userId, int $month, int $year): float
     {
@@ -47,13 +48,15 @@ class SalaryDepositRepository
     }
 
     /**
-     * Sum of amount for a user in a given month/year (total income).
+     * Sum of amount (encrypted) for a user in a given month/year.
+     * Replaced SQL sum() with PHP-side aggregation.
      */
     public function sumAmount(int $userId, int $month, int $year): float
     {
         return (float) SalaryDeposit::where('user_id', $userId)
             ->where('month', $month)
             ->where('year', $year)
-            ->sum('amount');
+            ->get()
+            ->sum(fn($s) => (float) $s->amount);
     }
 }

@@ -4,6 +4,8 @@ namespace App\Repositories;
 
 use App\Models\Expense;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Pagination\Paginator;
 
 class ExpenseRepository
 {
@@ -17,7 +19,18 @@ class ExpenseRepository
             $query->whereBetween('date', [$startDate, $endDate]);
         }
 
-        return $query->orderByDesc('date')->orderByDesc('id')->get();
+        $results = $query->orderByDesc('date')->orderByDesc('id')->get();
+
+        if (!empty($filters['search'])) {
+            $search = strtolower($filters['search']);
+            $results = $results->filter(function($e) use ($search) {
+                return str_contains(strtolower($e->title ?? ''), $search) ||
+                       str_contains(strtolower($e->category ?? ''), $search) ||
+                       str_contains(strtolower($e->description ?? ''), $search);
+            });
+        }
+
+        return $results;
     }
 
     public function findByUser(int $id, int $userId): ?Expense
@@ -41,28 +54,39 @@ class ExpenseRepository
         $expense->delete();
     }
 
-    public function getByUserPaginated(int $userId, array $filters = []): \Illuminate\Pagination\LengthAwarePaginator
+    public function getByUserPaginated(int $userId, array $filters = []): LengthAwarePaginator
     {
         $query = Expense::with('wallet')->where('user_id', $userId);
 
         if (!empty($filters['month']) && !empty($filters['year'])) {
-            // Use date-range query instead of whereYear/whereMonth
-            // so the expenses_user_date_idx index can be used
             $startDate = sprintf('%04d-%02d-01', $filters['year'], $filters['month']);
             $endDate = date('Y-m-t', strtotime($startDate));
             $query->whereBetween('date', [$startDate, $endDate]);
         }
 
+        // Fetch records for filtering in PHP
+        $allResults = $query->orderByDesc('date')->orderByDesc('id')->get();
+
         if (!empty($filters['search'])) {
-            $search = $filters['search'];
-            $query->where(function($q) use ($search) {
-                $q->where('title', 'like', "%{$search}%")
-                  ->orWhere('category', 'like', "%{$search}%")
-                  ->orWhere('description', 'like', "%{$search}%");
+            $search = strtolower($filters['search']);
+            $allResults = $allResults->filter(function($e) use ($search) {
+                return str_contains(strtolower($e->title ?? ''), $search) ||
+                       str_contains(strtolower($e->category ?? ''), $search) ||
+                       str_contains(strtolower($e->description ?? ''), $search);
             });
         }
 
-        // Order by indexed 'date' column instead of 'created_at' for index coverage
-        return $query->orderByDesc('date')->orderByDesc('id')->paginate(10);
+        // Manual pagination for the filtered collection
+        $perPage = 10;
+        $page = Paginator::resolveCurrentPage() ?: 1;
+        $items = $allResults->forPage($page, $perPage)->values();
+
+        return new LengthAwarePaginator(
+            $items,
+            $allResults->count(),
+            $perPage,
+            $page,
+            ['path' => Paginator::resolveCurrentPath()]
+        );
     }
 }
