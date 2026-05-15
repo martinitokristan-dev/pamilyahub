@@ -1,7 +1,15 @@
 import axios from 'axios'
 
+let baseURL = import.meta.env.VITE_API_BASE_URL;
+
+// Auto-detect local network IP for mobile testing
+// If accessing via local IP (e.g., 192.168.1.5), route the API to that same IP
+if (window.location.hostname !== 'localhost' && window.location.hostname.match(/^\d+\.\d+\.\d+\.\d+$/)) {
+  baseURL = `http://${window.location.hostname}:8000/api`;
+}
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL,
+  baseURL: baseURL,
   timeout: 30000, // 30 seconds to prevent infinite network hangs
   headers: {
     'Content-Type': 'application/json',

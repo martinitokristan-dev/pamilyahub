@@ -3,10 +3,7 @@
 return [
     'paths'                    => ['api/*', 'sanctum/csrf-cookie'],
     'allowed_methods'          => ['*'],
-    'allowed_origins'          => [
-        env('FRONTEND_URL', 'http://localhost:5173'),
-        'https://elefam.vercel.app'
-    ],
+    'allowed_origins'          => ['*'],
     'allowed_origins_patterns' => [],
     'allowed_headers'          => ['*'],
     'exposed_headers'          => [],
