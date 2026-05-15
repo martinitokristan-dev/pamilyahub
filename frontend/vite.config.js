@@ -13,23 +13,23 @@ export default defineConfig(({ mode }) => {
         srcDir: 'src',
         filename: 'sw.js',
         registerType: 'prompt',
-        includeAssets: ['icons/wallets/EF-logo-circle-192.png', 'icons/wallets/EF-logo-circle-512.png', 'icons/wallets/EF-logo-circle.png'],
+        includeAssets: ['icons/wallets/mobile-icon-frame-192.png', 'icons/wallets/mobile-icon-frame-512.png', 'icons/wallets/mobile-icon-frame.png'],
         manifest: {
           name: 'EleFam',
           short_name: 'EleFam',
           description: 'Personal family expenses tracker',
-          theme_color: '#09090b',
-          background_color: '#09090b',
+          theme_color: '#9333ea',
+          background_color: '#9333ea',
           display: 'standalone',
           icons: [
             {
-              src: '/icons/wallets/EF-logo-circle-192.png',
+              src: '/icons/wallets/mobile-icon-frame-192.png',
               sizes: '192x192',
               type: 'image/png',
               purpose: 'any'
             },
             {
-              src: '/icons/wallets/EF-logo-circle-512.png',
+              src: '/icons/wallets/mobile-icon-frame-512.png',
               sizes: '512x512',
               type: 'image/png',
               purpose: 'any maskable'
