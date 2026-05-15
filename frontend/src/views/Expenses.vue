@@ -64,7 +64,7 @@ const availableYears = computed(() => {
 
 const currentPage = ref(1)
 
-const total = computed(() => dashboard.stats.expenses_total || 0)
+const total = computed(() => dashboard.stats.monthly_expenses || 0)
 
 const showForm = ref(false)
 const editingId = ref(null)
@@ -92,7 +92,7 @@ watch([selectedMonth, selectedYear, currentPage, debouncedSearch], () => {
 
 // total is now computed from dashboard stats
 
-const effectiveLimit = computed(() => parseFloat(dashboard.stats.income_total ?? 0))
+const effectiveLimit = computed(() => parseFloat(dashboard.stats.monthly_income ?? 0))
 
 const remainingSalary = computed(() => {
   return effectiveLimit.value - parseFloat(total.value)
