@@ -43,7 +43,8 @@ export const useDebtsStore = defineStore("debts", () => {
     });
     window.addEventListener("pamilya:sync-done", (e) => {
       if (e.detail.entity === "debts") {
-        invalidate();
+        fetched.value = false;
+        fetchAll();
         useDashboardStore().invalidate();
       }
     });
@@ -144,16 +145,22 @@ export const useDebtsStore = defineStore("debts", () => {
   }
 
   async function _createOffline(data) {
-    const tempId = `tmp_${crypto.randomUUID()}`;
-    const now = new Date().toISOString();
-    const optimistic = { ...data, id: tempId, _pending: true, created_at: now, updated_at: now };
-    debts.value.unshift(optimistic);
-    await cacheUpsert("debts", optimistic);
-    await outboxAdd({ method: "post", url: "/debts", data, entity: "debts", tempId });
-    await refreshPendingCount();
-    useDashboardStore().invalidate();
-    useToast().info("Saved offline — will sync when connected");
-    return { data: { data: optimistic } };
+    loading.value = true;
+    try {
+      const tempId = `tmp_${crypto.randomUUID()}`;
+      const now = new Date().toISOString();
+      const optimistic = { ...data, id: tempId, _pending: true, created_at: now, updated_at: now };
+      debts.value.unshift(optimistic);
+      await cacheUpsert("debts", optimistic);
+      await outboxAdd({ method: "post", url: "/debts", data, entity: "debts", tempId });
+      await refreshPendingCount();
+      const statKey = data.type === 'owed_to_me' ? 'debts_owed_to_me' : 'debts_i_owe';
+      useDashboardStore().adjustStat(statKey, parseFloat(data.amount || 0));
+      useToast().success("Debt saved");
+      return { data: { data: optimistic } };
+    } finally {
+      loading.value = false;
+    }
   }
 
   // ── update ──────────────────────────────────────────────────────────────────
@@ -180,7 +187,8 @@ export const useDebtsStore = defineStore("debts", () => {
   async function _updateOffline(id, data) {
     const now = new Date().toISOString();
     const idx = debts.value.findIndex((d) => d.id === id);
-    const updated = { ...(debts.value[idx] || {}), ...data, id, _pending: true, updated_at: now };
+    const existing = debts.value[idx] || {};
+    const updated = { ...existing, ...data, id, _pending: true, updated_at: now };
     if (idx !== -1) debts.value[idx] = updated;
     await cacheUpsert("debts", updated);
     const isTemp = String(id).startsWith("tmp_");
@@ -192,8 +200,17 @@ export const useDebtsStore = defineStore("debts", () => {
       await outboxAdd({ method: "put", url: `/debts/${id}`, data, entity: "debts", recordId: id });
     }
     await refreshPendingCount();
-    useDashboardStore().invalidate();
-    useToast().info("Saved offline — will sync when connected");
+    const oldAmt = parseFloat(existing.amount || 0);
+    const newAmt = parseFloat(data.amount ?? oldAmt);
+    const oldKey = existing.type === 'owed_to_me' ? 'debts_owed_to_me' : 'debts_i_owe';
+    const newKey = (data.type ?? existing.type) === 'owed_to_me' ? 'debts_owed_to_me' : 'debts_i_owe';
+    if (oldKey === newKey) {
+      if (newAmt !== oldAmt) useDashboardStore().adjustStat(oldKey, newAmt - oldAmt);
+    } else {
+      useDashboardStore().adjustStat(oldKey, -oldAmt);
+      useDashboardStore().adjustStat(newKey, +newAmt);
+    }
+    useToast().success("Debt updated");
     return { data: { data: updated } };
   }
 
@@ -222,17 +239,20 @@ export const useDebtsStore = defineStore("debts", () => {
     const debt = debts.value.find((d) => d.id === id);
     const idx = debts.value.findIndex((d) => d.id === id);
     if (idx !== -1) {
-      debts.value[idx] = { ...debts.value[idx], status: "paid", _pending: true };
+      debts.value[idx] = {
+        ...debts.value[idx],
+        status: "paid",
+        _pending: true,
+      };
       await cacheUpsert("debts", debts.value[idx]);
     }
-    if (walletId && debt?.amount) {
+    if (walletId && debt) {
       const walletsStore = useWalletsStore();
-      // owed_to_me → I receive → wallet increases; i_owe → I pay → wallet decreases
-      const delta = debt.type === "owed_to_me"
-        ? +Math.abs(parseFloat(debt.amount))
-        : -Math.abs(parseFloat(debt.amount));
+      const delta = debt?.type === "owed_to_me"
+        ? +Math.abs(parseFloat(debt.amount || 0))
+        : -Math.abs(parseFloat(debt.amount || 0));
       walletsStore.adjustBalance(walletId, delta);
-      await cacheSet("wallets", walletsStore.wallets);
+      await cacheSet("wallets", JSON.parse(JSON.stringify(walletsStore.wallets)));
     }
     await outboxAdd({
       method: "patch",
@@ -242,8 +262,38 @@ export const useDebtsStore = defineStore("debts", () => {
       recordId: id,
     });
     await refreshPendingCount();
-    useDashboardStore().invalidate();
-    useToast().info("Marked paid offline — will sync when connected");
+    if (debt) {
+      const amount = Math.abs(parseFloat(debt.amount || 0));
+      const statKey = debt.type === 'owed_to_me' ? 'debts_owed_to_me' : 'debts_i_owe';
+      useDashboardStore().adjustStat(statKey, -amount);
+      // For i_owe debts: log optimistic expense so it shows in expenses list offline
+      if (debt.type === 'i_owe') {
+        const { useExpensesStore } = await import("./expenses.js");
+        const expStore = useExpensesStore();
+        const walletsStore = useWalletsStore();
+        const walletRaw = walletsStore.wallets.find((w) => w.id === walletId) || null;
+        const wallet = walletRaw ? JSON.parse(JSON.stringify(walletRaw)) : null;
+        const now = new Date().toISOString();
+        const optimisticExpense = {
+          id: `tmp_debt_${crypto.randomUUID()}`,
+          title: `Debt Payment: ${debt.name}`,
+          amount: String(amount),
+          category: "Bills/Debt",
+          date: now.split("T")[0],
+          wallet_id: walletId,
+          wallet,
+          description: debt.description ?? "Paid off debt",
+          created_at: now,
+          updated_at: now,
+          _pending: true,
+          _debt_payment: true,
+        };
+        expStore.expenses.unshift(optimisticExpense);
+        await cacheUpsert("expenses", optimisticExpense);
+        useDashboardStore().adjustStat('monthly_expenses', amount);
+      }
+    }
+    useToast().success("Marked as paid");
   }
 
   // ── partialPay ──────────────────────────────────────────────────────────────
@@ -288,7 +338,7 @@ export const useDebtsStore = defineStore("debts", () => {
         ? +Math.abs(parseFloat(amount))
         : -Math.abs(parseFloat(amount));
       walletsStore.adjustBalance(walletId, delta);
-      await cacheSet("wallets", walletsStore.wallets);
+      await cacheSet("wallets", JSON.parse(JSON.stringify(walletsStore.wallets)));
     }
     await outboxAdd({
       method: "patch",
@@ -298,8 +348,38 @@ export const useDebtsStore = defineStore("debts", () => {
       recordId: id,
     });
     await refreshPendingCount();
-    useDashboardStore().invalidate();
-    useToast().info("Payment recorded offline — will sync when connected");
+    if (debt) {
+      const paidAmount = Math.abs(parseFloat(amount || 0));
+      const statKey = debt.type === 'owed_to_me' ? 'debts_owed_to_me' : 'debts_i_owe';
+      useDashboardStore().adjustStat(statKey, -paidAmount);
+      // For i_owe debts: log optimistic expense so it shows in expenses list offline
+      if (debt.type === 'i_owe') {
+        const { useExpensesStore } = await import("./expenses.js");
+        const expStore = useExpensesStore();
+        const walletsStore = useWalletsStore();
+        const walletRaw = walletsStore.wallets.find((w) => w.id === walletId) || null;
+        const wallet = walletRaw ? JSON.parse(JSON.stringify(walletRaw)) : null;
+        const now = new Date().toISOString();
+        const optimisticExpense = {
+          id: `tmp_debt_${crypto.randomUUID()}`,
+          title: `Partial Debt Payment: ${debt.name}`,
+          amount: String(paidAmount),
+          category: "Bills/Debt",
+          date: now.split("T")[0],
+          wallet_id: walletId,
+          wallet,
+          description: "Partial payment towards debt",
+          created_at: now,
+          updated_at: now,
+          _pending: true,
+          _debt_payment: true,
+        };
+        expStore.expenses.unshift(optimisticExpense);
+        await cacheUpsert("expenses", optimisticExpense);
+        useDashboardStore().adjustStat('monthly_expenses', paidAmount);
+      }
+    }
+    useToast().success("Payment recorded");
   }
 
   // ── remove ──────────────────────────────────────────────────────────────────
@@ -322,6 +402,7 @@ export const useDebtsStore = defineStore("debts", () => {
   }
 
   async function _removeOffline(id) {
+    const toRemove = debts.value.find((d) => d.id === id);
     debts.value = debts.value.filter((d) => d.id !== id);
     await cacheRemove("debts", id);
     const isTemp = String(id).startsWith("tmp_");
@@ -333,8 +414,11 @@ export const useDebtsStore = defineStore("debts", () => {
       await outboxAdd({ method: "delete", url: `/debts/${id}`, entity: "debts", recordId: id });
     }
     await refreshPendingCount();
-    useDashboardStore().invalidate();
-    useToast().info("Deleted offline — will sync when connected");
+    if (toRemove) {
+      const statKey = toRemove.type === 'owed_to_me' ? 'debts_owed_to_me' : 'debts_i_owe';
+      useDashboardStore().adjustStat(statKey, -Math.abs(parseFloat(toRemove.amount || 0)));
+    }
+    useToast().success("Debt deleted");
   }
 
   function invalidate() {

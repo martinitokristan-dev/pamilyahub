@@ -3,6 +3,7 @@ import { ref } from "vue";
 import { fileService } from "@/services/fileService.js";
 import { useDashboardStore } from "./dashboard.js";
 import { useToast } from "@/composables/useToast.js";
+import { cacheSingleSet, cacheSingleGet, isNetworkError } from "@/lib/offlineDb.js";
 
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
@@ -29,6 +30,24 @@ export const useFilesStore = defineStore("files", () => {
 
   async function fetchAll(force = false, page = 1, perPage = 20) {
     if (fetched.value && !force && isCacheValid() && page === lastPage.value) return;
+
+    // Hydrate from IndexedDB first for instant display
+    if (!files.value.length) {
+      try {
+        const cached = await cacheSingleGet('files')
+        if (cached?.files) {
+          files.value = cached.files
+          if (cached.pagination) pagination.value = cached.pagination
+        }
+      } catch { /* ignore */ }
+    }
+
+    // Offline: stop here if we have cached data
+    if (!navigator.onLine) {
+      if (files.value.length) fetched.value = true
+      return
+    }
+
     // Only show spinner on initial load — page changes swap data silently
     const isInitialLoad = files.value.length === 0 && !fetched.value;
     if (isInitialLoad || force) {
@@ -60,8 +79,13 @@ export const useFilesStore = defineStore("files", () => {
       }
       fetched.value = true;
       cacheTime.value = Date.now();
+      await cacheSingleSet('files', { files: files.value, pagination: pagination.value })
     } catch (e) {
-      error.value = e.response?.data?.message ?? "Failed to load files";
+      if (isNetworkError(e) && files.value.length) {
+        fetched.value = true // have cached data
+      } else {
+        error.value = e.response?.data?.message ?? "Failed to load files";
+      }
     } finally {
       loading.value = false;
     }

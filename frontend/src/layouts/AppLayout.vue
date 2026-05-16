@@ -63,7 +63,11 @@ watch(needRefresh, (newValue) => {
 })
 
 onMounted(async () => {
-  // If we don't have the user object yet (because we skipped blocking the router), fetch it in the background
+  // Ensure user is hydrated from cache before proceeding (avoids race condition where
+  // wave loading is skipped because hydrateUser() hasn't resolved yet)
+  await auth.hydrateUser()
+
+  // If we still don't have the user object, fetch it in the background (online only)
   if (!auth.user && localStorage.getItem('auth_token')) {
     auth.fetchMe().catch(() => {}) // 401s are handled automatically by axios interceptor
   }
@@ -97,7 +101,9 @@ onMounted(async () => {
     const loadCurrentRouteData = async () => {
       const currentRoute = route.name
       try {
-        if (currentRoute === 'dashboard') await dashboard.fetchStats()
+        if (currentRoute === 'dashboard') {
+          await Promise.all([dashboard.fetchStats(), expenses.fetchAll()])
+        }
         else if (currentRoute === 'expenses') await expenses.fetchAll()
         else if (currentRoute === 'debts') await debts.fetchAll()
         else if (currentRoute === 'notes') await notes.fetchAll()
@@ -108,30 +114,23 @@ onMounted(async () => {
       }
     }
 
-    // Wave 2: Defer non-critical data until idle (skip entirely on slow connections)
+    // Wave 2: Pre-fetch all stores in background so offline works even if pages aren't visited
+    // Always runs — slow connections use a longer stagger to avoid flooding the network
     const runWave2 = () => {
-      if (isSlowConnection) return
+      const stagger = isSlowConnection ? 1500 : 300
 
-      const idle = window.requestIdleCallback ?? ((cb) => {
-        console.log('[Performance] requestIdleCallback not supported, using setTimeout fallback')
-        return setTimeout(cb, 300)
-      })
-      
-      idle(() => {
-        const otherStores = [
-          { name: 'dashboard', fn: () => dashboard.fetchStats() },
-          { name: 'expenses',  fn: () => expenses.fetchAll() },
-          { name: 'debts',     fn: () => debts.fetchAll() },
-          { name: 'notes',     fn: () => notes.fetchAll() },
-          { name: 'wallets',   fn: () => wallets.fetchAll() }
-        ].filter(s => s.name !== route.name)
+      const otherStores = [
+        { name: 'dashboard', fn: () => dashboard.fetchStats() },
+        { name: 'expenses',  fn: () => expenses.fetchAll() },
+        { name: 'debts',     fn: () => debts.fetchAll() },
+        { name: 'notes',     fn: () => notes.fetchAll() },
+        { name: 'wallets',   fn: () => wallets.fetchAll() }
+      ].filter(s => s.name !== route.name)
 
-        // Stagger the remaining fetches to avoid network flood
-        otherStores.forEach((store, index) => {
-          setTimeout(() => {
-            store.fn().catch(() => {})
-          }, 300 * (index + 1))
-        })
+      otherStores.forEach((store, index) => {
+        setTimeout(() => {
+          store.fn().catch(() => {})
+        }, stagger * (index + 1))
       })
     }
 

@@ -36,8 +36,9 @@ export const useExpensesStore = defineStore("expenses", () => {
       }
     });
     window.addEventListener("pamilya:sync-done", (e) => {
-      if (e.detail.entity === "expenses") {
-        invalidate();
+      if (e.detail.entity === "expenses" || e.detail.entity === "debts") {
+        fetched.value = false;
+        fetchAll();
         useDashboardStore().invalidate();
       }
     });
@@ -69,7 +70,8 @@ export const useExpensesStore = defineStore("expenses", () => {
 
     try {
       const res = await expenseService.getAll({ page, ...filters });
-      const pendingItems = expenses.value.filter((e) => e._pending);
+      // Exclude _debt_payment items — backend creates the real expense on debt sync
+      const pendingItems = expenses.value.filter((e) => e._pending && !e._debt_payment);
 
       let serverItems = [];
       if (res.data?.data?.data && Array.isArray(res.data.data.data)) {
@@ -140,31 +142,31 @@ export const useExpensesStore = defineStore("expenses", () => {
   }
 
   async function _createOffline(data) {
-    const tempId = `tmp_${crypto.randomUUID()}`;
-    const now = new Date().toISOString();
-    const optimistic = {
-      ...data,
-      id: tempId,
-      _pending: true,
-      created_at: data.date || now,
-      updated_at: now,
-    };
-    expenses.value.unshift(optimistic);
-    await cacheUpsert("expenses", optimistic);
-
-    // Deduct from wallet balance immediately for accurate offline totals
-    if (data.wallet_id && data.amount) {
+    loading.value = true;
+    try {
+      const tempId = `tmp_${crypto.randomUUID()}`;
+      const now = new Date().toISOString();
       const { useWalletsStore } = await import("./wallets.js");
-      const walletsStore = useWalletsStore();
-      walletsStore.adjustBalance(data.wallet_id, -Math.abs(parseFloat(data.amount)));
-      await cacheSet("wallets", walletsStore.wallets);
+      const walletRaw = useWalletsStore().wallets.find((w) => w.id === data.wallet_id) || null;
+      const wallet = walletRaw ? JSON.parse(JSON.stringify(walletRaw)) : null;
+      const optimistic = {
+        ...data,
+        id: tempId,
+        _pending: true,
+        wallet,
+        created_at: data.date || now,
+        updated_at: now,
+      };
+      expenses.value.unshift(optimistic);
+      await cacheUpsert("expenses", optimistic);
+      await outboxAdd({ method: "post", url: "/expenses", data, entity: "expenses", tempId });
+      await refreshPendingCount();
+      useDashboardStore().adjustStat('monthly_expenses', parseFloat(data.amount || 0));
+      useToast().success("Expense saved");
+      return { data: { data: optimistic } };
+    } finally {
+      loading.value = false;
     }
-
-    await outboxAdd({ method: "post", url: "/expenses", data, entity: "expenses", tempId });
-    await refreshPendingCount();
-    useDashboardStore().invalidate();
-    useToast().info("Saved offline — will sync when connected");
-    return { data: { data: optimistic } };
   }
 
   // ── update ──────────────────────────────────────────────────────────────────
@@ -189,48 +191,38 @@ export const useExpensesStore = defineStore("expenses", () => {
   }
 
   async function _updateOffline(id, data) {
-    const now = new Date().toISOString();
-    const existing = expenses.value.find((e) => e.id === id);
-    const idx = expenses.value.findIndex((e) => e.id === id);
-    const updated = {
-      ...(existing || {}),
-      ...data,
-      id,
-      _pending: true,
-      updated_at: now,
-    };
-    if (idx !== -1) expenses.value[idx] = updated;
-    await cacheUpsert("expenses", updated);
-
-    // Adjust wallet balance for the amount/wallet change
-    if (existing) {
-      const { useWalletsStore } = await import("./wallets.js");
-      const walletsStore = useWalletsStore();
-      const oldWallet = existing.wallet_id;
-      const newWallet = data.wallet_id ?? oldWallet;
-      const oldAmt = Math.abs(parseFloat(existing.amount || 0));
-      const newAmt = Math.abs(parseFloat(data.amount ?? existing.amount ?? 0));
-
-      if (oldWallet) walletsStore.adjustBalance(oldWallet, +oldAmt); // refund old
-      if (newWallet) walletsStore.adjustBalance(newWallet, -newAmt); // charge new
-      await cacheSet("wallets", walletsStore.wallets);
-    }
-
-    const isTemp = String(id).startsWith("tmp_");
-    if (isTemp) {
-      // Mutate the queued create entry in place
-      const pending = await outboxGetPending();
-      const createEntry = pending.find((e) => e.tempId === id && e.method === "post");
-      if (createEntry) {
-        await outboxUpdate(createEntry.id, { data: { ...createEntry.data, ...data } });
+    loading.value = true;
+    try {
+      const now = new Date().toISOString();
+      const existing = expenses.value.find((e) => e.id === id);
+      const idx = expenses.value.findIndex((e) => e.id === id);
+      const updated = {
+        ...(existing || {}),
+        ...data,
+        id,
+        _pending: true,
+        updated_at: now,
+      };
+      if (idx !== -1) expenses.value[idx] = updated;
+      await cacheUpsert("expenses", updated);
+      const amtDelta = parseFloat(data.amount ?? existing?.amount ?? 0) - parseFloat(existing?.amount || 0);
+      const isTemp = String(id).startsWith("tmp_");
+      if (isTemp) {
+        const pending = await outboxGetPending();
+        const createEntry = pending.find((e) => e.tempId === id && e.method === "post");
+        if (createEntry) {
+          await outboxUpdate(createEntry.id, { data: { ...createEntry.data, ...data } });
+        }
+      } else {
+        await outboxAdd({ method: "put", url: `/expenses/${id}`, data, entity: "expenses", recordId: id });
       }
-    } else {
-      await outboxAdd({ method: "put", url: `/expenses/${id}`, data, entity: "expenses", recordId: id });
+      await refreshPendingCount();
+      if (amtDelta !== 0) useDashboardStore().adjustStat('monthly_expenses', amtDelta);
+      useToast().success("Expense updated");
+      return { data: { data: updated } };
+    } finally {
+      loading.value = false;
     }
-    await refreshPendingCount();
-    useDashboardStore().invalidate();
-    useToast().info("Saved offline — will sync when connected");
-    return { data: { data: updated } };
   }
 
   // ── remove ──────────────────────────────────────────────────────────────────
@@ -253,46 +245,32 @@ export const useExpensesStore = defineStore("expenses", () => {
   }
 
   async function _removeOffline(id) {
-    const expense = expenses.value.find((e) => e.id === id);
-    expenses.value = expenses.value.filter((e) => e.id !== id);
-    await cacheRemove("expenses", id);
-
-    const isTemp = String(id).startsWith("tmp_");
-    if (isTemp) {
-      // Cancel the queued create — no point syncing a delete for a never-persisted record
-      const pending = await outboxGetPending();
-      const createEntry = pending.find((e) => e.tempId === id && e.method === "post");
-      if (createEntry) {
-        await outboxDeleteEntry(createEntry.id);
-        // Refund the wallet delta that was applied on create
-        if (createEntry.data?.wallet_id && createEntry.data?.amount) {
-          const { useWalletsStore } = await import("./wallets.js");
-          const walletsStore = useWalletsStore();
-          walletsStore.adjustBalance(
-            createEntry.data.wallet_id,
-            +Math.abs(parseFloat(createEntry.data.amount))
-          );
-          await cacheSet("wallets", walletsStore.wallets);
-        }
+    loading.value = true;
+    try {
+      const toRemove = expenses.value.find((e) => e.id === id);
+      expenses.value = expenses.value.filter((e) => e.id !== id);
+      await cacheRemove("expenses", id);
+      const isTemp = String(id).startsWith("tmp_");
+      if (isTemp) {
+        const pending = await outboxGetPending();
+        const createEntry = pending.find((e) => e.tempId === id && e.method === "post");
+        if (createEntry) await outboxDeleteEntry(createEntry.id);
+      } else {
+        await outboxAdd({
+          method: "delete",
+          url: `/expenses/${id}`,
+          entity: "expenses",
+          recordId: id,
+        });
       }
-    } else {
-      // Refund wallet balance immediately for accurate offline totals
-      if (expense?.wallet_id && expense?.amount) {
-        const { useWalletsStore } = await import("./wallets.js");
-        const walletsStore = useWalletsStore();
-        walletsStore.adjustBalance(expense.wallet_id, +Math.abs(parseFloat(expense.amount)));
-        await cacheSet("wallets", walletsStore.wallets);
+      await refreshPendingCount();
+      if (toRemove?.amount) {
+        useDashboardStore().adjustStat('monthly_expenses', -parseFloat(toRemove.amount));
       }
-      await outboxAdd({
-        method: "delete",
-        url: `/expenses/${id}`,
-        entity: "expenses",
-        recordId: id,
-      });
+      useToast().success("Expense deleted");
+    } finally {
+      loading.value = false;
     }
-    await refreshPendingCount();
-    useDashboardStore().invalidate();
-    useToast().info("Deleted offline — will sync when connected");
   }
 
   function invalidate() {

@@ -32,17 +32,23 @@ export const useNotesStore = defineStore('notes', () => {
   async function fetchAll(force = false) {
     if (fetched.value && !force) return
 
-    // Hydrate from cache if offline
-    if (!navigator.onLine && !notes.value.length) {
+    // Hydrate from IndexedDB first for instant display
+    if (!notes.value.length) {
       try {
         const cached = await cacheSingleGet('notes')
         if (cached) {
           notes.value = cached.notes ?? []
           folders.value = cached.folders ?? []
-          fetched.value = true
-          return
         }
       } catch { /* ignore */ }
+    }
+
+    // Offline: stop here if we have cached data
+    if (!navigator.onLine) {
+      if (notes.value.length) {
+        fetched.value = true
+      }
+      return
     }
 
     loading.value = true
@@ -57,7 +63,7 @@ export const useNotesStore = defineStore('notes', () => {
         notes.value = notesResult.value.data.data
       }
       if (foldersResult.status === 'fulfilled') {
-        folders.value = foldersResult.value.data
+        folders.value = foldersResult.value.data.data ?? []
       }
       fetched.value = true
       await cacheSingleSet('notes', { notes: notes.value, folders: folders.value })
@@ -88,24 +94,29 @@ export const useNotesStore = defineStore('notes', () => {
   }
 
   async function _createOffline(data) {
-    const tempId = `tmp_${crypto.randomUUID()}`
-    const now = new Date().toISOString()
+    loading.value = true
+    try {
+      const tempId = `tmp_${crypto.randomUUID()}`
+      const now = new Date().toISOString()
 
-    const newNote = {
-      id: tempId,
-      _pending: true,
-      ...data,
-      created_at: now,
-      updated_at: now,
+      const newNote = {
+        id: tempId,
+        _pending: true,
+        ...data,
+        created_at: now,
+        updated_at: now,
+      }
+      notes.value.unshift(newNote)
+
+      await cacheSingleSet('notes', { notes: notes.value, folders: folders.value })
+      await outboxAdd({ method: 'post', url: '/notes', data, entity: 'notes' })
+      await refreshPendingCount()
+      useDashboardStore().adjustStat('notes_count', 1)
+      useToast().success('Note saved')
+      return newNote
+    } finally {
+      loading.value = false
     }
-    notes.value.unshift(newNote)
-
-    await cacheSingleSet('notes', { notes: notes.value, folders: folders.value })
-    await outboxAdd({ method: 'post', url: '/notes', data, entity: 'notes' })
-    await refreshPendingCount()
-    useDashboardStore().invalidate()
-    useToast().info('Note saved offline — will sync when connected')
-    return newNote
   }
 
   async function update(id, data) {
@@ -125,22 +136,26 @@ export const useNotesStore = defineStore('notes', () => {
   }
 
   async function _updateOffline(id, data) {
-    const idx = notes.value.findIndex((n) => n.id === id)
-    if (idx === -1) return
+    loading.value = true
+    try {
+      const idx = notes.value.findIndex((n) => n.id === id)
+      if (idx === -1) return
 
-    notes.value[idx] = {
-      ...notes.value[idx],
-      ...data,
-      _pending: true,
-      updated_at: new Date().toISOString(),
+      notes.value[idx] = {
+        ...notes.value[idx],
+        ...data,
+        _pending: true,
+        updated_at: new Date().toISOString(),
+      }
+
+      await cacheSingleSet('notes', { notes: notes.value, folders: folders.value })
+      await outboxAdd({ method: 'put', url: `/notes/${id}`, data, entity: 'notes' })
+      await refreshPendingCount()
+      useToast().success('Note updated')
+      return notes.value[idx]
+    } finally {
+      loading.value = false
     }
-
-    await cacheSingleSet('notes', { notes: notes.value, folders: folders.value })
-    await outboxAdd({ method: 'put', url: `/notes/${id}`, data, entity: 'notes' })
-    await refreshPendingCount()
-    useDashboardStore().invalidate()
-    useToast().info('Note updated offline — will sync when connected')
-    return notes.value[idx]
   }
 
   async function remove(id) {
@@ -161,18 +176,17 @@ export const useNotesStore = defineStore('notes', () => {
   }
 
   async function _removeOffline(id) {
-    const idx = notes.value.findIndex((n) => n.id === id)
-    if (idx === -1) return
-
-    // Mark as deleted locally
-    notes.value[idx]._deleted = true
-    notes.value = notes.value.filter((n) => n.id !== id)
-
-    await cacheSingleSet('notes', { notes: notes.value, folders: folders.value })
-    await outboxAdd({ method: 'delete', url: `/notes/${id}`, data: null, entity: 'notes' })
-    await refreshPendingCount()
-    useDashboardStore().invalidate()
-    useToast().info('Note deleted offline — will sync when connected')
+    loading.value = true
+    try {
+      notes.value = notes.value.filter((n) => n.id !== id)
+      await cacheSingleSet('notes', { notes: notes.value, folders: folders.value })
+      await outboxAdd({ method: 'delete', url: `/notes/${id}`, data: null, entity: 'notes' })
+      await refreshPendingCount()
+      useDashboardStore().adjustStat('notes_count', -1)
+      useToast().success('Note deleted')
+    } finally {
+      loading.value = false
+    }
   }
 
   async function createFolder(data) {
@@ -192,22 +206,27 @@ export const useNotesStore = defineStore('notes', () => {
   }
 
   async function _createFolderOffline(data) {
-    const tempId = `tmp_${crypto.randomUUID()}`
-    const now = new Date().toISOString()
+    loading.value = true
+    try {
+      const tempId = `tmp_${crypto.randomUUID()}`
+      const now = new Date().toISOString()
 
-    const newFolder = {
-      id: tempId,
-      _pending: true,
-      ...data,
-      created_at: now,
+      const newFolder = {
+        id: tempId,
+        _pending: true,
+        ...data,
+        created_at: now,
+      }
+      folders.value.push(newFolder)
+
+      await cacheSingleSet('notes', { notes: notes.value, folders: folders.value })
+      await outboxAdd({ method: 'post', url: '/note-folders', data, entity: 'notes' })
+      await refreshPendingCount()
+      useToast().success('Folder saved')
+      return newFolder
+    } finally {
+      loading.value = false
     }
-    folders.value.push(newFolder)
-
-    await cacheSingleSet('notes', { notes: notes.value, folders: folders.value })
-    await outboxAdd({ method: 'post', url: '/note-folders', data, entity: 'notes' })
-    await refreshPendingCount()
-    useToast().info('Folder saved offline — will sync when connected')
-    return newFolder
   }
 
   async function removeFolder(id) {
@@ -230,24 +249,22 @@ export const useNotesStore = defineStore('notes', () => {
   }
 
   async function _removeFolderOffline(id) {
-    const idx = folders.value.findIndex((f) => f.id === id)
-    if (idx === -1) return
-
-    folders.value[idx]._deleted = true
-    folders.value = folders.value.filter((f) => f.id !== id)
-
-    // Uncategorize notes in this folder locally
-    notes.value.forEach(n => {
-      if (n.folder_id === id) {
-        n.folder_id = null
-        n._pending = true
-      }
-    })
-
-    await cacheSingleSet('notes', { notes: notes.value, folders: folders.value })
-    await outboxAdd({ method: 'delete', url: `/note-folders/${id}`, data: null, entity: 'notes' })
-    await refreshPendingCount()
-    useToast().info('Folder deleted offline — will sync when connected')
+    loading.value = true
+    try {
+      folders.value = folders.value.filter((f) => f.id !== id)
+      notes.value.forEach(n => {
+        if (n.folder_id === id) {
+          n.folder_id = null
+          n._pending = true
+        }
+      })
+      await cacheSingleSet('notes', { notes: notes.value, folders: folders.value })
+      await outboxAdd({ method: 'delete', url: `/note-folders/${id}`, data: null, entity: 'notes' })
+      await refreshPendingCount()
+      useToast().success('Folder deleted')
+    } finally {
+      loading.value = false
+    }
   }
 
   function invalidate() {

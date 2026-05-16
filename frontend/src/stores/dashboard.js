@@ -47,9 +47,17 @@ export const useDashboardStore = defineStore('dashboard', () => {
     })
   }
 
+  function adjustStat(key, delta) {
+    const current = parseFloat(stats.value[key] ?? 0)
+    stats.value[key] = current + delta
+    if (key === 'monthly_expenses' && stats.value.remaining_salary !== undefined) {
+      stats.value.remaining_salary = parseFloat(stats.value.remaining_salary ?? 0) - delta
+    }
+  }
+
   function invalidate() {
     fetched.value = false
   }
 
-  return { stats, loading, fetched, error, cacheTime, fetchStats, invalidate }
+  return { stats, loading, fetched, error, cacheTime, fetchStats, adjustStat, invalidate }
 })

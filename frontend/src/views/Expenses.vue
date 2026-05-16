@@ -64,7 +64,7 @@ const availableYears = computed(() => {
 
 const currentPage = ref(1)
 
-const total = computed(() => dashboard.stats.monthly_expenses || 0)
+const total = computed(() => parseFloat(dashboard.stats.monthly_expenses || 0))
 
 const showForm = ref(false)
 const editingId = ref(null)

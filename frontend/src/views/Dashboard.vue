@@ -57,11 +57,12 @@ const currentDate = computed(() => {
 })
 
 onMounted(async () => {
-  // Wave 1: Fetch stats and salary (dashboard-critical)
+  // Wave 1: Fetch stats, salary, and expenses (dashboard-critical)
   const fetches = []
   if (!dashboard.fetched) fetches.push(dashboard.fetchStats())
   if (!salary.fetched) fetches.push(salary.fetchCurrentMonth())
-  
+  if (!expenses.fetched) fetches.push(expenses.fetchAll())
+
   await Promise.all(fetches)
 
   // Wave 2: Fetch notes only if we have idle time or if they are not fetched

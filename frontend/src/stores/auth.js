@@ -6,6 +6,7 @@ import router from '@/router/index.js'
 import { getActivePinia } from 'pinia'
 import { useDashboardStore } from './dashboard.js'
 import { useWalletsStore } from './wallets.js'
+import { cacheSingleGet, cacheSingleSet, cacheSingleRemove, isNetworkError } from '@/lib/offlineDb.js'
 
 
 export const useAuthStore = defineStore('auth', () => {
@@ -13,12 +14,29 @@ export const useAuthStore = defineStore('auth', () => {
   const loading = ref(false)
   const error = ref(null)
 
+  // Hydrate user from cache on store initialization
+  async function hydrateUser() {
+    if (user.value) return
+    try {
+      const cached = await cacheSingleGet('user')
+      if (cached) {
+        user.value = cached
+      }
+    } catch { /* ignore */ }
+  }
+
+  // Call hydrate immediately
+  if (typeof window !== 'undefined') {
+    hydrateUser()
+  }
+
   async function register(data) {
     loading.value = true
     error.value = null
     try {
       const res = await authService.register(data)
       user.value = res.data.data.user
+      await cacheSingleSet('user', user.value)
 
       // Store token for cross-domain auth
       if (res.data.data.token) {
@@ -54,6 +72,7 @@ export const useAuthStore = defineStore('auth', () => {
       }
 
       user.value = res.data.data.user
+      await cacheSingleSet('user', user.value)
 
       // Store token for cross-domain auth
       if (res.data.data.token) {
@@ -87,7 +106,12 @@ export const useAuthStore = defineStore('auth', () => {
       // Clear token and storage
       localStorage.removeItem('auth_token')
       sessionStorage.clear()
-      
+
+      // Clear user cache
+      try {
+        await cacheSingleRemove('user')
+      } catch { /* ignore */ }
+
       // Reset all Pinia stores
       const pinia = getActivePinia()
       if (pinia) {
@@ -101,7 +125,7 @@ export const useAuthStore = defineStore('auth', () => {
           }
         })
       }
-      
+
       user.value = null
       router.push({ name: 'login' })
     }
@@ -111,9 +135,13 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const res = await authService.me()
       user.value = res.data.data
+      await cacheSingleSet('user', user.value)
       return res.data.data
     } catch (e) {
-      user.value = null
+      // Don't clear user on network errors — keep the cached value so UI stays intact offline
+      if (!isNetworkError(e)) {
+        user.value = null
+      }
       throw e // Re-throw so the router guard knows it failed
     }
   }
@@ -124,6 +152,7 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const res = await authService.updateProfile(data)
       user.value = res.data.data
+      await cacheSingleSet('user', user.value)
       return res.data.data
     } catch (e) {
       error.value = e.response?.data?.message ?? 'Update failed'
@@ -133,5 +162,5 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  return { user, loading, error, register, login, logout, fetchMe, updateProfile }
+  return { user, loading, error, register, login, logout, fetchMe, updateProfile, hydrateUser }
 })

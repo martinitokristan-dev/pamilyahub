@@ -1,7 +1,7 @@
 import { openDB } from 'idb'
 
 const DB_NAME = 'pamilyahub_offline'
-const DB_VERSION = 1
+const DB_VERSION = 4
 
 let _db = null
 
@@ -18,7 +18,7 @@ export async function getDb() {
           db.createObjectStore(`cache_${entity}`, { keyPath: 'id' })
         }
       }
-      for (const entity of ['dashboard', 'salary']) {
+      for (const entity of ['dashboard', 'salary', 'notes', 'user', 'files']) {
         if (!db.objectStoreNames.contains(`cache_${entity}`)) {
           db.createObjectStore(`cache_${entity}`, { keyPath: 'key' })
         }
@@ -125,6 +125,11 @@ export async function cacheSingleGet(entity) {
   if (!row) return null
   const { key: _k, ...data } = row
   return data
+}
+
+export async function cacheSingleRemove(entity) {
+  const db = await getDb()
+  return db.delete(`cache_${entity}`, 'singleton')
 }
 
 // ── Utility ──────────────────────────────────────────────────────────────────

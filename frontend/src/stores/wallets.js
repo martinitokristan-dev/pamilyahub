@@ -46,7 +46,8 @@ export const useWalletsStore = defineStore("wallets", () => {
     });
     window.addEventListener("pamilya:sync-done", (e) => {
       if (e.detail.entity === "wallets") {
-        invalidate();
+        fetched.value = false;
+        fetchAll();
         useDashboardStore().invalidate();
       }
     });
@@ -107,22 +108,27 @@ export const useWalletsStore = defineStore("wallets", () => {
   }
 
   async function _createOffline(data) {
-    const tempId = `tmp_${crypto.randomUUID()}`;
-    const now = new Date().toISOString();
-    const optimistic = {
-      ...data,
-      id: tempId,
-      balance: parseFloat(data.balance) || 0,
-      _pending: true,
-      created_at: now,
-      updated_at: now,
-    };
-    wallets.value.push(optimistic);
-    await cacheUpsert("wallets", optimistic);
-    await outboxAdd({ method: "post", url: "/wallets", data, entity: "wallets", tempId });
-    await refreshPendingCount();
-    useToast().info("Saved offline — will sync when connected");
-    return { data: { data: optimistic } };
+    loading.value = true;
+    try {
+      const tempId = `tmp_${crypto.randomUUID()}`;
+      const now = new Date().toISOString();
+      const optimistic = {
+        ...data,
+        id: tempId,
+        balance: parseFloat(data.balance) || 0,
+        _pending: true,
+        created_at: now,
+        updated_at: now,
+      };
+      wallets.value.push(optimistic);
+      await cacheUpsert("wallets", optimistic);
+      await outboxAdd({ method: "post", url: "/wallets", data, entity: "wallets", tempId });
+      await refreshPendingCount();
+      useToast().success("Wallet saved");
+      return { data: { data: optimistic } };
+    } finally {
+      loading.value = false;
+    }
   }
 
   // ── update ──────────────────────────────────────────────────────────────────
@@ -147,29 +153,33 @@ export const useWalletsStore = defineStore("wallets", () => {
   }
 
   async function _updateOffline(id, data) {
-    const now = new Date().toISOString();
-    const idx = wallets.value.findIndex((w) => w.id === id);
-    const updated = {
-      ...(wallets.value[idx] || {}),
-      ...data,
-      id,
-      _pending: true,
-      updated_at: now,
-    };
-    if (idx !== -1) wallets.value[idx] = updated;
-    await cacheUpsert("wallets", updated);
-
-    const isTemp = String(id).startsWith("tmp_");
-    if (isTemp) {
-      const pending = await outboxGetPending();
-      const createEntry = pending.find((e) => e.tempId === id && e.method === "post");
-      if (createEntry) await outboxUpdate(createEntry.id, { data: { ...createEntry.data, ...data } });
-    } else {
-      await outboxAdd({ method: "put", url: `/wallets/${id}`, data, entity: "wallets", recordId: id });
+    loading.value = true;
+    try {
+      const now = new Date().toISOString();
+      const idx = wallets.value.findIndex((w) => w.id === id);
+      const updated = {
+        ...(wallets.value[idx] || {}),
+        ...data,
+        id,
+        _pending: true,
+        updated_at: now,
+      };
+      if (idx !== -1) wallets.value[idx] = updated;
+      await cacheUpsert("wallets", updated);
+      const isTemp = String(id).startsWith("tmp_");
+      if (isTemp) {
+        const pending = await outboxGetPending();
+        const createEntry = pending.find((e) => e.tempId === id && e.method === "post");
+        if (createEntry) await outboxUpdate(createEntry.id, { data: { ...createEntry.data, ...data } });
+      } else {
+        await outboxAdd({ method: "put", url: `/wallets/${id}`, data, entity: "wallets", recordId: id });
+      }
+      await refreshPendingCount();
+      useToast().success("Wallet updated");
+      return { data: { data: updated } };
+    } finally {
+      loading.value = false;
     }
-    await refreshPendingCount();
-    useToast().info("Saved offline — will sync when connected");
-    return { data: { data: updated } };
   }
 
   // ── remove ──────────────────────────────────────────────────────────────────
@@ -192,24 +202,32 @@ export const useWalletsStore = defineStore("wallets", () => {
   }
 
   async function _removeOffline(id) {
-    wallets.value = wallets.value.filter((w) => w.id !== id);
-    await cacheRemove("wallets", id);
-    const isTemp = String(id).startsWith("tmp_");
-    if (isTemp) {
-      const pending = await outboxGetPending();
-      const createEntry = pending.find((e) => e.tempId === id && e.method === "post");
-      if (createEntry) await outboxDeleteEntry(createEntry.id);
-    } else {
-      await outboxAdd({ method: "delete", url: `/wallets/${id}`, entity: "wallets", recordId: id });
+    loading.value = true;
+    try {
+      wallets.value = wallets.value.filter((w) => w.id !== id);
+      await cacheRemove("wallets", id);
+      const isTemp = String(id).startsWith("tmp_");
+      if (isTemp) {
+        const pending = await outboxGetPending();
+        const createEntry = pending.find((e) => e.tempId === id && e.method === "post");
+        if (createEntry) await outboxDeleteEntry(createEntry.id);
+      } else {
+        await outboxAdd({ method: "delete", url: `/wallets/${id}`, entity: "wallets", recordId: id });
+      }
+      await refreshPendingCount();
+      useToast().success("Wallet deleted");
+    } finally {
+      loading.value = false;
     }
-    await refreshPendingCount();
-    useToast().info("Deleted offline — will sync when connected");
   }
 
   // ── adjustBalance ── (called by expenses/debts/salary for immediate UI accuracy)
   function adjustBalance(walletId, delta) {
     const w = wallets.value.find((w) => w.id === walletId);
-    if (w) w.balance = (parseFloat(w.balance || 0) + delta).toFixed(2);
+    if (w) {
+      w.balance = (parseFloat(w.balance || 0) + delta).toFixed(2);
+      cacheSet("wallets", wallets.value).catch(() => {});
+    }
   }
 
   function invalidate() {
