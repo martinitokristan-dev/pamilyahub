@@ -80,6 +80,10 @@ export const useFilesStore = defineStore("files", () => {
   }
 
   async function upload(formData) {
+    if (!navigator.onLine) {
+      useToast().error("File uploads require an internet connection.");
+      return null;
+    }
     uploading.value = true;
     uploadProgress.value = 0;
     error.value = null;

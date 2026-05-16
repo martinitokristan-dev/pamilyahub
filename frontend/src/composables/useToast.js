@@ -16,6 +16,7 @@ export function useToast() {
   return {
     toasts,
     success: (msg) => addToast(msg, 'success'),
-    error: (msg) => addToast(msg, 'error')
+    error: (msg) => addToast(msg, 'error'),
+    info: (msg) => addToast(msg, 'info'),
   }
 }

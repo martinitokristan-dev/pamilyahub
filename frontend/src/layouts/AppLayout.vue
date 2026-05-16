@@ -26,6 +26,7 @@ import {
 } from 'lucide-vue-next'
 
 import { useDashboardStore } from '@/stores/dashboard.js'
+import OfflineBanner from '@/components/OfflineBanner.vue'
 
 const auth = useAuthStore()
 const dashboard = useDashboardStore()
@@ -232,6 +233,9 @@ function isActive(path) {
 
     <!-- Content area -->
     <div class="flex min-w-0 flex-1 flex-col overflow-hidden relative">
+      <!-- Offline / Syncing banner -->
+      <OfflineBanner />
+
       <!-- Page content -->
       <main class="flex-1 overflow-y-auto pb-32 lg:pb-0">
         <RouterView />
@@ -417,8 +421,10 @@ function isActive(path) {
             :key="toast.id"
             class="pointer-events-auto rounded-lg shadow-lg px-4 py-3 flex items-center justify-center gap-2 text-sm font-medium backdrop-blur-md"
             :class="
-              toast.type === 'success' 
+              toast.type === 'success'
                 ? 'bg-emerald-500/90 text-white dark:bg-emerald-600/90'
+                : toast.type === 'info'
+                ? 'bg-amber-500/90 text-white'
                 : 'bg-destructive/90 text-white'
             "
           >

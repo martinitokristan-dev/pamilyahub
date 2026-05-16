@@ -1,9 +1,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { useWalletsStore } from '@/stores/wallets'
-import { useDashboardStore } from '@/stores/dashboard'
 import { useSalaryStore } from '@/stores/salary'
-import { useToast } from '@/composables/useToast'
 import {
   Wallet, X, CheckCircle2, AlertCircle, ChevronLeft, ChevronRight, ArrowRight
 } from 'lucide-vue-next'
@@ -12,7 +10,6 @@ import UiInput from '@/components/ui/Input.vue'
 import UiLabel from '@/components/ui/Label.vue'
 import UiCard from '@/components/ui/Card.vue'
 import UiCardContent from '@/components/ui/CardContent.vue'
-import { salaryService } from '@/services/salaryService.js'
 import { formatCurrency, parseCurrency } from '@/utils/format'
 
 const props = defineProps({
@@ -21,10 +18,8 @@ const props = defineProps({
 })
 const emit = defineEmits(['close', 'success'])
 
-const walletsStore   = useWalletsStore()
-const dashboardStore = useDashboardStore()
-const salaryStore    = useSalaryStore()
-const { success: toastSuccess } = useToast()
+const walletsStore = useWalletsStore()
+const salaryStore  = useSalaryStore()
 
 // ── Step management ─────────────────────────────────────────────────────────
 const step    = ref(1) // 1 = Amount, 2 = Distribution
@@ -117,7 +112,7 @@ async function handleConfirm() {
   error.value   = ''
 
   try {
-    await salaryService.deposit({
+    await salaryStore.deposit({
       total_amount:  parseCurrency(totalSalaryRaw.value) || totalSalary.value,
       already_spent: parseCurrency(alreadySpentRaw.value) || alreadySpent.value,
       notes:         notes.value || null,
@@ -125,24 +120,6 @@ async function handleConfirm() {
         .filter(a => parseFloat(a.amount) > 0)
         .map(a => ({ wallet_id: a.wallet_id, amount: parseFloat(a.amount) })),
     })
-
-    // Optimistically update wallet balances
-    allocations.value.forEach(a => {
-      const amt = parseFloat(a.amount)
-      if (amt > 0) {
-        walletsStore.adjustBalance(a.wallet_id, amt)
-      }
-    })
-
-    // Fetch the updated data in the background so the UI reflects the new totals instantly
-    dashboardStore.fetchStats()
-    salaryStore.fetchCurrentMonth()
-    
-    // Invalidate caches
-    walletsStore.invalidate()
-    import('@/stores/expenses').then(m => m.useExpensesStore().invalidate())
-
-    toastSuccess('Salary deposited successfully!')
     emit('success')
     emit('close')
   } catch (err) {
