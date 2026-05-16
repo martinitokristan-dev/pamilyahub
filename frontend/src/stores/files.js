@@ -29,66 +29,58 @@ export const useFilesStore = defineStore("files", () => {
   }
 
   async function fetchAll(force = false, page = 1, perPage = 20) {
-    if (fetched.value && !force && isCacheValid() && page === lastPage.value) return;
+    const cacheKey = `files_page_${page}`
+    lastPage.value = page
 
-    // Hydrate from IndexedDB first for instant display
-    if (!files.value.length) {
-      try {
-        const cached = await cacheSingleGet('files')
-        if (cached?.files) {
-          files.value = cached.files
-          if (cached.pagination) pagination.value = cached.pagination
+    return performSilentFetch({
+      loading,
+      fetched,
+      cacheKey,
+      backgroundTtl: 60000,
+      force,
+      fetchFn: async () => {
+        // Hydrate from IndexedDB first for instant display
+        if (!files.value.length) {
+          try {
+            const cached = await cacheSingleGet('files')
+            if (cached?.files) {
+              files.value = cached.files
+              if (cached.pagination) pagination.value = cached.pagination
+            }
+          } catch { /* ignore */ }
         }
-      } catch { /* ignore */ }
-    }
 
-    // Offline: stop here if we have cached data
-    if (!navigator.onLine) {
-      if (files.value.length) fetched.value = true
-      return
-    }
+        // Offline: stop here if we have cached data
+        if (!navigator.onLine) return
 
-    // Only show spinner on initial load — page changes swap data silently
-    const isInitialLoad = files.value.length === 0 && !fetched.value;
-    if (isInitialLoad || force) {
-      loading.value = true;
-    }
-    lastPage.value = page;
-    try {
-      const res = await fileService.getAll(page, perPage);
+        try {
+          const res = await fileService.getAll(page, perPage)
 
-      // Check if response has pagination data
-      if (res.data.data && res.data.data.data) {
-        // Paginated response
-        files.value = res.data.data.data;
-        pagination.value = {
-          page: res.data.data.page,
-          per_page: res.data.data.per_page,
-          total: res.data.data.total,
-          last_page: res.data.data.last_page,
-        };
-      } else {
-        // Non-paginated response (backwards compatibility)
-        files.value = res.data.data;
-        pagination.value = {
-          page: 1,
-          per_page: files.value.length,
-          total: files.value.length,
-          last_page: 1,
-        };
+          if (res.data.data && res.data.data.data) {
+            files.value = res.data.data.data
+            pagination.value = {
+              page: res.data.data.page,
+              per_page: res.data.data.per_page,
+              total: res.data.data.total,
+              last_page: res.data.data.last_page,
+            }
+          } else {
+            files.value = res.data.data
+            pagination.value = {
+              page: 1,
+              per_page: files.value.length,
+              total: files.value.length,
+              last_page: 1,
+            }
+          }
+          await cacheSingleSet('files', { files: files.value, pagination: pagination.value })
+        } catch (e) {
+          if (!isNetworkError(e)) {
+            error.value = e.response?.data?.message ?? "Failed to load files"
+          }
+        }
       }
-      fetched.value = true;
-      cacheTime.value = Date.now();
-      await cacheSingleSet('files', { files: files.value, pagination: pagination.value })
-    } catch (e) {
-      if (isNetworkError(e) && files.value.length) {
-        fetched.value = true // have cached data
-      } else {
-        error.value = e.response?.data?.message ?? "Failed to load files";
-      }
-    } finally {
-      loading.value = false;
-    }
+    })
   }
 
   async function loadMore(page) {

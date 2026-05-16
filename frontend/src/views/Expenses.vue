@@ -1,4 +1,5 @@
 <script setup>
+defineOptions({ name: 'Expenses' })
 import { ref, computed, watch } from 'vue'
 import { refDebounced } from '@vueuse/core'
 import { useRegisterAddAction } from '@/composables/usePageAction.js'

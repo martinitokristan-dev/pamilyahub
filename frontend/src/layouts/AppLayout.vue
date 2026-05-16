@@ -11,6 +11,7 @@ import { useDarkMode } from '@/composables/useDarkMode.js'
 import { pageAddAction } from '@/composables/usePageAction.js'
 import { useToast } from '@/composables/useToast.js'
 import { useRegisterSW } from 'virtual:pwa-register/vue'
+import { useSalaryStore } from '@/stores/salary.js'
 
 import {
   LayoutDashboard,
@@ -36,6 +37,7 @@ const expenses = useExpensesStore()
 const debts = useDebtsStore()
 const files = useFilesStore()
 const wallets = useWalletsStore()
+const salary = useSalaryStore()
 const route = useRoute()
 const { isDark } = useDarkMode()
 const { toasts } = useToast()
@@ -93,51 +95,14 @@ onMounted(async () => {
     }, 5000)
   }
 
-  // Priority-based Wave Loading
+  // Hydrate user and fetch global UI data
   if (auth.user) {
-    const connection = navigator?.connection || navigator?.mozConnection || navigator?.webkitConnection
-    const isSlowConnection = connection?.effectiveType === '2g' || connection?.effectiveType === 'slow-2g'
-    
-    // Wave 1: Critical - Load current page data immediately
-    const loadCurrentRouteData = async () => {
-      const currentRoute = route.name
-      try {
-        if (currentRoute === 'dashboard') {
-          await Promise.all([dashboard.fetchStats(), expenses.fetchAll()])
-        }
-        else if (currentRoute === 'expenses') await expenses.fetchAll()
-        else if (currentRoute === 'debts') await debts.fetchAll()
-        else if (currentRoute === 'notes') await notes.fetchAll()
-        else if (currentRoute === 'wallets') await wallets.fetchAll()
-        else await dashboard.fetchStats() // Default to dashboard stats
-      } catch (err) {
-        console.error('Wave 1 loading failed:', err)
-      }
-    }
-
-    // Wave 2: Pre-fetch all stores in background so offline works even if pages aren't visited
-    // Always runs — slow connections use a longer stagger to avoid flooding the network
-    const runWave2 = () => {
-      const stagger = isSlowConnection ? 1500 : 300
-
-      const otherStores = [
-        { name: 'dashboard', fn: () => dashboard.fetchStats() },
-        { name: 'expenses',  fn: () => expenses.fetchAll() },
-        { name: 'debts',     fn: () => debts.fetchAll() },
-        { name: 'notes',     fn: () => notes.fetchAll() },
-        { name: 'wallets',   fn: () => wallets.fetchAll() }
-      ].filter(s => s.name !== route.name)
-
-      otherStores.forEach((store, index) => {
-        setTimeout(() => {
-          store.fn().catch(() => {})
-        }, stagger * (index + 1))
-      })
-    }
-
-    // Execute Wave 1 then Wave 2
-    await loadCurrentRouteData()
-    runWave2()
+    Promise.all([
+      wallets.fetchAll(),
+      salary.fetchCurrentMonth(),
+      dashboard.fetchStats(), // Keep stats for header/general availability
+      // expenses.fetchAll() // Removed: Dashboard.vue or Expenses.vue will own this
+    ]).catch(() => {})
   }
 })
 
@@ -238,7 +203,11 @@ function isActive(path) {
 
       <!-- Page content -->
       <main class="flex-1 overflow-y-auto pb-32 lg:pb-0">
-        <RouterView />
+        <RouterView v-slot="{ Component }">
+          <KeepAlive :max="5">
+            <component :is="Component" :key="$route.name" />
+          </KeepAlive>
+        </RouterView>
       </main>
 
       <!-- Mobile Bottom Navigation -->

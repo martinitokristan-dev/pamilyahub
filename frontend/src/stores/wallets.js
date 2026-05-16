@@ -103,7 +103,7 @@ export const useWalletsStore = defineStore("wallets", () => {
       const res = await walletService.create(data);
       wallets.value.push(res.data.data);
       await cacheUpsert("wallets", res.data.data);
-      useDashboardStore().invalidate();
+      useDashboardStore().invalidate({ month: new Date().getMonth() + 1, year: new Date().getFullYear() });
       invalidate();
       useToast().success("Wallet created");
       return res.data.data;
@@ -148,7 +148,7 @@ export const useWalletsStore = defineStore("wallets", () => {
       const idx = wallets.value.findIndex((w) => w.id === id);
       if (idx !== -1) wallets.value[idx] = res.data.data;
       await cacheUpsert("wallets", res.data.data);
-      useDashboardStore().invalidate();
+      useDashboardStore().invalidate({ month: new Date().getMonth() + 1, year: new Date().getFullYear() });
       invalidate();
       useToast().success("Wallet updated");
       return res.data.data;
@@ -198,7 +198,7 @@ export const useWalletsStore = defineStore("wallets", () => {
       await walletService.delete(id);
       wallets.value = wallets.value.filter((w) => w.id !== id);
       await cacheRemove("wallets", id);
-      useDashboardStore().invalidate();
+      useDashboardStore().invalidate({ month: new Date().getMonth() + 1, year: new Date().getFullYear() });
       invalidate();
       useToast().success("Wallet deleted");
     } catch (e) {

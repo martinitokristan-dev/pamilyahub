@@ -11,6 +11,7 @@ import {
   isNetworkError,
 } from '@/lib/offlineDb.js'
 import { refreshPendingCount, isSyncing } from '@/lib/syncEngine.js'
+import { performSilentFetch } from '@/utils/storeHelper.js'
 
 export const useSalaryStore = defineStore('salary', () => {
   const status   = ref(null)   // 'pending' | 'received'
@@ -50,48 +51,49 @@ export const useSalaryStore = defineStore('salary', () => {
     })
   }
 
-  async function fetchCurrentMonth() {
-    if (fetched.value) return
+  async function fetchCurrentMonth(force = false) {
+    return performSilentFetch({
+      loading,
+      fetched,
+      cacheKey: 'current-month',
+      backgroundTtl: 60000,
+      force,
+      fetchFn: async () => {
+        // Block network fetch during outbox drain
+        if (isSyncing.value) return
 
-    if (!navigator.onLine && !status.value) {
-      try {
-        const cached = await cacheSingleGet('salary')
-        if (cached) {
-          status.value    = cached.status
-          month.value     = cached.month
-          year.value      = cached.year
-          isDelayed.value = cached.is_delayed ?? false
-          deposits.value  = cached.deposits ?? []
-          fetched.value   = true
-          return
+        if (!navigator.onLine && !status.value) {
+          try {
+            const cached = await cacheSingleGet('salary')
+            if (cached) {
+              status.value = cached.status
+              month.value = cached.month
+              year.value = cached.year
+              isDelayed.value = cached.is_delayed ?? false
+              deposits.value = cached.deposits ?? []
+              return
+            }
+          } catch { /* ignore */ }
         }
-      } catch { /* ignore */ }
-    }
 
-    // Block network fetch during outbox drain
-    if (isSyncing.value) return
-
-    loading.value = true
-    error.value   = null
-    try {
-      const res        = await salaryService.getCurrentMonth()
-      const data       = res.data.data
-      status.value     = data.status
-      month.value      = data.month
-      year.value       = data.year
-      isDelayed.value  = data.is_delayed ?? false
-      deposits.value   = data.deposits ?? []
-      fetched.value    = true
-      await cacheSingleSet('salary', data)
-    } catch (e) {
-      if (isNetworkError(e) && status.value) {
-        fetched.value = true // have cached data
-      } else {
-        error.value = e.response?.data?.message ?? 'Failed to load salary status'
+        try {
+          const res = await salaryService.getCurrentMonth()
+          const data = res.data.data
+          status.value = data.status
+          month.value = data.month
+          year.value = data.year
+          isDelayed.value = data.is_delayed ?? false
+          deposits.value = data.deposits ?? []
+          await cacheSingleSet('salary', data)
+        } catch (e) {
+          if (isNetworkError(e) && status.value) {
+            // keep existing
+          } else {
+            error.value = e.response?.data?.message ?? 'Failed to load salary status'
+          }
+        }
       }
-    } finally {
-      loading.value = false
-    }
+    })
   }
 
   // ── deposit ──────────────────────────────────────────────────────────────────
@@ -106,7 +108,7 @@ export const useSalaryStore = defineStore('salary', () => {
       })
       fetched.value = false
       await fetchCurrentMonth()
-      useDashboardStore().fetchStats()
+      useDashboardStore().invalidate({ month: month.value, year: year.value })
       walletsStore.invalidate()
       const { useExpensesStore } = await import('./expenses.js')
       useExpensesStore().invalidate()
@@ -150,7 +152,7 @@ export const useSalaryStore = defineStore('salary', () => {
 
     await outboxAdd({ method: 'post', url: '/salary-deposits', data: payload, entity: 'salary' })
     await refreshPendingCount()
-    useDashboardStore().invalidate()
+    useDashboardStore().invalidate({ month: month.value, year: year.value })
     useToast().info('Deposit saved offline — will sync when connected')
     return { offline: true }
   }

@@ -16,6 +16,7 @@ import {
   isNetworkError,
 } from "@/lib/offlineDb.js";
 import { refreshPendingCount, isSyncing } from "@/lib/syncEngine.js";
+import { performSilentFetch } from "@/utils/storeHelper.js";
 
 export const useDebtsStore = defineStore("debts", () => {
   const debts = ref([]);
@@ -60,67 +61,65 @@ export const useDebtsStore = defineStore("debts", () => {
 
   // ── fetchAll ────────────────────────────────────────────────────────────────
   async function fetchAll(force = false, page = 1, perPage = 20, filters = {}) {
-    const cacheKey = JSON.stringify({ page, perPage, ...filters });
-    const isNewRequest = lastCacheKey.value !== cacheKey;
-    if (!isNewRequest && fetched.value && !force) return;
+    const cacheKey = `debts_p${page}_${JSON.stringify(filters)}`
+    lastCacheKey.value = cacheKey
 
-    // Hydrate from IndexedDB on first render
-    if (debts.value.length === 0) {
-      try {
-        const cached = await cacheGet("debts");
-        if (cached.length > 0) {
-          debts.value = cached.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    return performSilentFetch({
+      loading,
+      fetched,
+      cacheKey,
+      backgroundTtl: 60000,
+      force,
+      fetchFn: async () => {
+        // Hydrate from IndexedDB on first render
+        if (debts.value.length === 0) {
+          try {
+            const cached = await cacheGet("debts")
+            if (cached.length > 0) {
+              debts.value = cached.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+            }
+          } catch { /* ignore */ }
         }
-      } catch { /* ignore */ }
-    }
 
-    const isInitialLoad = debts.value.filter((d) => !d._pending).length === 0 && !fetched.value;
-    if (isInitialLoad) loading.value = true;
+        // Block network fetch during outbox drain
+        if (isSyncing.value) return
 
-    lastCacheKey.value = cacheKey;
+        try {
+          const res = await debtService.getAll(page, perPage, filters)
+          const pendingItems = debts.value.filter((d) => d._pending)
+          let serverItems = []
 
-    // Block network fetch during outbox drain to prevent stale server data overwriting optimistic values
-    if (isSyncing.value) return;
+          if (res.data.data && res.data.data.data) {
+            serverItems = res.data.data.data
+            pagination.value = {
+              page: res.data.data.page,
+              per_page: res.data.data.per_page,
+              total: res.data.data.total,
+              last_page: res.data.data.last_page,
+            }
+          } else {
+            serverItems = res.data.data || []
+            pagination.value = {
+              page: 1,
+              per_page: serverItems.length,
+              total: serverItems.length,
+              last_page: 1,
+            }
+          }
 
-    try {
-      const res = await debtService.getAll(page, perPage, filters);
-      const pendingItems = debts.value.filter((d) => d._pending);
-      let serverItems = [];
-
-      if (res.data.data && res.data.data.data) {
-        serverItems = res.data.data.data;
-        pagination.value = {
-          page: res.data.data.page,
-          per_page: res.data.data.per_page,
-          total: res.data.data.total,
-          last_page: res.data.data.last_page,
-        };
-      } else {
-        serverItems = res.data.data || [];
-        pagination.value = {
-          page: 1,
-          per_page: serverItems.length,
-          total: serverItems.length,
-          last_page: 1,
-        };
+          const serverIds = new Set(serverItems.map((s) => String(s.id)))
+          const unsyncedPending = pendingItems.filter((p) => !serverIds.has(String(p.id)))
+          debts.value = [...unsyncedPending, ...serverItems]
+          await cacheSet("debts", [...serverItems, ...unsyncedPending])
+        } catch (e) {
+          if (isNetworkError(e) && debts.value.length > 0) {
+            // keep cached
+          } else {
+            error.value = e.response?.data?.message ?? "Failed to load debts"
+          }
+        }
       }
-
-      const serverIds = new Set(serverItems.map((s) => String(s.id)));
-      const unsyncedPending = pendingItems.filter((p) => !serverIds.has(String(p.id)));
-      debts.value = [...unsyncedPending, ...serverItems];
-      await cacheSet("debts", [...serverItems, ...unsyncedPending]);
-
-      fetched.value = true;
-      cacheTime.value = Date.now();
-    } catch (e) {
-      if (isNetworkError(e) && debts.value.length > 0) {
-        fetched.value = true;
-      } else {
-        error.value = e.response?.data?.message ?? "Failed to load debts";
-      }
-    } finally {
-      loading.value = false;
-    }
+    })
   }
 
   async function loadMore(page) {
@@ -146,7 +145,7 @@ export const useDebtsStore = defineStore("debts", () => {
       if (data.type === "owed_to_me" && data.wallet_id) {
         useWalletsStore().adjustBalance(data.wallet_id, -Math.abs(parseFloat(data.amount || 0)));
       }
-      useDashboardStore().invalidate();
+      useDashboardStore().invalidate({ month: new Date().getMonth() + 1, year: new Date().getFullYear() });
       invalidate();
       useToast().success("Debt created");
       return res.data.data;
@@ -213,7 +212,7 @@ export const useDebtsStore = defineStore("debts", () => {
       const idx = debts.value.findIndex((d) => d.id === id);
       if (idx !== -1) debts.value[idx] = res.data.data;
       await cacheUpsert("debts", res.data.data);
-      useDashboardStore().invalidate();
+      useDashboardStore().invalidate({ month: new Date().getMonth() + 1, year: new Date().getFullYear() });
       invalidate();
       useToast().success("Debt updated");
       return res.data.data;
@@ -271,7 +270,7 @@ export const useDebtsStore = defineStore("debts", () => {
           : -Math.abs(parseFloat(debt.amount || 0));
         useWalletsStore().adjustBalance(walletId, delta);
       }
-      useDashboardStore().invalidate();
+      useDashboardStore().invalidate({ month: new Date().getMonth() + 1, year: new Date().getFullYear() });
       invalidate();
       useToast().success("Debt marked as paid");
       return res.data.data;
@@ -360,7 +359,7 @@ export const useDebtsStore = defineStore("debts", () => {
           : -Math.abs(parseFloat(amount || 0));
         useWalletsStore().adjustBalance(walletId, delta);
       }
-      useDashboardStore().invalidate();
+      useDashboardStore().invalidate({ month: new Date().getMonth() + 1, year: new Date().getFullYear() });
       invalidate();
       useToast().success("Partial payment recorded");
       return res.data.data;
@@ -445,7 +444,7 @@ export const useDebtsStore = defineStore("debts", () => {
       await debtService.delete(id);
       debts.value = debts.value.filter((d) => d.id !== id);
       await cacheRemove("debts", id);
-      useDashboardStore().invalidate();
+      useDashboardStore().invalidate({ month: new Date().getMonth() + 1, year: new Date().getFullYear() });
       invalidate();
       useToast().success("Debt deleted");
     } catch (e) {

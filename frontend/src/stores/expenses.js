@@ -140,7 +140,10 @@ export const useExpensesStore = defineStore("expenses", () => {
       const res = await expenseService.create(data);
       expenses.value.unshift(res.data.data);
       await cacheUpsert("expenses", res.data.data);
-      useDashboardStore().invalidate();
+      const date = new Date(data.date || new Date())
+      const m = date.getMonth() + 1
+      const y = date.getFullYear()
+      useDashboardStore().invalidate({ month: m, year: y });
       invalidate();
       if (data.wallet_id) {
         const { useWalletsStore } = await import("./wallets.js");
@@ -195,7 +198,11 @@ export const useExpensesStore = defineStore("expenses", () => {
       const idx = expenses.value.findIndex((e) => e.id === id);
       if (idx !== -1) expenses.value[idx] = res.data.data;
       await cacheUpsert("expenses", res.data.data);
-      useDashboardStore().invalidate();
+      const existing = expenses.value.find((e) => e.id === id);
+      const date = new Date(data.date || existing?.date || new Date())
+      const m = date.getMonth() + 1
+      const y = date.getFullYear()
+      useDashboardStore().invalidate({ month: m, year: y });
       invalidate();
       useToast().success("Expense updated");
       return res.data.data;
@@ -250,7 +257,11 @@ export const useExpensesStore = defineStore("expenses", () => {
       await expenseService.delete(id);
       expenses.value = expenses.value.filter((e) => e.id !== id);
       await cacheRemove("expenses", id);
-      useDashboardStore().invalidate();
+      const existing = expenses.value.find((e) => e.id === id);
+      const date = new Date(existing?.date || new Date())
+      const m = date.getMonth() + 1
+      const y = date.getFullYear()
+      useDashboardStore().invalidate({ month: m, year: y });
       invalidate();
       useToast().success("Expense deleted");
     } catch (e) {

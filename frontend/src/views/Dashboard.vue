@@ -1,4 +1,5 @@
 <script setup>
+defineOptions({ name: 'Dashboard' })
 import { ref, computed, onMounted } from 'vue'
 import { useRegisterAddAction } from '@/composables/usePageAction.js'
 import { useAuthStore } from '@/stores/auth.js'

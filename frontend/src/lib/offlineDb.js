@@ -120,22 +120,22 @@ export async function cacheRemove(entity, id) {
 
 // ── Single-Document Cache (dashboard, salary) ────────────────────────────────
 
-export async function cacheSingleSet(entity, data) {
+export async function cacheSingleSet(entity, data, key = 'singleton') {
   const db = await getDb()
-  return db.put(`cache_${entity}`, serialize({ key: 'singleton', ...data }))
+  return db.put(`cache_${entity}`, serialize({ key, ...data }))
 }
 
-export async function cacheSingleGet(entity) {
+export async function cacheSingleGet(entity, key = 'singleton') {
   const db = await getDb()
-  const row = await db.get(`cache_${entity}`, 'singleton')
+  const row = await db.get(`cache_${entity}`, key)
   if (!row) return null
   const { key: _k, ...data } = row
   return data
 }
 
-export async function cacheSingleRemove(entity) {
+export async function cacheSingleRemove(entity, key = 'singleton') {
   const db = await getDb()
-  return db.delete(`cache_${entity}`, 'singleton')
+  return db.delete(`cache_${entity}`, key)
 }
 
 // ── Utility ──────────────────────────────────────────────────────────────────

@@ -3,7 +3,7 @@ import { ref } from 'vue'
 import dashboardService from '@/services/dashboardService.js'
 
 import { performSilentFetch } from '@/utils/storeHelper.js'
-import { cacheSingleSet, cacheSingleGet, isNetworkError } from '@/lib/offlineDb.js'
+import { cacheSingleSet, cacheSingleGet, cacheSingleRemove, isNetworkError } from '@/lib/offlineDb.js'
 
 export const useDashboardStore = defineStore('dashboard', () => {
   const stats = ref({ notes_count: 0, expenses_total: 0, debts_owed_to_me: 0, debts_i_owe: 0, files_count: 0 })
@@ -13,12 +13,14 @@ export const useDashboardStore = defineStore('dashboard', () => {
   const cacheTime = ref(0)
 
   async function fetchStats(filters = {}) {
-    const hasFilters = Object.keys(filters).length > 0;
+    const m = filters.month ?? new Date().getMonth() + 1
+    const y = filters.year ?? new Date().getFullYear()
+    const cacheKey = `dashboard_${y}_${m}`
 
     // Hydrate from IndexedDB if we have no data yet (offline cold start)
     if (!fetched.value && !stats.value.expenses_total) {
       try {
-        const cached = await cacheSingleGet('dashboard')
+        const cached = await cacheSingleGet('dashboard', cacheKey)
         if (cached) stats.value = cached
       } catch { /* ignore */ }
     }
@@ -28,13 +30,12 @@ export const useDashboardStore = defineStore('dashboard', () => {
       fetched,
       cacheTime,
       currentData: stats.value,
-      force: hasFilters,
-      backgroundTtl: 30000,
+      cacheKey,
       fetchFn: async () => {
         try {
           const res = await dashboardService.getStats(filters)
           stats.value = res.data.data
-          await cacheSingleSet('dashboard', res.data.data)
+          await cacheSingleSet('dashboard', res.data.data, cacheKey)
         } catch (e) {
           if (isNetworkError(e)) return // keep cached value
           throw e
@@ -55,8 +56,13 @@ export const useDashboardStore = defineStore('dashboard', () => {
     }
   }
 
-  function invalidate() {
+  function invalidate(filters = {}) {
+    const m = filters.month ?? new Date().getMonth() + 1
+    const y = filters.year ?? new Date().getFullYear()
+    const cacheKey = `dashboard_${y}_${m}`
+    
     fetched.value = false
+    cacheSingleRemove('dashboard', cacheKey)
   }
 
   return { stats, loading, fetched, error, cacheTime, fetchStats, adjustStat, invalidate }

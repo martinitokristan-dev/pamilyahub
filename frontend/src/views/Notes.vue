@@ -1,4 +1,5 @@
 <script setup>
+defineOptions({ name: 'Notes' })
 import { ref, onMounted, computed, nextTick, watch, onBeforeUnmount } from 'vue'
 import { useRegisterAddAction } from '@/composables/usePageAction.js'
 import { useNotesStore } from '@/stores/notes.js'

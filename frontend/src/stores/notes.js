@@ -92,7 +92,7 @@ export const useNotesStore = defineStore('notes', () => {
     try {
       const res = await noteService.create(data)
       notes.value.unshift(res.data.data)
-      useDashboardStore().invalidate()
+      useDashboardStore().invalidate({ month: new Date().getMonth() + 1, year: new Date().getFullYear() });
       invalidate()
       return res.data.data
     } catch (e) {
@@ -132,7 +132,7 @@ export const useNotesStore = defineStore('notes', () => {
       const res = await noteService.update(id, data)
       const idx = notes.value.findIndex((n) => n.id === id)
       if (idx !== -1) notes.value[idx] = res.data.data
-      useDashboardStore().invalidate()
+      useDashboardStore().invalidate({ month: new Date().getMonth() + 1, year: new Date().getFullYear() });
       invalidate()
       return res.data.data
     } catch (e) {
@@ -169,7 +169,7 @@ export const useNotesStore = defineStore('notes', () => {
     try {
       await noteService.delete(id)
       notes.value = notes.value.filter((n) => n.id !== id)
-      useDashboardStore().invalidate()
+      useDashboardStore().invalidate({ month: new Date().getMonth() + 1, year: new Date().getFullYear() });
       invalidate()
     } catch (e) {
       if (isNetworkError(e)) return _removeOffline(id)
