@@ -14,7 +14,7 @@ import {
   outboxRemove as outboxDeleteEntry,
   isNetworkError,
 } from "@/lib/offlineDb.js";
-import { refreshPendingCount } from "@/lib/syncEngine.js";
+import { refreshPendingCount, isSyncing } from "@/lib/syncEngine.js";
 
 export const useExpensesStore = defineStore("expenses", () => {
   const expenses = ref([]);
@@ -42,6 +42,14 @@ export const useExpensesStore = defineStore("expenses", () => {
         useDashboardStore().invalidate();
       }
     });
+    window.addEventListener("pamilya:drain-complete", (e) => {
+      const entities = e.detail?.entities || [];
+      if (entities.some((en) => ["expenses", "debts", "salary"].includes(en))) {
+        fetched.value = false;
+        lastCacheKey.value = null;
+        fetchAll();
+      }
+    });
   }
 
   // ── fetchAll ────────────────────────────────────────────────────────────────
@@ -67,6 +75,9 @@ export const useExpensesStore = defineStore("expenses", () => {
     if (isInitialLoad) loading.value = true;
 
     lastCacheKey.value = cacheKey;
+
+    // Block network fetch during outbox drain to prevent stale server data overwriting optimistic values
+    if (isSyncing.value) return;
 
     try {
       const res = await expenseService.getAll({ page, ...filters });
@@ -131,6 +142,10 @@ export const useExpensesStore = defineStore("expenses", () => {
       await cacheUpsert("expenses", res.data.data);
       useDashboardStore().invalidate();
       invalidate();
+      if (data.wallet_id) {
+        const { useWalletsStore } = await import("./wallets.js");
+        useWalletsStore().adjustBalance(data.wallet_id, -parseFloat(data.amount || 0));
+      }
       useToast().success("Expense created");
       return res.data.data;
     } catch (e) {
@@ -147,7 +162,8 @@ export const useExpensesStore = defineStore("expenses", () => {
       const tempId = `tmp_${crypto.randomUUID()}`;
       const now = new Date().toISOString();
       const { useWalletsStore } = await import("./wallets.js");
-      const walletRaw = useWalletsStore().wallets.find((w) => w.id === data.wallet_id) || null;
+      const walletsStore = useWalletsStore();
+      const walletRaw = walletsStore.wallets.find((w) => w.id === data.wallet_id) || null;
       const wallet = walletRaw ? JSON.parse(JSON.stringify(walletRaw)) : null;
       const optimistic = {
         ...data,
@@ -161,6 +177,7 @@ export const useExpensesStore = defineStore("expenses", () => {
       await cacheUpsert("expenses", optimistic);
       await outboxAdd({ method: "post", url: "/expenses", data, entity: "expenses", tempId });
       await refreshPendingCount();
+      if (data.wallet_id) walletsStore.adjustBalance(data.wallet_id, -parseFloat(data.amount || 0));
       useDashboardStore().adjustStat('monthly_expenses', parseFloat(data.amount || 0));
       useToast().success("Expense saved");
       return { data: { data: optimistic } };

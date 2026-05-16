@@ -15,7 +15,7 @@ import {
   outboxRemove as outboxDeleteEntry,
   isNetworkError,
 } from "@/lib/offlineDb.js";
-import { refreshPendingCount } from "@/lib/syncEngine.js";
+import { refreshPendingCount, isSyncing } from "@/lib/syncEngine.js";
 
 export const useDebtsStore = defineStore("debts", () => {
   const debts = ref([]);
@@ -48,6 +48,14 @@ export const useDebtsStore = defineStore("debts", () => {
         useDashboardStore().invalidate();
       }
     });
+    window.addEventListener("pamilya:drain-complete", (e) => {
+      const entities = e.detail?.entities || [];
+      if (entities.includes("debts")) {
+        fetched.value = false;
+        lastCacheKey.value = null;
+        fetchAll();
+      }
+    });
   }
 
   // ── fetchAll ────────────────────────────────────────────────────────────────
@@ -70,6 +78,9 @@ export const useDebtsStore = defineStore("debts", () => {
     if (isInitialLoad) loading.value = true;
 
     lastCacheKey.value = cacheKey;
+
+    // Block network fetch during outbox drain to prevent stale server data overwriting optimistic values
+    if (isSyncing.value) return;
 
     try {
       const res = await debtService.getAll(page, perPage, filters);
@@ -132,6 +143,9 @@ export const useDebtsStore = defineStore("debts", () => {
       const res = await debtService.create(data);
       debts.value.unshift(res.data.data);
       await cacheUpsert("debts", res.data.data);
+      if (data.type === "owed_to_me" && data.wallet_id) {
+        useWalletsStore().adjustBalance(data.wallet_id, -Math.abs(parseFloat(data.amount || 0)));
+      }
       useDashboardStore().invalidate();
       invalidate();
       useToast().success("Debt created");
@@ -156,6 +170,33 @@ export const useDebtsStore = defineStore("debts", () => {
       await refreshPendingCount();
       const statKey = data.type === 'owed_to_me' ? 'debts_owed_to_me' : 'debts_i_owe';
       useDashboardStore().adjustStat(statKey, parseFloat(data.amount || 0));
+      // When someone owes me (owed_to_me), I lent them money — log as an optimistic expense
+      if (data.type === 'owed_to_me' && data.wallet_id) {
+        const { useExpensesStore } = await import("./expenses.js");
+        const expStore = useExpensesStore();
+        const walletsStore = useWalletsStore();
+        const walletRaw = walletsStore.wallets.find((w) => w.id === data.wallet_id) || null;
+        const wallet = walletRaw ? JSON.parse(JSON.stringify(walletRaw)) : null;
+        const amount = Math.abs(parseFloat(data.amount || 0));
+        const optimisticExpense = {
+          id: `tmp_debt_lent_${crypto.randomUUID()}`,
+          title: `Lent to ${data.name}`,
+          amount: String(amount),
+          category: "Bills/Debt",
+          date: now.split("T")[0],
+          wallet_id: data.wallet_id,
+          wallet,
+          description: data.description ?? "Money lent",
+          created_at: now,
+          updated_at: now,
+          _pending: true,
+          _debt_lent: true,
+        };
+        expStore.expenses.unshift(optimisticExpense);
+        await cacheUpsert("expenses", optimisticExpense);
+        walletsStore.adjustBalance(data.wallet_id, -amount);
+        useDashboardStore().adjustStat('monthly_expenses', amount);
+      }
       useToast().success("Debt saved");
       return { data: { data: optimistic } };
     } finally {
@@ -219,10 +260,17 @@ export const useDebtsStore = defineStore("debts", () => {
     if (!navigator.onLine) return _markPaidOffline(id, walletId);
     loading.value = true;
     try {
+      const debt = debts.value.find((d) => d.id === id);
       const res = await debtService.markPaid(id, walletId);
       const idx = debts.value.findIndex((d) => d.id === id);
       if (idx !== -1) debts.value[idx] = res.data.data;
       await cacheUpsert("debts", res.data.data);
+      if (walletId && debt) {
+        const delta = debt.type === "owed_to_me"
+          ? +Math.abs(parseFloat(debt.amount || 0))
+          : -Math.abs(parseFloat(debt.amount || 0));
+        useWalletsStore().adjustBalance(walletId, delta);
+      }
       useDashboardStore().invalidate();
       invalidate();
       useToast().success("Debt marked as paid");
@@ -301,10 +349,17 @@ export const useDebtsStore = defineStore("debts", () => {
     if (!navigator.onLine) return _partialPayOffline(id, amount, walletId);
     loading.value = true;
     try {
+      const debt = debts.value.find((d) => d.id === id);
       const res = await debtService.partialPay(id, amount, walletId);
       const idx = debts.value.findIndex((d) => d.id === id);
       if (idx !== -1) debts.value[idx] = res.data.data;
       await cacheUpsert("debts", res.data.data);
+      if (walletId && debt) {
+        const delta = debt.type === "owed_to_me"
+          ? +Math.abs(parseFloat(amount || 0))
+          : -Math.abs(parseFloat(amount || 0));
+        useWalletsStore().adjustBalance(walletId, delta);
+      }
       useDashboardStore().invalidate();
       invalidate();
       useToast().success("Partial payment recorded");

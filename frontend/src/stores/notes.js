@@ -9,7 +9,7 @@ import {
   outboxAdd,
   isNetworkError,
 } from '@/lib/offlineDb.js'
-import { refreshPendingCount } from '@/lib/syncEngine.js'
+import { refreshPendingCount, isSyncing } from '@/lib/syncEngine.js'
 
 export const useNotesStore = defineStore('notes', () => {
   const notes = ref([])
@@ -26,6 +26,12 @@ export const useNotesStore = defineStore('notes', () => {
         fetchAll()
         useDashboardStore().invalidate()
       }
+    })
+
+    window.addEventListener('pamilya:drain-complete', () => {
+      fetched.value = false
+      fetchAll(true)
+      useDashboardStore().invalidate()
     })
   }
 
@@ -50,6 +56,9 @@ export const useNotesStore = defineStore('notes', () => {
       }
       return
     }
+
+    // Guard: don't refetch from server during sync drain
+    if (isSyncing.value) return
 
     loading.value = true
     error.value = null
@@ -85,7 +94,6 @@ export const useNotesStore = defineStore('notes', () => {
       notes.value.unshift(res.data.data)
       useDashboardStore().invalidate()
       invalidate()
-      useToast().success('Note created')
       return res.data.data
     } catch (e) {
       if (isNetworkError(e)) return _createOffline(data)
@@ -112,7 +120,6 @@ export const useNotesStore = defineStore('notes', () => {
       await outboxAdd({ method: 'post', url: '/notes', data, entity: 'notes' })
       await refreshPendingCount()
       useDashboardStore().adjustStat('notes_count', 1)
-      useToast().success('Note saved')
       return newNote
     } finally {
       loading.value = false
@@ -127,7 +134,6 @@ export const useNotesStore = defineStore('notes', () => {
       if (idx !== -1) notes.value[idx] = res.data.data
       useDashboardStore().invalidate()
       invalidate()
-      useToast().success('Note updated')
       return res.data.data
     } catch (e) {
       if (isNetworkError(e)) return _updateOffline(id, data)
@@ -151,7 +157,6 @@ export const useNotesStore = defineStore('notes', () => {
       await cacheSingleSet('notes', { notes: notes.value, folders: folders.value })
       await outboxAdd({ method: 'put', url: `/notes/${id}`, data, entity: 'notes' })
       await refreshPendingCount()
-      useToast().success('Note updated')
       return notes.value[idx]
     } finally {
       loading.value = false
@@ -166,7 +171,6 @@ export const useNotesStore = defineStore('notes', () => {
       notes.value = notes.value.filter((n) => n.id !== id)
       useDashboardStore().invalidate()
       invalidate()
-      useToast().success('Note deleted')
     } catch (e) {
       if (isNetworkError(e)) return _removeOffline(id)
       throw e
@@ -183,7 +187,6 @@ export const useNotesStore = defineStore('notes', () => {
       await outboxAdd({ method: 'delete', url: `/notes/${id}`, data: null, entity: 'notes' })
       await refreshPendingCount()
       useDashboardStore().adjustStat('notes_count', -1)
-      useToast().success('Note deleted')
     } finally {
       loading.value = false
     }
@@ -195,7 +198,6 @@ export const useNotesStore = defineStore('notes', () => {
     try {
       const res = await noteService.createFolder(data)
       folders.value.push(res.data.data)
-      useToast().success('Folder created')
       return res.data.data
     } catch (e) {
       if (isNetworkError(e)) return _createFolderOffline(data)
@@ -222,7 +224,6 @@ export const useNotesStore = defineStore('notes', () => {
       await cacheSingleSet('notes', { notes: notes.value, folders: folders.value })
       await outboxAdd({ method: 'post', url: '/note-folders', data, entity: 'notes' })
       await refreshPendingCount()
-      useToast().success('Folder saved')
       return newFolder
     } finally {
       loading.value = false
@@ -239,7 +240,6 @@ export const useNotesStore = defineStore('notes', () => {
       notes.value.forEach(n => {
         if (n.folder_id === id) n.folder_id = null
       })
-      useToast().success('Folder removed')
     } catch (e) {
       if (isNetworkError(e)) return _removeFolderOffline(id)
       throw e
@@ -261,7 +261,6 @@ export const useNotesStore = defineStore('notes', () => {
       await cacheSingleSet('notes', { notes: notes.value, folders: folders.value })
       await outboxAdd({ method: 'delete', url: `/note-folders/${id}`, data: null, entity: 'notes' })
       await refreshPendingCount()
-      useToast().success('Folder deleted')
     } finally {
       loading.value = false
     }

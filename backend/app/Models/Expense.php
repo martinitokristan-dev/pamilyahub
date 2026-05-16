@@ -16,7 +16,6 @@ class Expense extends Model
         'wallet_id',
         'title',
         'amount',
-        'category',
         'description',
         'date',
         'payment_method',

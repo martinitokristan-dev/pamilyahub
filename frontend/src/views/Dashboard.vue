@@ -27,6 +27,7 @@ const salary    = useSalaryStore()
 
 const showDepositModal  = ref(false)
 const isAddMore         = ref(false)
+const eleFamBubbleLine  = ref('')
 
 // Use the exact same global floating action button / plus shortcut as other pages
 useRegisterAddAction(openDeposit)
@@ -56,6 +57,82 @@ const currentDate = computed(() => {
   }).toUpperCase()
 })
 
+const firstName = computed(() => auth.user?.name?.split(' ')[0] || 'Friend')
+
+function pickRandom(lines = []) {
+  if (!lines.length) return ''
+  return lines[Math.floor(Math.random() * lines.length)]
+}
+
+function getExpenseSignals() {
+  const recent = expenses.expenses.slice(0, 30)
+  const byWallet = {}
+  const byCategory = {}
+
+  for (const ex of recent) {
+    const amount = Math.abs(parseFloat(ex.amount || 0))
+    const walletName = ex.wallet?.name
+    if (walletName) byWallet[walletName] = (byWallet[walletName] || 0) + amount
+  }
+
+  const topWallet = Object.entries(byWallet).sort((a, b) => b[1] - a[1])[0]?.[0] || null
+
+  return { topWallet }
+}
+
+function generateEleFamBubbleLine() {
+  const name = firstName.value
+  const monthlyIncome = parseFloat(dashboard.stats.monthly_income || 0)
+  const monthlyExpenses = parseFloat(dashboard.stats.monthly_expenses || 0)
+  const remaining = parseFloat(dashboard.stats.remaining_salary || 0)
+  const iOwe = parseFloat(dashboard.stats.debts_i_owe || 0)
+  const ratio = monthlyIncome > 0 ? monthlyExpenses / monthlyIncome : null
+  const { topWallet } = getExpenseSignals()
+
+  const lines = []
+
+  if (remaining < 0 && topWallet) {
+    lines.push(`${name}, red flag alert: you're past budget and ${topWallet} is getting hammered. Try cash-only mode for today.`)
+    lines.push(`${name}, budget went negative. ${topWallet} carried most of the damage — time for a mini spending cooldown.`)
+    lines.push(`${name}, your budget already left the group chat. ${topWallet} is in beast mode — maybe let it rest today.`)
+    lines.push(`${name}, spending plot twist: over budget na tayo. ${topWallet} is on fire, and not the good kind.`)
+  }
+
+  if (ratio !== null && ratio >= 1.1) {
+    lines.push(`${name}, expenses are doing parkour over your income. Time for a no-spend side quest.`)
+    lines.push(`${name}, income is losing to expenses. Funny now, painful sa cutoff.`)
+    lines.push(`${name}, your wallet called... it wants a day off.`) 
+  }
+
+  if (ratio !== null && ratio >= 0.85) {
+    lines.push(`${name}, you're almost maxing this month. Maybe swap one gala day for a chill day?`)
+    lines.push(`${name}, expenses are running hot. Tighten it a bit to breathe easier.`)
+    lines.push(`${name}, your budget is sweating. Let's keep it steady.`)
+    lines.push(`${name}, your spending is one impulse buy away from a dramatic season finale.`)
+  }
+
+  if (iOwe > 0) {
+    lines.push(`${name}, you still have active payables. Small, steady payments now can save future budget panic.`)
+    lines.push(`${name}, friendly reminder: utang does not expire like stories. Chip away little by little.`)
+    lines.push(`${name}, debt is still in the chat. Let's mute it by paying a bit regularly.`)
+  }
+
+  if (topWallet && remaining >= 0) {
+    lines.push(`${name}, most of your spend vibes are via ${topWallet}. You're still safe — keep that budget discipline sharp.`)
+    lines.push(`${name}, pattern check: spending mostly from ${topWallet}. Looking good.`)
+    lines.push(`${name}, ${topWallet} is your current power ally. Keep it classy, not crazy.`)
+  }
+
+  lines.push(`${name}, money check complete. Keep tracking each spend — your future self will say thank you.`)
+  lines.push(`${name}, finances are behaving... for now. Keep logging everything before budget ninjas strike.`)
+  lines.push(`${name}, your budget and I are besties now. We both panic when receipts multiply.`)
+  lines.push(`${name}, every expense you log gives your future self +1 wisdom and -1 regret.`)
+  lines.push(`${name}, you're the CEO of this budget. Approve wisely, reject dramatically.`)
+  lines.push(`${name}, this is your gentle financial plot armor: track first, buy second.`)
+
+  eleFamBubbleLine.value = pickRandom(lines)
+}
+
 onMounted(async () => {
   // Wave 1: Fetch stats, salary, and expenses (dashboard-critical)
   const fetches = []
@@ -64,6 +141,8 @@ onMounted(async () => {
   if (!expenses.fetched) fetches.push(expenses.fetchAll())
 
   await Promise.all(fetches)
+
+  generateEleFamBubbleLine()
 
   // Wave 2: Fetch notes only if we have idle time or if they are not fetched
   if (!notes.fetched) {
@@ -161,7 +240,7 @@ const stats = computed(() => {
               <div class="relative z-10">
                 <h3 class="font-black text-primary text-[10px] tracking-widest mb-1">EleFam</h3>
                 <p class="text-xs text-muted-foreground leading-snug font-semibold">
-                  {{ auth.user?.name?.split(' ')[0] }}, ready to track those finances? Keep an eye on that budget before lifestyle creep sneaks in!
+                  {{ eleFamBubbleLine }}
                 </p>
               </div>
             </div>
@@ -253,12 +332,7 @@ const stats = computed(() => {
               <div class="min-w-0 flex-1">
                 <p class="font-semibold text-sm truncate">{{ expense.title }}</p>
                 <div class="flex flex-wrap items-center gap-1.5 mt-0.5">
-                  <span
-                    v-if="expense.category"
-                    class="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-medium border bg-muted/50 text-muted-foreground border-border uppercase tracking-tight"
-                  >
-                    {{ expense.category }}
-                  </span>
+                  <!-- Category badge removed -->
                   <span v-if="expense.wallet" class="text-[10px] text-muted-foreground font-medium lowercase first-letter:uppercase">
                     {{ expense.wallet.name }}
                   </span>

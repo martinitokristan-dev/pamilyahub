@@ -14,7 +14,7 @@ import {
   outboxRemove as outboxDeleteEntry,
   isNetworkError,
 } from "@/lib/offlineDb.js";
-import { refreshPendingCount } from "@/lib/syncEngine.js";
+import { refreshPendingCount, isSyncing } from "@/lib/syncEngine.js";
 
 const CACHE_TTL = 5 * 60 * 1000;
 
@@ -51,11 +51,19 @@ export const useWalletsStore = defineStore("wallets", () => {
         useDashboardStore().invalidate();
       }
     });
+    // After full drain: force fresh server fetch so UI matches TiDB
+    window.addEventListener("pamilya:drain-complete", () => {
+      fetched.value = false;
+      cacheTime.value = null;
+      fetchAll(true);
+    });
   }
 
   // ── fetchAll ────────────────────────────────────────────────────────────────
   async function fetchAll(force = false) {
     if (fetched.value && !force && isCacheValid()) return;
+    // Don't overwrite optimistic values while outbox is still draining
+    if (isSyncing.value && !force) return;
 
     // Hydrate from IndexedDB first
     if (wallets.value.length === 0) {

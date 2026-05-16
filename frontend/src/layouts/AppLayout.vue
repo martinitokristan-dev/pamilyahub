@@ -27,6 +27,7 @@ import {
 
 import { useDashboardStore } from '@/stores/dashboard.js'
 import OfflineBanner from '@/components/OfflineBanner.vue'
+import AiChat from '@/components/AiChat.vue'
 
 const auth = useAuthStore()
 const dashboard = useDashboardStore()
@@ -404,6 +405,8 @@ function isActive(path) {
 
         </div>
       </nav>
+
+      <AiChat />
 
       <!-- Global Toasts -->
       <div class="fixed top-4 left-1/2 -translate-x-1/2 z-[100] flex flex-col gap-2 pointer-events-none w-full max-w-sm px-4">

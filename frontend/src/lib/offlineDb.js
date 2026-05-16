@@ -1,7 +1,7 @@
 import { openDB } from 'idb'
 
 const DB_NAME = 'pamilyahub_offline'
-const DB_VERSION = 4
+const DB_VERSION = 5
 
 let _db = null
 
@@ -18,7 +18,7 @@ export async function getDb() {
           db.createObjectStore(`cache_${entity}`, { keyPath: 'id' })
         }
       }
-      for (const entity of ['dashboard', 'salary', 'notes', 'user', 'files']) {
+      for (const entity of ['dashboard', 'salary', 'notes', 'user', 'files', 'chat_history']) {
         if (!db.objectStoreNames.contains(`cache_${entity}`)) {
           db.createObjectStore(`cache_${entity}`, { keyPath: 'key' })
         }
@@ -28,17 +28,23 @@ export async function getDb() {
   return _db
 }
 
+// ── Serialize helper: strips Vue Proxy reactivity before IDB writes ─────────
+
+function serialize(data) {
+  return JSON.parse(JSON.stringify(data))
+}
+
 // ── Outbox ──────────────────────────────────────────────────────────────────
 
 export async function outboxAdd(entry) {
   const db = await getDb()
-  return db.add('outbox', {
+  return db.add('outbox', serialize({
     createdAt: Date.now(),
     tries: 0,
     status: 'pending',
     lastError: null,
     ...entry,
-  })
+  }))
 }
 
 export async function outboxGetPending() {
@@ -56,7 +62,7 @@ export async function outboxUpdate(id, changes) {
   const db = await getDb()
   const tx = db.transaction('outbox', 'readwrite')
   const existing = await tx.store.get(id)
-  if (existing) await tx.store.put({ ...existing, ...changes })
+  if (existing) await tx.store.put(serialize({ ...existing, ...changes }))
   await tx.done
 }
 
@@ -93,7 +99,7 @@ export async function cacheSet(entity, items) {
   const db = await getDb()
   const tx = db.transaction(`cache_${entity}`, 'readwrite')
   await tx.store.clear()
-  for (const item of items) await tx.store.put(item)
+  for (const item of items) await tx.store.put(serialize(item))
   await tx.done
 }
 
@@ -104,7 +110,7 @@ export async function cacheGet(entity) {
 
 export async function cacheUpsert(entity, item) {
   const db = await getDb()
-  return db.put(`cache_${entity}`, item)
+  return db.put(`cache_${entity}`, serialize(item))
 }
 
 export async function cacheRemove(entity, id) {
@@ -116,7 +122,7 @@ export async function cacheRemove(entity, id) {
 
 export async function cacheSingleSet(entity, data) {
   const db = await getDb()
-  return db.put(`cache_${entity}`, { key: 'singleton', ...data })
+  return db.put(`cache_${entity}`, serialize({ key: 'singleton', ...data }))
 }
 
 export async function cacheSingleGet(entity) {

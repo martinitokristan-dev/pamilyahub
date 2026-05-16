@@ -10,7 +10,7 @@ import {
   outboxAdd,
   isNetworkError,
 } from '@/lib/offlineDb.js'
-import { refreshPendingCount } from '@/lib/syncEngine.js'
+import { refreshPendingCount, isSyncing } from '@/lib/syncEngine.js'
 
 export const useSalaryStore = defineStore('salary', () => {
   const status   = ref(null)   // 'pending' | 'received'
@@ -41,12 +41,18 @@ export const useSalaryStore = defineStore('salary', () => {
         useDashboardStore().invalidate()
       }
     })
+    window.addEventListener('pamilya:drain-complete', (e) => {
+      const entities = e.detail?.entities || []
+      if (entities.includes('salary')) {
+        fetched.value = false
+        fetchCurrentMonth()
+      }
+    })
   }
 
   async function fetchCurrentMonth() {
     if (fetched.value) return
 
-    // Hydrate from cache if offline
     if (!navigator.onLine && !status.value) {
       try {
         const cached = await cacheSingleGet('salary')
@@ -61,6 +67,9 @@ export const useSalaryStore = defineStore('salary', () => {
         }
       } catch { /* ignore */ }
     }
+
+    // Block network fetch during outbox drain
+    if (isSyncing.value) return
 
     loading.value = true
     error.value   = null

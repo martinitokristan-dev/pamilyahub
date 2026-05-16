@@ -69,7 +69,7 @@ const total = computed(() => parseFloat(dashboard.stats.monthly_expenses || 0))
 const showForm = ref(false)
 const editingId = ref(null)
 const search = ref('')
-const form = ref({ title: '', amount: '', category: '', description: '', date: '', wallet_id: null })
+const form = ref({ title: '', amount: '', description: '', date: '', wallet_id: null })
 
 const debouncedSearch = refDebounced(search, 500)
 
@@ -126,7 +126,7 @@ function openCreate() {
   editingId.value = null
   const firstWallet = walletsStore.wallets[0]
   form.value = {
-    title: '', amount: '', category: '', description: '',
+    title: '', amount: '', description: '',
     date: new Date().toISOString().slice(0, 10),
     wallet_id: firstWallet?.id ?? null,
   }
@@ -138,7 +138,6 @@ function openEdit(expense) {
   form.value = {
     title: expense.title,
     amount: formatCurrency(expense.amount),
-    category: expense.category ?? '',
     description: expense.description ?? '',
     date: typeof expense.date === 'string' ? expense.date.slice(0, 10) : expense.date,
     wallet_id: expense.wallet_id ?? null,
@@ -338,12 +337,7 @@ async function remove(expense) {
         <div class="min-w-0 flex-1">
           <p class="font-semibold text-sm truncate">{{ expense.title }}</p>
           <div class="flex flex-wrap items-center gap-1.5 mt-0.5">
-            <span
-              v-if="expense.category"
-              class="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-medium border bg-muted/50 text-muted-foreground border-border"
-            >
-              {{ expense.category }}
-            </span>
+            <!-- Category badge removed -->
             <span v-if="expense.wallet" class="text-[10px] text-muted-foreground font-medium">{{ expense.wallet.name }}</span>
           </div>
           <p class="text-[11px] text-muted-foreground mt-0.5">{{ formatDateTime(expense.date, expense.created_at) }}</p>
@@ -369,7 +363,6 @@ async function remove(expense) {
           <tr>
             <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Title</th>
             <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Wallet</th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Category</th>
             <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Date &amp; Time</th>
             <th class="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">Amount</th>
             <th class="px-4 py-3 w-20"></th>
@@ -411,15 +404,7 @@ async function remove(expense) {
               </span>
               <span v-else class="text-muted-foreground">—</span>
             </td>
-            <td class="px-4 py-3">
-              <span
-                v-if="expense.category"
-                class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border bg-muted/50 text-muted-foreground border-border"
-              >
-                {{ expense.category }}
-              </span>
-              <span v-else class="text-muted-foreground">—</span>
-            </td>
+            <!-- Category cell removed -->
             <td class="px-4 py-3 text-muted-foreground text-xs">{{ formatDateTime(expense.date, expense.created_at) }}</td>
             <td class="px-4 py-3 text-right font-semibold tabular-nums text-destructive">-{{ formatCurrency(expense.amount) }}</td>
             <td class="px-4 py-3">
@@ -470,10 +455,7 @@ async function remove(expense) {
                   </div>
                 </div>
 
-                <div class="space-y-1.5">
-                  <UiLabel>Category</UiLabel>
-                  <UiInput v-model="form.category" placeholder="Food, Transport…" />
-                </div>
+                <!-- Category field removed -->
 
                 <!-- Wallet Picker -->
                 <div class="space-y-2">

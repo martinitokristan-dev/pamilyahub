@@ -37,16 +37,23 @@ export async function drainOutbox() {
   _lock = true
   isSyncing.value = true
 
+  const syncedEntities = new Set()
   try {
     const entries = await outboxGetPending()
     for (const entry of entries) {
       const shouldStop = await processEntry(entry)
+      if (entry.entity) syncedEntities.add(entry.entity)
       if (shouldStop) break
     }
   } finally {
     _lock = false
     isSyncing.value = false
     await refreshPendingCount()
+    if (syncedEntities.size > 0) {
+      window.dispatchEvent(
+        new CustomEvent('pamilya:drain-complete', { detail: { entities: [...syncedEntities] } })
+      )
+    }
   }
 }
 
