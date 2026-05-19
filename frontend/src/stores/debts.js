@@ -26,7 +26,7 @@ export const useDebtsStore = defineStore("debts", () => {
   const cacheTime = ref(null);
   const pagination = ref({
     page: 1,
-    per_page: 20,
+    per_page: 10,
     total: 0,
     last_page: 1,
   });
@@ -60,7 +60,7 @@ export const useDebtsStore = defineStore("debts", () => {
   }
 
   // ── fetchAll ────────────────────────────────────────────────────────────────
-  async function fetchAll(force = false, page = 1, perPage = 20, filters = {}) {
+  async function fetchAll(force = false, page = 1, perPage = 10, filters = {}) {
     const cacheKey = `debts_p${page}_${JSON.stringify(filters)}`
     lastCacheKey.value = cacheKey
 

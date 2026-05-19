@@ -295,7 +295,7 @@ function formatSize(bytes) {
       </div>
 
       <!-- Pagination Controls -->
-      <div v-if="store.pagination.total > 10" class="flex items-center justify-end mt-8 mb-6">
+      <div v-if="store.pagination.total > 10" class="flex items-center justify-center mt-8 mb-6">
         <div class="flex items-center bg-card border border-border shadow-sm rounded-full p-1 gap-1">
           <button
             class="h-11 w-11 flex items-center justify-center rounded-full transition-all duration-200 hover:bg-muted active:scale-90 disabled:opacity-30 disabled:pointer-events-none"

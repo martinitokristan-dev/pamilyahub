@@ -123,6 +123,13 @@ function formatDateTime(dateStr, createdAt) {
 
 const filteredExpenses = computed(() => store.expenses)
 
+const isLendingExpense = (expense) => {
+  if (!expense) return false
+  const title = (expense.title || '').toLowerCase()
+  const desc = (expense.description || '').toLowerCase()
+  return title.includes('lent') || title.includes('lend') || desc.includes('lent') || desc.includes('lend')
+}
+
 function openCreate() {
   editingId.value = null
   const firstWallet = walletsStore.wallets[0]
@@ -269,34 +276,6 @@ async function remove(expense) {
       <UiInput v-model="search" placeholder="Search expenses…" class="pl-9" />
     </div>
 
-    <!-- Pagination Controls -->
-    <div v-if="store.pagination.total > 10" class="flex items-center justify-end mb-6">
-      <div class="flex items-center bg-card border border-border shadow-sm rounded-full p-1 gap-1">
-        <button 
-          class="h-11 w-11 flex items-center justify-center rounded-full transition-all duration-200 hover:bg-muted active:scale-90 disabled:opacity-30 disabled:pointer-events-none"
-          :disabled="currentPage <= 1"
-          @click="currentPage--"
-          @mouseenter="currentPage > 1 && store.fetchAll(currentPage - 1, { month: selectedMonth, year: selectedYear, search: debouncedSearch })"
-        >
-          <ChevronLeft class="h-5 w-5" />
-        </button>
-        
-        <div class="px-4 py-1 text-xs font-bold tracking-tight text-foreground flex items-center gap-1.5 border-x border-border/50">
-          <span class="text-primary">{{ currentPage }}</span>
-          <span class="text-muted-foreground/50">/</span>
-          <span>{{ store.pagination.last_page }}</span>
-        </div>
-
-        <button 
-          class="h-11 w-11 flex items-center justify-center rounded-full transition-all duration-200 hover:bg-muted active:scale-90 disabled:opacity-30 disabled:pointer-events-none"
-          :disabled="currentPage >= store.pagination.last_page"
-          @click="currentPage++"
-          @mouseenter="currentPage < store.pagination.last_page && store.fetchAll(currentPage + 1, { month: selectedMonth, year: selectedYear, search: debouncedSearch })"
-        >
-          <ChevronRight class="h-5 w-5" />
-        </button>
-      </div>
-    </div>
 
     <!-- Skeletons / No Data -->
     <template v-if="store.loading && !store.fetched">
@@ -325,7 +304,13 @@ async function remove(expense) {
         @click="openEdit(expense)"
       >
         <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl overflow-hidden bg-muted/50 border border-border shadow-sm">
-          <template v-if="expense.wallet">
+          <template v-if="isLendingExpense(expense)">
+            <img 
+              src="/icons/wallets/lending.png" 
+              class="w-full h-full object-contain rounded dark:invert" 
+            />
+          </template>
+          <template v-else-if="expense.wallet">
             <img 
               :src="expense.wallet.icon_url || `/icons/wallets/${expense.wallet.type === 'metrobank' ? 'metrobank.jpg' : expense.wallet.type + '.png'}`" 
               class="w-full h-full object-contain rounded" 
@@ -377,7 +362,15 @@ async function remove(expense) {
           >
             <td class="px-4 py-3 font-medium">
               <div class="flex items-center gap-2.5">
-                <template v-if="expense.wallet">
+                <template v-if="isLendingExpense(expense)">
+                  <div class="w-8 h-8 flex items-center justify-center rounded-lg overflow-hidden bg-muted/50 border border-border shadow-sm">
+                    <img 
+                      src="/icons/wallets/lending.png" 
+                      class="w-full h-full object-contain rounded dark:invert" 
+                    />
+                  </div>
+                </template>
+                <template v-else-if="expense.wallet">
                   <div class="w-8 h-8 flex items-center justify-center rounded-lg overflow-hidden bg-muted/50 border border-border shadow-sm">
                     <img 
                       :src="expense.wallet.icon_url || `/icons/wallets/${expense.wallet.type === 'metrobank' ? 'metrobank.jpg' : expense.wallet.type + '.png'}`" 
@@ -422,6 +415,35 @@ async function remove(expense) {
         </tbody>
       </table>
     </UiCard>
+
+    <!-- Pagination Controls -->
+    <div v-if="store.pagination.total > 10" class="flex items-center justify-center mt-6">
+      <div class="flex items-center bg-card border border-border shadow-sm rounded-full p-1 gap-1">
+        <button 
+          class="h-11 w-11 flex items-center justify-center rounded-full transition-all duration-200 hover:bg-muted active:scale-90 disabled:opacity-30 disabled:pointer-events-none"
+          :disabled="currentPage <= 1"
+          @click="currentPage--"
+          @mouseenter="currentPage > 1 && store.fetchAll(currentPage - 1, { month: selectedMonth, year: selectedYear, search: debouncedSearch })"
+        >
+          <ChevronLeft class="h-5 w-5" />
+        </button>
+        
+        <div class="px-4 py-1 text-xs font-bold tracking-tight text-foreground flex items-center gap-1.5 border-x border-border/50">
+          <span class="text-primary">{{ currentPage }}</span>
+          <span class="text-muted-foreground/50">/</span>
+          <span>{{ store.pagination.last_page }}</span>
+        </div>
+
+        <button 
+          class="h-11 w-11 flex items-center justify-center rounded-full transition-all duration-200 hover:bg-muted active:scale-90 disabled:opacity-30 disabled:pointer-events-none"
+          :disabled="currentPage >= store.pagination.last_page"
+          @click="currentPage++"
+          @mouseenter="currentPage < store.pagination.last_page && store.fetchAll(currentPage + 1, { month: selectedMonth, year: selectedYear, search: debouncedSearch })"
+        >
+          <ChevronRight class="h-5 w-5" />
+        </button>
+      </div>
+    </div>
 
     <!-- Form Modal -->
     <Teleport to="body">

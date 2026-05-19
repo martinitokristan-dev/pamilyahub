@@ -32,6 +32,8 @@ const walletTypes = [
   { id: 'debit_card',  label: 'Debit Card',  bg: 'from-indigo-500 to-indigo-700', icon: '/icons/wallets/debit_card.png' },
   { id: 'shopeepay',   label: 'ShopeePay',   bg: 'from-orange-500 to-red-500', icon: '/icons/wallets/shopeepay.png' },
   { id: 'coins_ph',    label: 'Coins.ph',    bg: 'from-teal-500 to-teal-700', icon: '/icons/wallets/coins_ph.png' },
+  { id: 'gotyme',      label: 'GoTyme',      bg: 'from-cyan-500 to-cyan-700', icon: '/icons/wallets/gotyme.png' },
+  { id: 'maribank',    label: 'Maribank',    bg: 'from-pink-500 to-rose-600', icon: '/icons/wallets/maribank.png' },
 ]
 
 function typeInfo(type) {

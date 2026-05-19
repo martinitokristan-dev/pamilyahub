@@ -1,10 +1,11 @@
 <script setup>
 defineOptions({ name: 'Dashboard' })
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRegisterAddAction } from '@/composables/usePageAction.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useNotesStore } from '@/stores/notes.js'
 import { useExpensesStore } from '@/stores/expenses.js'
+import { useWalletsStore } from '@/stores/wallets.js'
 import { useDashboardStore } from '@/stores/dashboard.js'
 import { useSalaryStore } from '@/stores/salary.js'
 import {
@@ -16,6 +17,7 @@ import UiCardTitle from '@/components/ui/CardTitle.vue'
 import UiCardContent from '@/components/ui/CardContent.vue'
 import UiButton from '@/components/ui/Button.vue'
 import DepositSalaryModal from '@/components/financial/DepositSalaryModal.vue'
+import dashboardService from '@/services/dashboardService.js'
 import { formatCurrency } from '@/utils/format'
 
 import { SkeletonGrid, SkeletonListItem } from '@/components/skeletons'
@@ -23,12 +25,69 @@ import { SkeletonGrid, SkeletonListItem } from '@/components/skeletons'
 const auth      = useAuthStore()
 const notes     = useNotesStore()
 const expenses  = useExpensesStore()
+const wallets   = useWalletsStore()
 const dashboard = useDashboardStore()
 const salary    = useSalaryStore()
 
 const showDepositModal  = ref(false)
 const isAddMore         = ref(false)
 const eleFamBubbleLine  = ref('')
+const previousMonthStats = ref(null)
+const previousMonthLoaded = ref(false)
+const setupGuideDismissedKey = 'elefam_setup_guide_dismissed'
+const isSetupGuideDismissed = ref(typeof window !== 'undefined' && localStorage.getItem(setupGuideDismissedKey) === '1')
+
+const hasWallets = computed(() => wallets.wallets.length > 0)
+const hasSalary = computed(() => parseFloat(auth.user?.monthly_salary || 0) > 0)
+const hasDeposited = computed(() => salary.isReceived)
+const hasExpenses = computed(() => expenses.fetched && expenses.expenses.length > 0)
+
+const setupSteps = computed(() => [
+  {
+    id: 'wallet',
+    title: 'Add your first Wallet',
+    done: hasWallets.value,
+    description: 'Create at least one wallet (GCash, Cash, Bank) so your money has a place to be tracked.',
+    ctaLabel: 'Go to Wallets',
+    to: '/wallets',
+  },
+  {
+    id: 'salary',
+    title: 'Set your Monthly Salary',
+    done: hasSalary.value,
+    description: 'This is your monthly budget baseline in Settings. It powers Budget Left and spending pressure insights.',
+    ctaLabel: 'Set in Settings',
+    to: '/settings',
+  },
+  {
+    id: 'deposit',
+    title: 'Deposit your Salary',
+    done: hasDeposited.value,
+    description: 'Deposit loads real money into a selected wallet so you can spend from actual balances.',
+    ctaLabel: 'Deposit now',
+    action: 'deposit',
+  },
+  {
+    id: 'expense',
+    title: 'Track your first Expense',
+    done: hasExpenses.value,
+    description: 'Log daily spending to update wallet balances and budget tracking in real time.',
+    ctaLabel: 'Track Expense',
+    to: '/expenses',
+  },
+])
+
+const showSetupGuide = computed(() => !isSetupGuideDismissed.value)
+
+function stepNumber(stepId) {
+  const order = {
+    wallet: 1,
+    salary: 2,
+    deposit: 3,
+    expense: 4,
+  }
+  return order[stepId] ?? 0
+}
 
 // Use the exact same global floating action button / plus shortcut as other pages
 useRegisterAddAction(openDeposit)
@@ -37,6 +96,17 @@ function openDeposit() {
   // If already received, this acts as "Add More"
   isAddMore.value = salary.isReceived
   showDepositModal.value = true
+}
+
+function dismissSetupGuide() {
+  isSetupGuideDismissed.value = true
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(setupGuideDismissedKey, '1')
+  }
+}
+
+function openAiChat() {
+  window.dispatchEvent(new Event('pamilya:open-chat'))
 }
 
 const handleDepositSuccess = async () => {
@@ -59,89 +129,395 @@ const currentDate = computed(() => {
 })
 
 const firstName = computed(() => auth.user?.name?.split(' ')[0] || 'Friend')
-
-function pickRandom(lines = []) {
-  if (!lines.length) return ''
-  return lines[Math.floor(Math.random() * lines.length)]
+const MESSAGE_SEVERITY = {
+  critical: 4,
+  warning: 3,
+  info: 2,
+  positive: 1,
+  fallback: 0,
 }
 
+function selectBestMessage(candidates = []) {
+  if (!candidates.length) return null
+
+  const sorted = [...candidates].sort((a, b) => {
+    const bySeverity = (MESSAGE_SEVERITY[b.severity] ?? 0) - (MESSAGE_SEVERITY[a.severity] ?? 0)
+    if (bySeverity !== 0) return bySeverity
+    return (b.score ?? 0) - (a.score ?? 0)
+  })
+
+  return sorted[0]
+}
+
+function isLendingExpense(expense) {
+  if (!expense) return false
+  const title = (expense.title || '').toLowerCase()
+  const desc = (expense.description || '').toLowerCase()
+  return title.includes('lent') || title.includes('lend') || desc.includes('lent') || desc.includes('lend')
+}
+
+function formatExpenseDate(dateStr) {
+  if (!dateStr) return ''
+  const d = new Date(dateStr + 'T00:00:00')
+  const today = new Date()
+  const yesterday = new Date()
+  yesterday.setDate(today.getDate() - 1)
+
+  const dDate = d.toDateString()
+  if (dDate === today.toDateString()) return 'Today'
+  if (dDate === yesterday.toDateString()) return 'Yesterday'
+
+  return d.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+function parseExpenseDate(dateStr) {
+  if (!dateStr) return null
+  const d = new Date(`${dateStr}T00:00:00`)
+  return Number.isNaN(d.getTime()) ? null : d
+}
+
+function getPreviousMonthParams(baseDate = new Date()) {
+  const previous = new Date(baseDate.getFullYear(), baseDate.getMonth() - 1, 1)
+  return {
+    month: previous.getMonth() + 1,
+    year: previous.getFullYear(),
+  }
+}
+
+async function fetchPreviousMonthStats() {
+  const { month, year } = getPreviousMonthParams()
+  try {
+    const res = await dashboardService.getStats({ month, year })
+    previousMonthStats.value = res.data?.data || null
+    previousMonthLoaded.value = true
+  } catch {
+    previousMonthStats.value = null
+    previousMonthLoaded.value = false
+  }
+}
+
+function isSameDay(a, b) {
+  return a.toDateString() === b.toDateString()
+}
+
+
 function getExpenseSignals() {
-  const recent = expenses.expenses.slice(0, 30)
+  const recent = expenses.expenses.slice(0, 90)
   const byWallet = {}
-  const byCategory = {}
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  const yesterday = new Date(today)
+  yesterday.setDate(yesterday.getDate() - 1)
+
+  const rollingWeekStart = new Date(today)
+  rollingWeekStart.setDate(rollingWeekStart.getDate() - 6)
+
+  const thisWeekStart = new Date(today)
+  thisWeekStart.setDate(thisWeekStart.getDate() - 6)
+
+  const previousWeekStart = new Date(today)
+  previousWeekStart.setDate(previousWeekStart.getDate() - 13)
+
+  let todaySpend = 0
+  let todayExpenseCount = 0
+  let yesterdaySpend = 0
+  let last7DaysSpend = 0
+  let thisWeekSpend = 0
+  let previousWeekSpend = 0
+  let oldestExpenseDate = null
 
   for (const ex of recent) {
     const amount = Math.abs(parseFloat(ex.amount || 0))
+    if (!amount) continue
+
     const walletName = ex.wallet?.name
     if (walletName) byWallet[walletName] = (byWallet[walletName] || 0) + amount
+
+    const expenseDate = parseExpenseDate(ex.date)
+    if (!expenseDate) continue
+
+    if (!oldestExpenseDate || expenseDate < oldestExpenseDate) {
+      oldestExpenseDate = expenseDate
+    }
+
+    if (isSameDay(expenseDate, today)) {
+      todaySpend += amount
+      todayExpenseCount += 1
+    }
+
+    if (isSameDay(expenseDate, yesterday)) {
+      yesterdaySpend += amount
+    }
+
+    if (expenseDate >= thisWeekStart && expenseDate <= today) {
+      thisWeekSpend += amount
+    }
+
+    if (expenseDate >= previousWeekStart && expenseDate < thisWeekStart) {
+      previousWeekSpend += amount
+    }
+
+    if (expenseDate >= rollingWeekStart && expenseDate <= today) {
+      last7DaysSpend += amount
+    }
   }
 
   const topWallet = Object.entries(byWallet).sort((a, b) => b[1] - a[1])[0]?.[0] || null
+  const weekDailyAverage = last7DaysSpend / 7
+  const hasTwoWeekCoverage = oldestExpenseDate ? oldestExpenseDate <= previousWeekStart : false
 
-  return { topWallet }
+  return {
+    topWallet,
+    todaySpend,
+    todayExpenseCount,
+    yesterdaySpend,
+    weekDailyAverage,
+    thisWeekSpend,
+    previousWeekSpend,
+    hasTwoWeekCoverage,
+  }
 }
+
+const expenseSignalFingerprint = computed(() => {
+  return expenses.expenses
+    .slice(0, 90)
+    .map(ex => `${ex.id}:${ex.amount}:${ex.date}:${ex.wallet?.name || ''}`)
+    .join('|')
+})
 
 function generateEleFamBubbleLine() {
-  const name = firstName.value
-  const monthlyIncome = parseFloat(dashboard.stats.monthly_income || 0)
-  const monthlyExpenses = parseFloat(dashboard.stats.monthly_expenses || 0)
-  const remaining = parseFloat(dashboard.stats.remaining_salary || 0)
-  const iOwe = parseFloat(dashboard.stats.debts_i_owe || 0)
-  const ratio = monthlyIncome > 0 ? monthlyExpenses / monthlyIncome : null
-  const { topWallet } = getExpenseSignals()
+  try {
+    const name = firstName.value
+    const monthlyIncome = parseFloat(dashboard.stats.monthly_income || 0)
+    const monthlyExpenses = parseFloat(dashboard.stats.monthly_expenses || 0)
+    const remaining = parseFloat(dashboard.stats.remaining_salary || 0)
+    const iOwe = parseFloat(dashboard.stats.debts_i_owe || 0)
+    const ratio = monthlyIncome > 0 ? monthlyExpenses / monthlyIncome : null
+    const dailyIncomeBaseline = monthlyIncome > 0 ? (monthlyIncome / 30) : 0
+    const {
+      topWallet,
+      todaySpend,
+      todayExpenseCount,
+      yesterdaySpend,
+      weekDailyAverage,
+      thisWeekSpend,
+      previousWeekSpend,
+      hasTwoWeekCoverage,
+    } = getExpenseSignals()
+    const previousMonthExpenses = parseFloat(previousMonthStats.value?.monthly_expenses || 0)
+    const hasPreviousMonthExpenses = previousMonthLoaded.value && previousMonthExpenses > 0
+    const todayVsWeekRatio = weekDailyAverage > 0 ? (todaySpend / weekDailyAverage) : null
+    const todayVsBaselineRatio = dailyIncomeBaseline > 0 ? (todaySpend / dailyIncomeBaseline) : null
+    const todayVsYesterdayRatio = yesterdaySpend > 0 ? (todaySpend / yesterdaySpend) : null
+    const thisWeekVsPreviousWeekRatio = previousWeekSpend > 0 ? (thisWeekSpend / previousWeekSpend) : null
+    const thisMonthVsPreviousMonthRatio = hasPreviousMonthExpenses ? (monthlyExpenses / previousMonthExpenses) : null
 
-  const lines = []
+    const candidates = []
 
-  if (remaining < 0 && topWallet) {
-    lines.push(`${name}, red flag alert: you're past budget and ${topWallet} is getting hammered. Try cash-only mode for today.`)
-    lines.push(`${name}, budget went negative. ${topWallet} carried most of the damage — time for a mini spending cooldown.`)
-    lines.push(`${name}, your budget already left the group chat. ${topWallet} is in beast mode — maybe let it rest today.`)
-    lines.push(`${name}, spending plot twist: over budget na tayo. ${topWallet} is on fire, and not the good kind.`)
+  if (todayVsBaselineRatio !== null && todayVsBaselineRatio >= 1.2) {
+    candidates.push({
+      severity: 'critical',
+      score: todayVsBaselineRatio,
+      text: `${name}, you've spent ${formatCurrency(todaySpend)} today — that's above your daily pace (${formatCurrency(dailyIncomeBaseline)}). Take it easy muna today.`,
+      rule: 'daily_vs_baseline_critical',
+    })
   }
 
+  if (todayVsWeekRatio !== null && todayVsWeekRatio >= 1.5) {
+    candidates.push({
+      severity: 'warning',
+      score: todayVsWeekRatio,
+      text: `${name}, today's spending (${formatCurrency(todaySpend)}) is much higher than your recent daily average (${formatCurrency(weekDailyAverage)}). Slow down muna tayo today.`,
+      rule: 'daily_vs_week_warning',
+    })
+  }
+
+  if (todayVsYesterdayRatio !== null && todayVsYesterdayRatio >= 1.25) {
+    candidates.push({
+      severity: 'warning',
+      score: todayVsYesterdayRatio,
+      text: `${name}, mas malaki ang gastos mo today (${formatCurrency(todaySpend)}) vs yesterday (${formatCurrency(yesterdaySpend)}). Konting alalay muna.`,
+      rule: 'today_vs_yesterday_warning',
+    })
+  }
+
+  if (todayVsYesterdayRatio !== null && todayVsYesterdayRatio <= 0.8 && todaySpend > 0) {
+    candidates.push({
+      severity: 'positive',
+      score: 1 - todayVsYesterdayRatio,
+      text: `${name}, nice! Mas mababa ang gastos mo today (${formatCurrency(todaySpend)}) kaysa kahapon (${formatCurrency(yesterdaySpend)}). Keep this pacing up.`,
+      rule: 'today_vs_yesterday_positive',
+    })
+  }
+
+  if (todaySpend > 0 && (todayVsBaselineRatio === null || todayVsBaselineRatio < 1.2)) {
+    candidates.push({
+      severity: 'info',
+      score: todaySpend,
+      text: `${name}, today you spent ${formatCurrency(todaySpend)} across ${todayExpenseCount} expense${todayExpenseCount > 1 ? 's' : ''}. ${topWallet ? `Most of it came from ${topWallet}. ` : ''}Tuloy lang sa mindful spending today.`,
+      rule: 'today_activity_summary',
+    })
+  }
+
+  if (hasTwoWeekCoverage && thisWeekVsPreviousWeekRatio !== null && thisWeekVsPreviousWeekRatio >= 1.2) {
+    candidates.push({
+      severity: 'warning',
+      score: thisWeekVsPreviousWeekRatio,
+      text: `${name}, mas mataas ang gastos mo this week (${formatCurrency(thisWeekSpend)}) compared sa last week (${formatCurrency(previousWeekSpend)}). Baka pwedeng bawasan muna ang non-essentials.`,
+      rule: 'week_over_week_warning',
+    })
+  }
+
+  if (hasTwoWeekCoverage && thisWeekVsPreviousWeekRatio !== null && thisWeekVsPreviousWeekRatio <= 0.85) {
+    candidates.push({
+      severity: 'positive',
+      score: 1 - thisWeekVsPreviousWeekRatio,
+      text: `${name}, great job — mas mababa ang gastos mo this week (${formatCurrency(thisWeekSpend)}) kaysa last week (${formatCurrency(previousWeekSpend)}). Tuloy lang ang good budgeting.`,
+      rule: 'week_over_week_positive',
+    })
+  }
+
+  if (thisMonthVsPreviousMonthRatio !== null && thisMonthVsPreviousMonthRatio >= 1.1) {
+    candidates.push({
+      severity: 'warning',
+      score: thisMonthVsPreviousMonthRatio,
+      text: `${name}, mas mataas na ang spending mo this month (${formatCurrency(monthlyExpenses)}) kaysa last month (${formatCurrency(previousMonthExpenses)}). Let's tighten spending a bit this month.`,
+      rule: 'month_over_month_warning',
+    })
+  }
+
+  if (thisMonthVsPreviousMonthRatio !== null && thisMonthVsPreviousMonthRatio <= 0.9) {
+    candidates.push({
+      severity: 'positive',
+      score: 1 - thisMonthVsPreviousMonthRatio,
+      text: `${name}, galing! You spent less this month (${formatCurrency(monthlyExpenses)}) than last month (${formatCurrency(previousMonthExpenses)}). Keep up the good budgeting.`,
+      rule: 'month_over_month_positive',
+    })
+  }
+
+  // Case 1: Over budget / negative balance
+  if (remaining < 0) {
+    if (topWallet) {
+      candidates.push({
+        severity: 'critical',
+        score: Math.abs(remaining),
+        text: `Huy ${name}, over budget na tayo this month at mukhang si ${topWallet} ang medyo bugbog sarado. Baka pwede nating dahan-dahanin muna ang spending natin?`,
+        rule: 'remaining_negative_with_top_wallet',
+      })
+    } else {
+      candidates.push({
+        severity: 'critical',
+        score: Math.abs(remaining),
+        text: `Huy ${name}, lagpas na tayo sa budget limit natin this month. Sobrang pula na ng balance—iwas-iwas muna sa mga hindi naman kailangang bilhin ngayon, ha?`,
+        rule: 'remaining_negative',
+      })
+    }
+  }
+
+  // Case 2: Expenses significantly exceed income (ratio >= 1.1)
   if (ratio !== null && ratio >= 1.1) {
-    lines.push(`${name}, expenses are doing parkour over your income. Time for a no-spend side quest.`)
-    lines.push(`${name}, income is losing to expenses. Funny now, painful sa cutoff.`)
-    lines.push(`${name}, your wallet called... it wants a day off.`) 
+    candidates.push({
+      severity: 'critical',
+      score: ratio,
+      text: `Ay, lagpas-lagpas na ang nagastos natin kumpara sa kita natin, ${name}. Konting higpit muna ng sinturon bago dumating ang susunod na sahod.`,
+      rule: 'monthly_ratio_critical',
+    })
   }
 
-  if (ratio !== null && ratio >= 0.85) {
-    lines.push(`${name}, you're almost maxing this month. Maybe swap one gala day for a chill day?`)
-    lines.push(`${name}, expenses are running hot. Tighten it a bit to breathe easier.`)
-    lines.push(`${name}, your budget is sweating. Let's keep it steady.`)
-    lines.push(`${name}, your spending is one impulse buy away from a dramatic season finale.`)
+  // Case 3: Expenses are near income (ratio >= 0.85)
+  if (ratio !== null && ratio >= 0.85 && ratio < 1.1) {
+    candidates.push({
+      severity: 'warning',
+      score: ratio,
+      text: `Lapit na natin maubos ang budget natin for the month, ${name}. Kaya pa natin 'tong i-salba! Bawas-bawasan muna natin ang gala or kape sa labas.`,
+      rule: 'monthly_ratio_warning',
+    })
   }
 
+  // Case 4: Has outstanding debts (iOwe > 0)
   if (iOwe > 0) {
-    lines.push(`${name}, you still have active payables. Small, steady payments now can save future budget panic.`)
-    lines.push(`${name}, friendly reminder: utang does not expire like stories. Chip away little by little.`)
-    lines.push(`${name}, debt is still in the chat. Let's mute it by paying a bit regularly.`)
+    candidates.push({
+      severity: 'info',
+      score: iOwe,
+      text: `A gentle reminder to check on our payables, ${name}. Kahit paunti-unting bayad, malaking tulong para gumaan ang pakiramdam sa finances natin.`,
+      rule: 'debts_info',
+    })
   }
 
+  // Case 5: Normal/Good state (remaining >= 0) and has a top wallet
   if (topWallet && remaining >= 0) {
-    lines.push(`${name}, most of your spend vibes are via ${topWallet}. You're still safe — keep that budget discipline sharp.`)
-    lines.push(`${name}, pattern check: spending mostly from ${topWallet}. Looking good.`)
-    lines.push(`${name}, ${topWallet} is your current power ally. Keep it classy, not crazy.`)
+    candidates.push({
+      severity: 'positive',
+      score: 1,
+      text: `Mukhang si ${topWallet} ang paborito mong gamitin lately. Ayos naman ang takbo ng budget natin, ituloy lang natin ang tamang tracking!`,
+      rule: 'top_wallet_positive',
+    })
   }
 
-  lines.push(`${name}, money check complete. Keep tracking each spend — your future self will say thank you.`)
-  lines.push(`${name}, finances are behaving... for now. Keep logging everything before budget ninjas strike.`)
-  lines.push(`${name}, your budget and I are besties now. We both panic when receipts multiply.`)
-  lines.push(`${name}, every expense you log gives your future self +1 wisdom and -1 regret.`)
-  lines.push(`${name}, you're the CEO of this budget. Approve wisely, reject dramatically.`)
-  lines.push(`${name}, this is your gentle financial plot armor: track first, buy second.`)
+  if (todaySpend === 0 && remaining >= 0) {
+    candidates.push({
+      severity: 'positive',
+      score: 2,
+      text: `Nice one, ${name}. Wala pang gastos today — keep this calm pace hanggang mamaya.`,
+      rule: 'no_spend_today_positive',
+    })
+  }
 
-  eleFamBubbleLine.value = pickRandom(lines)
+  if (expenses.expenses.length === 0) {
+    candidates.push({
+      severity: 'info',
+      score: 0,
+      text: `${name}, wala pa tayong na-log na expenses this month. Track lang agad para accurate lagi ang reminders ko.`,
+      rule: 'no_expenses_info',
+    })
+  }
+
+    // General fallback/default lines (when finances are stable or behaving well)
+    candidates.push({
+      severity: 'fallback',
+      score: 0,
+      text: `Good job sa pag-track ng bawat gastos today! Malaking tulong 'to para alam natin kung saan talaga napupunta ang pera natin.`,
+      rule: 'fallback_general',
+    })
+
+    const winner = selectBestMessage(candidates)
+    eleFamBubbleLine.value = winner?.text || ''
+  } catch {
+    eleFamBubbleLine.value = 'I\'m checking your latest spending data now. Keep tracking and I\'ll update your insight in a moment.'
+  }
 }
 
+watch(
+  () => [
+    firstName.value,
+    dashboard.stats.monthly_income,
+    dashboard.stats.monthly_expenses,
+    dashboard.stats.remaining_salary,
+    dashboard.stats.debts_i_owe,
+    previousMonthLoaded.value,
+    previousMonthStats.value?.monthly_expenses || 0,
+    expenseSignalFingerprint.value,
+  ],
+  () => {
+    generateEleFamBubbleLine()
+  }
+)
+
 onMounted(async () => {
-  // Wave 1: Fetch stats, salary, and expenses (dashboard-critical)
+  // Wave 1: Fetch stats, salary, expenses, and wallets (dashboard-critical)
   const fetches = []
   if (!dashboard.fetched) fetches.push(dashboard.fetchStats())
   if (!salary.fetched) fetches.push(salary.fetchCurrentMonth())
   if (!expenses.fetched) fetches.push(expenses.fetchAll())
+  if (!wallets.fetched) fetches.push(wallets.fetchAll())
+  fetches.push(fetchPreviousMonthStats())
 
-  await Promise.all(fetches)
+  try {
+    await Promise.all(fetches)
+  } catch {
+    // Keep page usable even if one data source fails; individual stores already manage their own errors.
+  }
 
   generateEleFamBubbleLine()
 
@@ -208,9 +584,9 @@ const stats = computed(() => {
 </script>
 
 <template>
-  <div class="animate-fade-in bg-background min-h-screen">
+  <div class="animate-fade-in bg-[#e9eff6] dark:bg-zinc-950 min-h-screen">
     <!-- ── Top Greeting (White Background) ── -->
-    <div class="bg-background pt-4 px-8 pb-4 max-w-6xl mx-auto">
+    <div class="bg-[#e9eff6] dark:bg-zinc-950 pt-4 px-8 pb-4 max-w-6xl mx-auto">
       <p class="text-[10px] font-black text-muted-foreground tracking-widest uppercase mb-1">
         {{ currentDate }}
       </p>
@@ -234,7 +610,7 @@ const stats = computed(() => {
             </div>
             
             <!-- Chat Bubble (Solid White) -->
-            <div class="bg-white shadow-2xl rounded-[32px] p-5 relative ml-2 z-0 flex-1 min-w-0 border border-purple-100 mt-[-32px]">
+            <div class="bg-white shadow-2xl rounded-2xl p-5 relative ml-2 z-0 flex-1 min-w-0 border border-purple-100 mt-[-32px]">
               <!-- Speech bubble tail (Pointed to mouth) -->
               <div class="absolute top-[75%] -translate-y-1/2 -left-[8px] w-4 h-4 bg-white border-l border-b border-purple-100 rotate-45 rounded-sm"></div>
               
@@ -295,7 +671,7 @@ const stats = computed(() => {
           </RouterLink>
         </div>
 
-        <div class="bg-card border border-border/50 rounded-[32px] shadow-sm overflow-hidden">
+        <div class="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800/80 rounded-2xl shadow-[0_15px_35px_rgba(0,0,0,0.06)] dark:shadow-none overflow-hidden relative z-10">
           <div v-if="expenses.loading && expenses.expenses.length === 0" class="divide-y divide-border/30">
             <div v-for="i in 3" :key="i" class="p-4">
               <SkeletonListItem />
@@ -318,7 +694,13 @@ const stats = computed(() => {
             >
               <!-- Category/Wallet Icon -->
               <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl overflow-hidden bg-muted/50 border border-border shadow-sm">
-                <template v-if="expense.wallet">
+                <template v-if="isLendingExpense(expense)">
+                  <img 
+                    src="/icons/wallets/lending.png" 
+                    class="w-full h-full object-contain rounded dark:invert" 
+                  />
+                </template>
+                <template v-else-if="expense.wallet">
                   <img 
                     :src="expense.wallet.icon_url || `/icons/wallets/${expense.wallet.type === 'metrobank' ? 'metrobank.jpg' : expense.wallet.type + '.png'}`" 
                     class="w-full h-full object-contain rounded" 
@@ -339,7 +721,7 @@ const stats = computed(() => {
                   </span>
                 </div>
                 <p class="text-[10px] text-muted-foreground mt-0.5 opacity-70">
-                  Today
+                  {{ formatExpenseDate(expense.date) }}
                 </p>
               </div>
 
@@ -363,6 +745,94 @@ const stats = computed(() => {
         </div>
       </div>
     </div>
+
+    <!-- ── Setup Guide Modal ── -->
+    <Teleport to="body">
+      <div
+        v-if="showSetupGuide"
+        class="fixed inset-0 z-[120] bg-black/55 backdrop-blur-sm flex items-center justify-center p-4"
+        @mousedown.self="dismissSetupGuide"
+      >
+        <UiCard class="w-full max-w-2xl max-h-[90vh] overflow-hidden border-primary/20 shadow-2xl">
+          <UiCardContent class="p-5 sm:p-6 overflow-y-auto max-h-[90vh]">
+            <div class="flex items-start justify-between gap-3 mb-5">
+              <div>
+                <p class="text-[11px] font-bold uppercase tracking-[0.16em] text-primary">Quick Start Guide</p>
+                <h2 class="text-2xl sm:text-[28px] font-black tracking-tight text-foreground mt-1 leading-tight">Welcome to EleFam</h2>
+                <p class="text-sm text-muted-foreground mt-2 leading-relaxed">Set up these essentials once so your budget, wallet balances, and tracking stay accurate.</p>
+              </div>
+              <button
+                type="button"
+                @click="dismissSetupGuide"
+                class="h-8 w-8 shrink-0 rounded-lg text-muted-foreground hover:bg-muted transition-colors"
+                aria-label="Close setup guide"
+              >
+                ×
+              </button>
+            </div>
+
+            <div class="space-y-3.5">
+              <div
+                v-for="step in setupSteps"
+                :key="step.id"
+                class="rounded-xl border border-border bg-card/80 p-3.5 sm:p-4"
+              >
+                <div class="flex items-start justify-between gap-3">
+                  <div class="min-w-0">
+                    <p class="text-[15px] font-bold text-foreground flex items-center gap-2.5 leading-snug">
+                      <span
+                        class="inline-flex h-6 min-w-6 px-1 items-center justify-center rounded-full text-[11px] font-black"
+                        :class="step.done ? 'bg-emerald-500 text-white' : 'bg-muted text-muted-foreground border border-border'"
+                      >
+                        {{ step.done ? '✓' : stepNumber(step.id) }}
+                      </span>
+                      {{ step.title }}
+                    </p>
+                    <p class="text-[13px] text-muted-foreground leading-relaxed mt-2.5">{{ step.description }}</p>
+                  </div>
+
+                  <div class="shrink-0">
+                    <UiButton
+                      v-if="step.action === 'deposit'"
+                      size="sm"
+                      class="rounded-xl h-8 px-3 text-[11px] font-semibold"
+                      @click="() => { dismissSetupGuide(); openDeposit(); }"
+                    >
+                      {{ step.ctaLabel }}
+                    </UiButton>
+                    <UiButton
+                      v-else
+                      as-child
+                      size="sm"
+                      variant="outline"
+                      class="rounded-xl h-8 px-3 text-[11px] font-semibold"
+                    >
+                      <RouterLink :to="step.to" @click="dismissSetupGuide">{{ step.ctaLabel }}</RouterLink>
+                    </UiButton>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-5 rounded-xl border border-emerald-200 dark:border-emerald-900/60 bg-emerald-50/70 dark:bg-emerald-950/30 p-4">
+              <p class="text-[11px] font-bold uppercase tracking-[0.16em] text-emerald-700 dark:text-emerald-300">Pro Tip: Use EleFam AI</p>
+              <p class="text-[13px] text-emerald-900 dark:text-emerald-100 mt-2 leading-relaxed">
+                You can automate setup in chat instead of doing every step manually.
+              </p>
+              <div class="mt-3 grid gap-2">
+                <p class="rounded-lg bg-emerald-100/80 dark:bg-emerald-900/40 px-2.5 py-1.5 text-[12px] text-emerald-900 dark:text-emerald-100 font-mono">new wallet GCash</p>
+                <p class="rounded-lg bg-emerald-100/80 dark:bg-emerald-900/40 px-2.5 py-1.5 text-[12px] text-emerald-900 dark:text-emerald-100 font-mono">set salary 25000</p>
+                <p class="rounded-lg bg-emerald-100/80 dark:bg-emerald-900/40 px-2.5 py-1.5 text-[12px] text-emerald-900 dark:text-emerald-100 font-mono">deposit 25000 to GCash</p>
+                <p class="rounded-lg bg-emerald-100/80 dark:bg-emerald-900/40 px-2.5 py-1.5 text-[12px] text-emerald-900 dark:text-emerald-100 font-mono">spent 500 on food from GCash</p>
+              </div>
+              <UiButton size="sm" class="rounded-xl h-8 px-3 mt-3 text-[11px] font-semibold" @click="() => { dismissSetupGuide(); openAiChat(); }">
+                Open EleFam Chat
+              </UiButton>
+            </div>
+          </UiCardContent>
+        </UiCard>
+      </div>
+    </Teleport>
 
     <!-- ── Deposit Modal ── -->
     <DepositSalaryModal

@@ -1,12 +1,13 @@
 <script setup>
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { MessageCircle, ArrowUp, X } from 'lucide-vue-next'
+import { ArrowUp, X } from 'lucide-vue-next'
 import UiButton from '@/components/ui/Button.vue'
 import UiInput from '@/components/ui/Input.vue'
 import AiChatMessage from '@/components/AiChatMessage.vue'
 import { cacheSingleGet, cacheSingleSet } from '@/lib/offlineDb.js'
-import { processEleFamMessage, eleFamProfile } from '@/lib/chatEngine.js'
+import { processEleFamMessage, eleFamProfile, clearPendingContext } from '@/lib/chatEngine.js'
 import { detectIntent, getIntentType } from '@/lib/chatIntents.js'
+import { useAuthStore } from '@/stores/auth.js'
 
 const isOpen = ref(false)
 const input = ref('')
@@ -18,6 +19,82 @@ const messages = ref([])
 const dragStartY = ref(0)
 const dragStartX = ref(0)
 const dragDeltaY = ref(0)
+
+const isUserCollapsed = ref(false)
+let fabStartX = 0
+let fabStartY = 0
+let suppressFabClick = false
+const FAB_SWIPE_THRESHOLD = 55
+const FAB_VERTICAL_TOLERANCE = 70
+
+// Inactivity tracking for button collapse
+const isInactive = ref(false)
+let inactivityTimer = null
+const INACTIVITY_THRESHOLD = 4000 // 4 seconds
+
+function resetInactivityTimer() {
+  isInactive.value = false
+  clearTimeout(inactivityTimer)
+  inactivityTimer = setTimeout(() => {
+    isInactive.value = true
+  }, INACTIVITY_THRESHOLD)
+}
+
+function handleUserActivity() {
+  resetInactivityTimer()
+}
+
+function beginFabGesture(clientX, clientY) {
+  fabStartX = clientX
+  fabStartY = clientY
+}
+
+function endFabGesture(clientX, clientY) {
+  const deltaX = clientX - fabStartX
+  const deltaY = clientY - fabStartY
+  const mostlyHorizontal = Math.abs(deltaY) <= FAB_VERTICAL_TOLERANCE
+  if (!mostlyHorizontal) return
+
+  if (!isUserCollapsed.value && deltaX >= FAB_SWIPE_THRESHOLD) {
+    isUserCollapsed.value = true
+    suppressFabClick = true
+    return
+  }
+
+  if (isUserCollapsed.value && deltaX <= -FAB_SWIPE_THRESHOLD) {
+    isUserCollapsed.value = false
+    suppressFabClick = true
+    handleUserActivity()
+  }
+}
+
+function onFabPointerDown(event) {
+  beginFabGesture(event.clientX, event.clientY)
+}
+
+function onFabPointerUp(event) {
+  endFabGesture(event.clientX, event.clientY)
+}
+
+function onFabTouchStart(event) {
+  const touch = event.touches?.[0]
+  if (!touch) return
+  beginFabGesture(touch.clientX, touch.clientY)
+}
+
+function onFabTouchEnd(event) {
+  const touch = event.changedTouches?.[0]
+  if (!touch) return
+  endFabGesture(touch.clientX, touch.clientY)
+}
+
+function onFabClick() {
+  if (suppressFabClick) {
+    suppressFabClick = false
+    return
+  }
+  openChat()
+}
 
 function makeMessage(role, text, kind = 'text', walletType = null) {
   return {
@@ -94,12 +171,15 @@ function openChat() {
   if (!isOpen.value) {
     window.history.pushState({ elefamChatOpen: true }, '')
   }
+  handleUserActivity()
   isOpen.value = true
   scrollToBottom()
 }
 
 function closeChat() {
   isOpen.value = false
+  handleUserActivity()
+  clearPendingContext()
 }
 
 function onChatTouchStart(event) {
@@ -134,8 +214,25 @@ function handlePopState() {
   }
 }
 
+function handleExternalOpenChat() {
+  openChat()
+}
+
 onMounted(async () => {
   window.addEventListener('popstate', handlePopState)
+  window.addEventListener('pamilya:open-chat', handleExternalOpenChat)
+  
+  // Inactivity tracking event listeners (desktop + mobile)
+  window.addEventListener('mousemove', handleUserActivity)
+  window.addEventListener('pointerdown', handleUserActivity)
+  window.addEventListener('keydown', handleUserActivity)
+  window.addEventListener('wheel', handleUserActivity)
+  window.addEventListener('touchstart', handleUserActivity)
+  window.addEventListener('touchmove', handleUserActivity)
+  document.addEventListener('scroll', handleUserActivity, true)
+  
+  // Start inactivity timer
+  resetInactivityTimer()
   
   // Re-verify with IndexedDB in background just in case localStorage was cleared
   const cached = await cacheSingleGet('chat_history').catch(() => null)
@@ -143,10 +240,51 @@ onMounted(async () => {
     messages.value = cached.messages
     localStorage.setItem('elefam_chat_history', JSON.stringify(cached.messages))
   }
+
+  // Daily Greeting Logic
+  try {
+    const authStore = useAuthStore()
+    if (!authStore.user) {
+      await authStore.hydrateUser()
+    }
+    
+    const today = new Date().toDateString()
+    const lastGreeting = localStorage.getItem('elefam_last_greeting_date')
+    
+    if (lastGreeting !== today) {
+      const hour = new Date().getHours()
+      let timeOfDay = 'Good evening'
+      if (hour < 12) timeOfDay = 'Good morning'
+      else if (hour < 18) timeOfDay = 'Good afternoon'
+      
+      const firstName = authStore.user?.name ? authStore.user.name.split(' ')[0] : ''
+      const nameStr = firstName ? ` ${firstName}` : ''
+      
+      const greetingMsg = `Hi, ${timeOfDay}${nameStr}, what can I help you with today?`
+      
+      pushMessage('assistant', greetingMsg, 'text')
+      localStorage.setItem('elefam_last_greeting_date', today)
+      await persistHistory()
+    }
+  } catch (e) {
+    console.error('Failed to run daily greeting', e)
+  }
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('popstate', handlePopState)
+  window.removeEventListener('pamilya:open-chat', handleExternalOpenChat)
+  
+  // Clean up inactivity event listeners
+  window.removeEventListener('mousemove', handleUserActivity)
+  window.removeEventListener('pointerdown', handleUserActivity)
+  window.removeEventListener('keydown', handleUserActivity)
+  window.removeEventListener('wheel', handleUserActivity)
+  window.removeEventListener('touchstart', handleUserActivity)
+  window.removeEventListener('touchmove', handleUserActivity)
+  document.removeEventListener('scroll', handleUserActivity, true)
+  
+  clearTimeout(inactivityTimer)
 })
 
 watch(
@@ -174,10 +312,25 @@ watch(
       @touchend="onChatTouchEnd"
     >
       <div class="mx-auto flex h-full w-full max-w-4xl flex-col bg-background border-x border-border/40">
-        <div class="flex items-center justify-center border-b border-border/50 px-4 py-3 backdrop-blur-md bg-background/80 sticky top-0 z-10">
-          <div class="text-center">
-            <p class="text-[17px] font-bold text-foreground tracking-tight">EleFam</p>
-          </div>
+        <!-- Header -->
+        <div class="flex items-center justify-between border-b border-border/50 px-4 py-3.5 backdrop-blur-md bg-background/80 sticky top-0 z-10">
+          <div class="w-10"></div>
+          <p class="text-lg font-black text-foreground tracking-tight text-center flex-1">Marti</p>
+          <button 
+            type="button"
+            @click="closeChat" 
+            class="h-10 w-10 flex items-center justify-center rounded-xl hover:bg-muted text-muted-foreground transition-all duration-200 active:scale-95"
+            aria-label="Close chat"
+          >
+            <X class="h-5.5 w-5.5" />
+          </button>
+        </div>
+
+        <!-- Instruction -->
+        <div class="bg-muted/20 border-b border-border/45 py-2 px-4 text-center">
+          <p class="text-[11px] text-muted-foreground font-medium tracking-wide">
+            Type <span class="font-mono font-bold text-muted-foreground/80">/help</span> for list of commands
+          </p>
         </div>
 
         <div ref="listEl" class="min-h-0 flex-1 overflow-y-auto px-4 py-4">
@@ -187,7 +340,7 @@ watch(
             <!-- Thinking Indicator -->
             <div v-if="isThinking" class="flex items-start gap-2 pt-1">
               <div class="w-14 h-14 shrink-0 flex items-center justify-center">
-                <img src="/icons/wallets/EF-profile.png" alt="EleFam" class="w-full h-full object-contain">
+                <img src="/icons/wallets/EF-profile.png" alt="Marti" class="w-full h-full object-contain">
               </div>
               <div class="rounded-[20px] rounded-bl-[5px] bg-muted/80 backdrop-blur-sm px-4 py-2.5 text-[15px] text-muted-foreground w-fit animate-pulse shadow-sm">
                 {{ currentIntentType === 'query' ? 'Thinking...' : 'Processing...' }}
@@ -203,7 +356,7 @@ watch(
           >
             <textarea
               v-model="input"
-              placeholder="Message EleFam..."
+              placeholder="Message Marti..."
               class="flex-1 bg-transparent border-none focus:ring-0 focus:outline-none py-2 px-4 text-[15px] resize-none max-h-32 min-h-[40px] leading-[1.2] text-foreground placeholder:text-muted-foreground/60"
               :disabled="isThinking"
               @keydown.enter.prevent="sendMessage()"
@@ -224,15 +377,47 @@ watch(
     </div>
   </Transition>
 
-  <div class="fixed bottom-28 right-4 z-20 sm:right-6 sm:bottom-24">
-    <UiButton
-      v-if="!isOpen"
-      size="icon"
-      class="h-14 w-14 rounded-full shadow-[0_8px_25px_rgba(var(--primary-rgb),0.35)]"
-      @click="openChat"
-      aria-label="Open EleFam chat"
+  <div v-if="!isOpen" class="fixed bottom-[140px] right-4 z-20 sm:right-6 sm:bottom-[120px]">
+    <button
+      class="flex items-center bg-[#f0f4ff]/95 dark:bg-[#181f38]/95 border-2 border-black/20 dark:border-white/20 rounded-full shadow-[0_12px_40px_rgba(0,0,0,0.08)] hover:shadow-[0_16px_50px_rgba(0,0,0,0.15)] transition-all duration-[600ms] ease-in-out hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-black/20 backdrop-blur-md overflow-hidden whitespace-nowrap"
+      :class="(isInactive || isUserCollapsed)
+        ? 'w-14 h-14 justify-center p-0 gap-0'
+        : 'w-[172px] h-14 pl-3.5 pr-5 gap-2.5'"
+      @click="onFabClick"
+      @pointerdown="onFabPointerDown"
+      @pointerup="onFabPointerUp"
+      @touchstart.passive="onFabTouchStart"
+      @touchend="onFabTouchEnd"
+      aria-label="Ask Marti AI"
     >
-      <MessageCircle class="h-6 w-6" />
-    </UiButton>
+      <div class="relative shrink-0">
+        <img src="/icons/wallets/EF-profile.png" alt="Marti" class="w-11 h-11 object-contain" />
+        <div class="absolute inset-0 rounded-full bg-primary/20 blur-md -z-10"></div>
+      </div>
+      <Transition name="fade-slide">
+        <span v-if="!(isInactive || isUserCollapsed)" class="font-bold text-slate-800 dark:text-slate-200 text-[13px] sm:text-sm tracking-wide shrink-0">Ask Marti AI</span>
+      </Transition>
+    </button>
   </div>
 </template>
+
+<style scoped>
+.nav-pill::-webkit-scrollbar { display: none; }
+.nav-pill { -ms-overflow-style: none; scrollbar-width: none; }
+
+.fade-slide-enter-active,
+.fade-slide-leave-active {
+  transition: all 0.6s ease-in-out;
+}
+
+.fade-slide-enter-from {
+  opacity: 0;
+  transform: translateX(-10px);
+}
+
+.fade-slide-leave-to {
+  opacity: 0;
+  transform: translateX(-10px);
+}
+</style>
+

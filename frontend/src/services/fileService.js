@@ -1,7 +1,7 @@
 import api from "@/lib/axios.js";
 
 export const fileService = {
-  getAll: (page = 1, perPage = 20) =>
+  getAll: (page = 1, perPage = 10) =>
     api.get("/files", { params: { page, per_page: perPage } }),
   upload: (formData, onProgress) =>
     api.post("/files", formData, {

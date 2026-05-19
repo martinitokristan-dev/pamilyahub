@@ -47,6 +47,7 @@ class UserStatsService
             [
                 'notes_count'      => 0,
                 'expenses_total'   => 0,
+                'income_total'     => 0,
                 'debts_owed_to_me' => 0,
                 'debts_i_owe'      => 0,
                 'files_count'      => 0,

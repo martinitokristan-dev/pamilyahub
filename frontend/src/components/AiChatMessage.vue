@@ -22,6 +22,10 @@ const bubbleClass = computed(() => {
   if (props.message.kind === 'tip' || props.message.kind === 'action') {
     return `${base} bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 rounded-[20px] rounded-bl-[5px]`
   }
+
+  if (props.message.kind === 'question') {
+    return `${base} bg-primary/10 text-primary border border-primary/30 rounded-[20px] rounded-bl-[5px]`
+  }
   
   return `${base} bg-muted/80 text-foreground rounded-[20px] rounded-bl-[5px] backdrop-blur-sm`
 })
@@ -29,6 +33,7 @@ const bubbleClass = computed(() => {
 function getWalletIcon(type) {
   if (!type) return ''
   const t = String(type).toLowerCase()
+  if (t === 'lending' || t === 'lent' || t === 'lend') return '/icons/wallets/lending.png'
   if (t === 'metrobank') return '/icons/wallets/metrobank.jpg'
   return `/icons/wallets/${t}.png`
 }
@@ -45,12 +50,18 @@ function getWalletIcon(type) {
     <div class="relative max-w-[75%]" :class="bubbleClass">
       <div class="flex items-start gap-2.5">
         <div v-if="message.walletType" class="shrink-0 mt-0.5">
-          <img :src="getWalletIcon(message.walletType)" class="w-6 h-6 object-contain rounded-md shadow-sm border border-white/20" />
+          <img 
+            :src="getWalletIcon(message.walletType)" 
+            :class="['w-6 h-6 object-contain rounded-md shadow-sm border border-white/20', ['lending', 'lent', 'lend'].includes(String(message.walletType).toLowerCase()) ? 'dark:invert' : '']" 
+          />
         </div>
-        <div v-else-if="message.kind === 'action'" class="shrink-0 mt-1">
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-500"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+        <div v-else-if="message.kind === 'action'" class="shrink-0 mt-0.5 w-6 h-6 flex items-center justify-center">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-500"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
         </div>
-        <span class="whitespace-pre-line">{{ message.text }}</span>
+        <div class="flex flex-col gap-2">
+          <span class="whitespace-pre-line">{{ message.text }}</span>
+          <span v-if="message.reminder" class="text-purple-500 font-medium whitespace-pre-line">{{ message.reminder }}</span>
+        </div>
       </div>
     </div>
 

@@ -3,7 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.js'
 import { useDarkMode } from '@/composables/useDarkMode.js'
-import { Moon, Sun, User, LogOut, ChevronRight, Bell, Shield, Banknote } from 'lucide-vue-next'
+import { Moon, Sun, User, LogOut, ChevronRight, Bell, Shield, Banknote, BookOpen } from 'lucide-vue-next'
 import UiCard from '@/components/ui/Card.vue'
 import UiCardContent from '@/components/ui/CardContent.vue'
 import UiButton from '@/components/ui/Button.vue'
@@ -124,6 +124,25 @@ async function handleSignOut() {
             />
           </button>
         </div>
+      </UiCardContent>
+    </UiCard>
+
+    <!-- Help & Support -->
+    <p class="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1 mb-2">Help & Support</p>
+    <UiCard class="mb-4 overflow-hidden">
+      <UiCardContent class="p-0 divide-y divide-border">
+        <RouterLink to="/guide" class="flex items-center justify-between px-5 py-4 hover:bg-muted/30 transition-colors">
+          <div class="flex items-center gap-3">
+            <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-100 dark:bg-teal-900/30">
+              <BookOpen class="h-4 w-4 text-teal-600 dark:text-teal-400" />
+            </div>
+            <div>
+              <p class="text-sm font-medium">Quick Start Guide</p>
+              <p class="text-xs text-muted-foreground">View setup checklist and tips</p>
+            </div>
+          </div>
+          <ChevronRight class="h-4 w-4 text-muted-foreground" />
+        </RouterLink>
       </UiCardContent>
     </UiCard>
 

@@ -17,7 +17,7 @@ export const useFilesStore = defineStore("files", () => {
   const cacheTime = ref(null);
   const pagination = ref({
     page: 1,
-    per_page: 20,
+    per_page: 10,
     total: 0,
     last_page: 1,
   });
@@ -28,7 +28,7 @@ export const useFilesStore = defineStore("files", () => {
     return Date.now() - cacheTime.value < CACHE_TTL;
   }
 
-  async function fetchAll(force = false, page = 1, perPage = 20) {
+  async function fetchAll(force = false, page = 1, perPage = 10) {
     const cacheKey = `files_page_${page}`
     lastPage.value = page
 

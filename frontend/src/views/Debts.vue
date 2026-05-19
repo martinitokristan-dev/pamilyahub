@@ -38,7 +38,7 @@ watch([activeTab, currentPage, debouncedSearch], () => {
     ...(activeTab.value !== 'all' ? { type: activeTab.value } : {}),
     ...(debouncedSearch.value.trim() ? { search: debouncedSearch.value.trim() } : {})
   }
-  store.fetchAll(false, currentPage.value, 20, filters)
+  store.fetchAll(false, currentPage.value, 10, filters)
   dashboardStore.fetchStats()
 })
 
@@ -50,7 +50,7 @@ watch([activeTab, searchQuery], () => {
 onMounted(() => {
   const filters = activeTab.value === 'all' ? {} : { type: activeTab.value }
   // Use false for force parameter to enable caching
-  store.fetchAll(false, currentPage.value, 20, filters)
+  store.fetchAll(false, currentPage.value, 10, filters)
   dashboardStore.fetchStats()
 })
 const showForm = ref(false)
@@ -237,34 +237,6 @@ const totalBalance = computed(() => {
       <UiInput v-model="searchQuery" class="pl-9" placeholder="Search by name or notes…" />
     </div>
 
-    <!-- Pagination Controls -->
-    <div v-if="store.pagination.total > 10" class="flex items-center justify-end mb-6">
-      <div class="flex items-center bg-card border border-border shadow-sm rounded-full p-1 gap-1">
-        <button 
-          class="h-11 w-11 flex items-center justify-center rounded-full transition-all duration-200 hover:bg-muted active:scale-90 disabled:opacity-30 disabled:pointer-events-none"
-          :disabled="currentPage <= 1"
-          @click="currentPage--"
-          @mouseenter="currentPage > 1 && store.fetchAll(false, currentPage - 1, 20, { ...(activeTab !== 'all' ? { type: activeTab } : {}), ...(debouncedSearch.trim() ? { search: debouncedSearch.trim() } : {}) })"
-        >
-          <ChevronLeft class="h-5 w-5" />
-        </button>
-        
-        <div class="px-4 py-1 text-xs font-bold tracking-tight text-foreground flex items-center gap-1.5 border-x border-border/50">
-          <span class="text-primary">{{ currentPage }}</span>
-          <span class="text-muted-foreground/50">/</span>
-          <span>{{ store.pagination.last_page }}</span>
-        </div>
-
-        <button 
-          class="h-11 w-11 flex items-center justify-center rounded-full transition-all duration-200 hover:bg-muted active:scale-90 disabled:opacity-30 disabled:pointer-events-none"
-          :disabled="currentPage >= store.pagination.last_page"
-          @click="currentPage++"
-          @mouseenter="currentPage < store.pagination.last_page && store.fetchAll(false, currentPage + 1, 20, { ...(activeTab !== 'all' ? { type: activeTab } : {}), ...(debouncedSearch.trim() ? { search: debouncedSearch.trim() } : {}) })"
-        >
-          <ChevronRight class="h-5 w-5" />
-        </button>
-      </div>
-    </div>
 
     <div v-if="store.loading" class="space-y-2">
       <SkeletonListItem v-for="i in 4" :key="i" :show-icon="false" />
@@ -339,6 +311,35 @@ const totalBalance = computed(() => {
           </div>
         </div>
       </UiCard>
+    </div>
+
+    <!-- Pagination Controls -->
+    <div v-if="store.pagination.total > 10" class="flex items-center justify-center mt-6">
+      <div class="flex items-center bg-card border border-border shadow-sm rounded-full p-1 gap-1">
+        <button 
+          class="h-11 w-11 flex items-center justify-center rounded-full transition-all duration-200 hover:bg-muted active:scale-90 disabled:opacity-30 disabled:pointer-events-none"
+          :disabled="currentPage <= 1"
+          @click="currentPage--"
+          @mouseenter="currentPage > 1 && store.fetchAll(false, currentPage - 1, 10, { ...(activeTab !== 'all' ? { type: activeTab } : {}), ...(debouncedSearch.trim() ? { search: debouncedSearch.trim() } : {}) })"
+        >
+          <ChevronLeft class="h-5 w-5" />
+        </button>
+        
+        <div class="px-4 py-1 text-xs font-bold tracking-tight text-foreground flex items-center gap-1.5 border-x border-border/50">
+          <span class="text-primary">{{ currentPage }}</span>
+          <span class="text-muted-foreground/50">/</span>
+          <span>{{ store.pagination.last_page }}</span>
+        </div>
+
+        <button 
+          class="h-11 w-11 flex items-center justify-center rounded-full transition-all duration-200 hover:bg-muted active:scale-90 disabled:opacity-30 disabled:pointer-events-none"
+          :disabled="currentPage >= store.pagination.last_page"
+          @click="currentPage++"
+          @mouseenter="currentPage < store.pagination.last_page && store.fetchAll(false, currentPage + 1, 10, { ...(activeTab !== 'all' ? { type: activeTab } : {}), ...(debouncedSearch.trim() ? { search: debouncedSearch.trim() } : {}) })"
+        >
+          <ChevronRight class="h-5 w-5" />
+        </button>
+      </div>
     </div>
 
     <Teleport to="body">
