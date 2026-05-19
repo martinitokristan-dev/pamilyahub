@@ -379,7 +379,7 @@ watch(
 
   <div v-if="!isOpen" class="fixed bottom-[140px] right-4 z-20 sm:right-6 sm:bottom-[120px]">
     <button
-      class="flex items-center bg-[#f0f4ff]/95 dark:bg-[#181f38]/95 border-2 border-black/20 dark:border-white/20 rounded-full shadow-[0_12px_40px_rgba(0,0,0,0.08)] hover:shadow-[0_16px_50px_rgba(0,0,0,0.15)] transition-all duration-[600ms] ease-in-out hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-black/20 backdrop-blur-md overflow-hidden whitespace-nowrap"
+      class="flex items-center bg-[#f0f4ff]/95 dark:bg-[#181f38]/95 border-2 border-black/20 dark:border-white/20 rounded-full shadow-[0_12px_40px_rgba(0,0,0,0.08)] hover:shadow-[0_16px_50px_rgba(0,0,0,0.15)] transition-all duration-500 ease-in-out hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-black/20 backdrop-blur-md overflow-hidden whitespace-nowrap"
       :class="(isInactive || isUserCollapsed)
         ? 'w-14 h-14 justify-center p-0 gap-0'
         : 'w-[172px] h-14 pl-3.5 pr-5 gap-2.5'"
