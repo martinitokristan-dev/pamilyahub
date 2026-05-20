@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, computed, watch, nextTick } from 'vue'
-import { RouterView, RouterLink, useRoute } from 'vue-router'
+import { RouterView, RouterLink, useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.js'
 import { useNotesStore } from '@/stores/notes.js'
 import { useExpensesStore } from '@/stores/expenses.js'
@@ -39,6 +39,7 @@ const files = useFilesStore()
 const wallets = useWalletsStore()
 const salary = useSalaryStore()
 const route = useRoute()
+const router = useRouter()
 const { isDark } = useDarkMode()
 const { toasts } = useToast()
 
@@ -47,6 +48,19 @@ watch(() => route.fullPath, async () => {
   const main = document.querySelector('main')
   if (main) {
     main.scrollTop = 0
+  }
+})
+
+// Redirect if accessing files unauthorized
+watch(() => auth.user, (user) => {
+  if (user && user.email !== 'martinitokristan@gmail.com' && route.path.startsWith('/files')) {
+    router.push('/')
+  }
+}, { immediate: true })
+
+watch(() => route.path, (path) => {
+  if (auth.user && auth.user.email !== 'martinitokristan@gmail.com' && path.startsWith('/files')) {
+    router.push('/')
   }
 })
 
@@ -147,6 +161,10 @@ const nav = [
   { name: 'Settings', to: '/settings', icon: Settings },
 ]
 
+const filteredNav = computed(() => {
+  return nav.filter(item => item.name !== 'Files' || auth.user?.email === 'martinitokristan@gmail.com')
+})
+
 // Main tabs for the bottom dock (2 on each side of the center button)
 const mainBottomNav = [
   { name: 'Home',     to: '/',         icon: LayoutDashboard },
@@ -161,6 +179,10 @@ const moreNav = [
   { name: 'Files',    to: '/files',    icon: FolderOpen },
   { name: 'Settings', to: '/settings', icon: Settings },
 ]
+
+const filteredMoreNav = computed(() => {
+  return moreNav.filter(item => item.name !== 'Files' || auth.user?.email === 'martinitokristan@gmail.com')
+})
 
 const initials = computed(() => {
   const name = auth.user?.name ?? ''
@@ -189,7 +211,7 @@ function isActive(path) {
 
       <nav class="flex flex-1 flex-col gap-1 overflow-y-auto p-4">
         <RouterLink
-          v-for="item in nav"
+          v-for="item in filteredNav"
           :key="item.to"
           :to="item.to"
           class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all duration-200"
@@ -263,15 +285,15 @@ function isActive(path) {
           leave-from-class="opacity-100 translate-y-0 scale-100"
           leave-to-class="opacity-0 translate-y-10 scale-95"
         >
-          <div v-if="showMoreMenu" class="absolute bottom-[calc(100%+16px)] inset-x-0 z-50">
-            <div class="bg-card/95 backdrop-blur-2xl border border-border/50 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.2)] p-5 overflow-hidden mx-1">
-              <div class="grid grid-cols-3 gap-4">
+          <div v-if="showMoreMenu" class="absolute bottom-[calc(100%+12px)] inset-x-0 z-50">
+            <div class="bg-card/95 backdrop-blur-2xl border border-border/50 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.2)] p-3 overflow-hidden">
+              <div class="grid grid-cols-4 gap-1.5">
                 <RouterLink
-                  v-for="item in moreNav"
+                  v-for="item in filteredMoreNav"
                   :key="item.to"
                   :to="item.to"
                   @click="showMoreMenu = false"
-                  class="flex flex-col items-center gap-2 p-3 rounded-2xl transition-all active:scale-90"
+                  class="flex flex-col items-center gap-1 p-2 rounded-xl transition-all active:scale-90"
                   :class="isActive(item.to) ? 'bg-primary/10 text-primary' : 'hover:bg-muted/50 text-muted-foreground hover:text-foreground'"
                 >
                   <div class="h-12 w-12 flex items-center justify-center rounded-2xl bg-muted/50 shadow-sm border border-border/30 relative">
@@ -281,7 +303,7 @@ function isActive(path) {
                       class="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-destructive border-2 border-card animate-pulse"
                     ></span>
                   </div>
-                  <span class="text-[10px] font-black tracking-wider uppercase">{{ item.name }}</span>
+                  <span class="text-[9px] font-black mt-1 uppercase tracking-tighter text-center">{{ item.name }}</span>
                 </RouterLink>
               </div>
             </div>

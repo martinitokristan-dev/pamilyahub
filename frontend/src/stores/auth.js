@@ -7,6 +7,7 @@ import { getActivePinia } from 'pinia'
 import { useDashboardStore } from './dashboard.js'
 import { useWalletsStore } from './wallets.js'
 import { cacheSingleGet, cacheSingleSet, cacheSingleRemove, isNetworkError } from '@/lib/offlineDb.js'
+import { revokeGoogleCredential } from '@/lib/googleAuth.js'
 
 
 export const useAuthStore = defineStore('auth', () => {
@@ -100,34 +101,44 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function logout() {
+    // 1. Capture the token BEFORE clearing it (needed for server-side logout)
+    const savedToken = localStorage.getItem('auth_token')
+    const userEmail = user.value?.email
+
+    // 2. Clear all auth state IMMEDIATELY (security first)
+    localStorage.removeItem('auth_token')
+    sessionStorage.clear()
+    user.value = null
+
+    // 3. Revoke Google credential so next sign-in always shows account chooser
+    revokeGoogleCredential(userEmail)
+
+    // 4. Clear user cache from IndexedDB (but NOT AI chat history)
     try {
-      await authService.logout()
-    } finally {
-      // Clear token and storage
-      localStorage.removeItem('auth_token')
-      sessionStorage.clear()
+      await cacheSingleRemove('user')
+    } catch { /* ignore */ }
 
-      // Clear user cache
-      try {
-        await cacheSingleRemove('user')
-      } catch { /* ignore */ }
+    // 5. Reset all Pinia stores
+    const pinia = getActivePinia()
+    if (pinia) {
+      Object.values(pinia.state.value).forEach((storeState) => {
+        if ('$reset' in storeState) {
+          storeState.$reset()
+        } else {
+          if ('fetched' in storeState) storeState.fetched = false
+          if ('user' in storeState) storeState.user = null
+        }
+      })
+    }
 
-      // Reset all Pinia stores
-      const pinia = getActivePinia()
-      if (pinia) {
-        Object.values(pinia.state.value).forEach((storeState) => {
-          if ('$reset' in storeState) {
-            storeState.$reset()
-          } else {
-            // Fallback: reset individual properties
-            if ('fetched' in storeState) storeState.fetched = false
-            if ('user' in storeState) storeState.user = null
-          }
-        })
-      }
+    // 6. Navigate to login BEFORE any network calls (instant UX)
+    router.push({ name: 'login' })
 
-      user.value = null
-      router.push({ name: 'login' })
+    // 7. Fire server-side logout with the SAVED token (background, non-blocking)
+    if (savedToken) {
+      api.post('/auth/logout', null, {
+        headers: { Authorization: `Bearer ${savedToken}` },
+      }).catch(() => {})
     }
   }
 
@@ -162,5 +173,27 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  return { user, loading, error, register, login, logout, fetchMe, updateProfile, hydrateUser }
+  async function loginWithGoogle(idToken) {
+    loading.value = true
+    error.value = null
+    try {
+      const res = await authService.googleLogin(idToken)
+
+      user.value = res.data.data.user
+      await cacheSingleSet('user', user.value)
+
+      if (res.data.data.token) {
+        localStorage.setItem('auth_token', res.data.data.token)
+      }
+
+      router.push({ name: 'dashboard' })
+    } catch (e) {
+      error.value = e.response?.data?.message ?? 'Google sign-in failed'
+      throw e
+    } finally {
+      loading.value = false
+    }
+  }
+
+  return { user, loading, error, register, login, logout, fetchMe, updateProfile, hydrateUser, loginWithGoogle }
 })

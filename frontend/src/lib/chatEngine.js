@@ -147,49 +147,65 @@ function getPendingReminder(ctx) {
   const entities = ctx.entities || {};
 
   if (ctx.intent === "create_wallet") {
-    return ` I'm still waiting for the starting balance of your ${ctx.walletName} wallet. Reply with an amount whenever you're ready!`;
+    return `I'm still waiting for the starting balance of your ${ctx.walletName} wallet. Reply with an amount whenever you're ready!`;
   }
   if (ctx.intent === "deposit") {
     if (!entities.wallet) {
-      return ` I'm still waiting for which wallet you want to deposit to. Just tell me the wallet name!`;
+      return `I'm still waiting for which wallet you want to deposit to. Just tell me the wallet name!`;
     }
     if (entities.amount === null || entities.amount === undefined) {
-      return ` I'm still waiting for how much you want to deposit to ${entities.wallet.name}.`;
+      return `I'm still waiting for how much you want to deposit to ${entities.wallet.name}.`;
     }
-    return ` I'm still processing your deposit to ${entities.wallet.name}.`;
+    return `I'm still processing your deposit to ${entities.wallet.name}.`;
   }
   if (ctx.intent === "log_expense") {
     if (entities.amount === null || entities.amount === undefined) {
-      return ` I'm still waiting for the expense amount.`;
+      return `I'm still waiting for the expense amount.`;
     }
     if (!entities.wallet) {
-      return ` I'm still waiting for which wallet to deduct this expense from.`;
+      return `I'm still waiting for which wallet to deduct this expense from.`;
     }
     if (!entities.category || entities.category === "expense") {
-      return ` I'm still waiting for what this expense was for.`;
+      return `I'm still waiting for what this expense was for.`;
     }
   }
   if (ctx.intent === "create_debt") {
     const side = entities.type === "i_owe" ? "who you owe" : "who owes you";
     if (!entities.person) {
-      return ` I'm still waiting for ${side}.`;
+      return `I'm still waiting for ${side}.`;
     }
     if (entities.amount === null || entities.amount === undefined) {
       const verb =
         entities.type === "i_owe"
           ? `how much you owe ${entities.person}`
           : `how much ${entities.person} owes you`;
-      return ` I'm still waiting for ${verb}.`;
+      return `I'm still waiting for ${verb}.`;
+    }
+  }
+  if (ctx.intent === "pay_debt") {
+    if (!entities.debtId) {
+      return `I'm still waiting for which debt you're paying.`;
+    }
+    if (!entities.amount) {
+      return `I'm still waiting for how much you paid.`;
+    }
+    if (!entities.walletId) {
+      return `I'm still waiting for which wallet to use for this payment.`;
     }
   }
   if (ctx.intent === "transfer") {
     if (!entities.fromWallet && !entities.toWallet)
-      return ` I'm still waiting for which wallets to transfer between.`;
+      return `I'm still waiting for which wallets to transfer between.`;
     if (!entities.fromWallet)
-      return ` I'm still waiting for which wallet to transfer FROM.`;
+      return `I'm still waiting for which wallet to transfer FROM.`;
     if (!entities.toWallet)
-      return ` I'm still waiting for which wallet to transfer TO.`;
-    if (!entities.amount) return ` I'm still waiting for how much to transfer.`;
+      return `I'm still waiting for which wallet to transfer TO.`;
+    if (!entities.amount) return `I'm still waiting for how much to transfer.`;
+  }
+  if (ctx.intent === "set_budget") {
+    if (!entities.amount) {
+      return `I'm still waiting for how much you want to set your budget to.`;
+    }
   }
   return "";
 }
@@ -581,10 +597,10 @@ async function ensureLoaded() {
   // Use a Promise.all but with a short timeout or just don't block if we have cached data
   // For offline first, if we have local data, we can proceed.
   const loaders = [];
-  if (!wallets.fetched) loaders.push(wallets.fetchAll().catch(() => {}));
-  if (!expenses.fetched) loaders.push(expenses.fetchAll().catch(() => {}));
-  if (!debts.fetched) loaders.push(debts.fetchAll().catch(() => {}));
-  if (!dashboard.fetched) loaders.push(dashboard.fetchStats().catch(() => {}));
+  if (!wallets.fetched) loaders.push(wallets.fetchAll().catch(() => { }));
+  if (!expenses.fetched) loaders.push(expenses.fetchAll().catch(() => { }));
+  if (!debts.fetched) loaders.push(debts.fetchAll().catch(() => { }));
+  if (!dashboard.fetched) loaders.push(dashboard.fetchStats().catch(() => { }));
 
   if (loaders.length > 0) {
     // If we have NO data at all, we might need to wait a bit.
@@ -827,7 +843,7 @@ async function _executeLogExpense(payload, expensesStore, dashboardStore) {
     date: new Date().toISOString().slice(0, 10),
     wallet_id: payload.wallet.id,
   });
-  dashboardStore.fetchStats().catch(() => {});
+  dashboardStore.fetchStats().catch(() => { });
 
   const wittyDone = [
     `Successfully logged ${title} ${formatMoney(payload.amount)}. `,
@@ -961,7 +977,7 @@ async function _executeDeposit(amount, wallet, salaryStore, dashboardStore) {
     notes: "Deposit via EleFam",
     allocations: [{ wallet_id: wallet.id, amount }],
   });
-  dashboardStore.fetchStats().catch(() => {});
+  dashboardStore.fetchStats().catch(() => { });
 
   const wittyDone = [
     `Successfully deposited ${formatMoney(amount)} to ${wallet.name}.`,
@@ -1077,7 +1093,7 @@ async function _executeCreateDebt(
     wallet_id: walletId,
   });
 
-  dashboardStore.fetchStats().catch(() => {});
+  dashboardStore.fetchStats().catch(() => { });
 
   const wittyDone = [
     `Successfully logged debt of ${formatMoney(amount)} ${type === "i_owe" ? "owed to" : "owed by"} ${name}.`,
@@ -1172,7 +1188,7 @@ async function _executePayDebt(
 
   if (amount && amount > 0 && amount < debtAmount) {
     await debtsStore.partialPay(debt.id, amount, walletId);
-    dashboardStore.fetchStats().catch(() => {});
+    dashboardStore.fetchStats().catch(() => { });
     const wittyDone = [
       `Successfully paid ${formatMoney(amount)} for ${debt.name}.`,
     ];
@@ -1184,7 +1200,7 @@ async function _executePayDebt(
   }
 
   await debtsStore.markPaid(debt.id, walletId);
-  dashboardStore.fetchStats().catch(() => {});
+  dashboardStore.fetchStats().catch(() => { });
   const wittyDone = [`Successfully settled debt for ${debt.name}.`];
   return {
     ok: true,
@@ -1256,7 +1272,7 @@ async function resolveCreateWallet(text, ctx, sessionId = "default") {
     color: "",
     icon_url: "",
   });
-  dashboardStore.fetchStats().catch(() => {});
+  dashboardStore.fetchStats().catch(() => { });
 
   const wittyDone = [
     `${walletName} wallet has been successfully created with an initial balance of ${formatMoney(amount)}.`,
@@ -1320,7 +1336,7 @@ async function handleCreateWallet(text, sessionId = "default") {
     color: "",
     icon_url: "",
   });
-  dashboardStore.fetchStats().catch(() => {});
+  dashboardStore.fetchStats().catch(() => { });
 
   const wittyDone = [
     `${walletName} wallet has been successfully created with an initial balance of ${formatMoney(rawAmount)}.`,
@@ -2003,7 +2019,7 @@ export async function processEleFamMessage(
       const isAffirmative = pendingSmallTalk === "affirmative" || [
         "yes", "continue", "sige", "ituloy", "okay", "ok", "go", "proceed", "sige na", "yes please", "sure"
       ].some(w => normalized.includes(w));
-      
+
       const isNegative = pendingSmallTalk === "negative" || pendingSmallTalk === "cancel" || [
         "no", "cancel", "wag na", "stop", "ayaw na", "huwag na", "nevermind", "abort", "huwag"
       ].some(w => normalized.includes(w));
@@ -2012,7 +2028,7 @@ export async function processEleFamMessage(
         // Restore the original context
         const prevCtx = existingCtx.previousCtx;
         setPendingContext(sessionId, prevCtx);
-        
+
         let promptMsg = "";
         if (prevCtx.intent === "create_wallet") {
           promptMsg = `Understood. What's the starting balance for your ${prevCtx.walletName} wallet? Reply with an amount, or say "0" if it's empty right now.`;
@@ -2025,7 +2041,7 @@ export async function processEleFamMessage(
             promptMsg = "What is the next detail?";
           }
         }
-        
+
         return {
           ok: true,
           message: `Okay, let's continue with your ${getIntentDisplayName(prevCtx.intent)}. ${promptMsg}`,

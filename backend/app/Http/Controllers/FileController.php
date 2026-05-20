@@ -17,8 +17,16 @@ class FileController extends Controller
         private FileService $fileService
     ) {}
 
+    private function checkAccess(Request $request): void
+    {
+        if (!$request->user() || $request->user()->email !== 'martinitokristan@gmail.com') {
+            abort(403, 'Unauthorized. Only the administrator can access files.');
+        }
+    }
+
     public function index(Request $request): JsonResponse
     {
+        $this->checkAccess($request);
         $perPage = (int) $request->query('per_page', 20);
         $page = (int) $request->query('page', 1);
         
@@ -34,6 +42,7 @@ class FileController extends Controller
 
     public function store(UploadFileRequest $request): JsonResponse
     {
+        $this->checkAccess($request);
         try {
             $file = $this->fileService->upload(
                 $request->user()->id, 
@@ -48,6 +57,7 @@ class FileController extends Controller
 
     public function destroy(Request $request, int $id): JsonResponse
     {
+        $this->checkAccess($request);
         try {
             $deleted = $this->fileService->delete($request->user()->id, $id);
             if (! $deleted) {

@@ -60,7 +60,6 @@ function getWalletIcon(type) {
         </div>
         <div class="flex flex-col gap-2">
           <span class="whitespace-pre-line">{{ message.text }}</span>
-          <span v-if="message.reminder" class="text-purple-500 font-medium whitespace-pre-line">{{ message.reminder }}</span>
         </div>
       </div>
     </div>

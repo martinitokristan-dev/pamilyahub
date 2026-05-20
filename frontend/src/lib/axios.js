@@ -34,11 +34,17 @@ let isRedirecting = false
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    if (error.response?.status === 401 && !isRedirecting) {
+    if (error.response?.status === 401) {
       const isAuthPage = window.location.pathname.includes('/login') ||
                          window.location.pathname.includes('/register')
 
-      if (!isAuthPage) {
+      // If already on an auth page or no token exists, silently swallow the 401
+      // (this prevents console floods from stale KeepAlive requests after logout)
+      if (isAuthPage || !localStorage.getItem('auth_token')) {
+        return Promise.reject(error)
+      }
+
+      if (!isRedirecting) {
         isRedirecting = true
         localStorage.removeItem('auth_token')
         try {

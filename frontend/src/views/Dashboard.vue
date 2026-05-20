@@ -756,8 +756,9 @@ const stats = computed(() => {
         class="fixed inset-0 z-[120] bg-black/55 backdrop-blur-sm flex items-center justify-center p-4"
         @mousedown.self="dismissSetupGuide"
       >
-        <UiCard class="w-full max-w-2xl max-h-[90vh] overflow-hidden border-primary/20 shadow-2xl">
-          <UiCardContent class="p-5 sm:p-6 overflow-y-auto max-h-[90vh]">
+        <UiCard class="w-full max-w-2xl max-h-[90vh] overflow-hidden border-primary/20 shadow-2xl flex flex-col">
+          <!-- Sticky Header -->
+          <div class="shrink-0 p-5 sm:p-6 pb-0">
             <div class="flex items-start justify-between gap-3 mb-5">
               <div>
                 <p class="text-[11px] font-bold uppercase tracking-[0.16em] text-primary">Quick Start Guide</p>
@@ -767,13 +768,16 @@ const stats = computed(() => {
               <button
                 type="button"
                 @click="dismissSetupGuide"
-                class="h-8 w-8 shrink-0 rounded-lg text-muted-foreground hover:bg-muted transition-colors"
+                class="h-10 w-10 shrink-0 rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground transition-colors flex items-center justify-center text-2xl font-medium"
                 aria-label="Close setup guide"
               >
                 ×
               </button>
             </div>
+          </div>
 
+          <!-- Scrollable Steps Content -->
+          <UiCardContent class="p-5 sm:p-6 pt-0 overflow-y-auto flex-1 min-h-0 thin-scrollbar">
             <div class="space-y-3.5">
               <div
                 v-for="step in setupSteps"

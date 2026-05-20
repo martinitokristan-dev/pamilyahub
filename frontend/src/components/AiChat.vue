@@ -170,6 +170,12 @@ async function sendMessage(rawText = input.value) {
     const result = await processEleFamMessage(text)
     await new Promise((resolve) => setTimeout(resolve, 250))
     pushMessage('assistant', result.message, result.kind || 'text', result.walletType)
+    // If a reminder exists (query during active multi-turn flow), push it as a separate purple bubble
+    if (result.reminder) {
+      await scrollToBottom()
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      pushMessage('assistant', result.reminder, 'question')
+    }
   } catch (_err) {
     pushMessage('assistant', 'I encountered an error while processing that command. Please try again.', 'guard')
   } finally {
@@ -397,8 +403,8 @@ watch(
           ? 'bg-[#181f38]/95 border-white/20 text-slate-200' 
           : 'bg-[#f0f4ff]/95 border-black/20 text-slate-800',
         (isInactive || isUserCollapsed)
-          ? 'w-14 h-14 justify-center p-0 gap-0'
-          : 'w-[172px] h-14 pl-3.5 pr-5 gap-2.5'
+          ? 'w-14 h-14 p-1.5 gap-2.5 opacity-90'
+          : 'w-[164px] h-14 p-1.5 pr-5 gap-2.5 opacity-100'
       ]"
       @click="onFabClick"
       @pointerdown="onFabPointerDown"
@@ -409,9 +415,12 @@ watch(
         <img src="/icons/wallets/EF-profile.png" alt="Marti" class="w-11 h-11 object-contain" />
         <div class="absolute inset-0 rounded-full bg-primary/20 blur-md -z-10"></div>
       </div>
-      <Transition name="fade-slide">
-        <span v-if="!(isInactive || isUserCollapsed)" class="font-bold text-current text-[13px] sm:text-sm tracking-wide shrink-0">Ask Marti AI</span>
-      </Transition>
+      <span 
+        class="font-bold text-current text-[13px] sm:text-sm tracking-wide shrink-0 transition-opacity duration-500 ease-in-out" 
+        :class="(isInactive || isUserCollapsed) ? 'opacity-0' : 'opacity-100'"
+      >
+        Ask Marti AI
+      </span>
     </button>
   </div>
 </template>
@@ -419,20 +428,5 @@ watch(
 <style scoped>
 .nav-pill::-webkit-scrollbar { display: none; }
 .nav-pill { -ms-overflow-style: none; scrollbar-width: none; }
-
-.fade-slide-enter-active,
-.fade-slide-leave-active {
-  transition: all 0.6s ease-in-out;
-}
-
-.fade-slide-enter-from {
-  opacity: 0;
-  transform: translateX(-10px);
-}
-
-.fade-slide-leave-to {
-  opacity: 0;
-  transform: translateX(-10px);
-}
 </style>
 

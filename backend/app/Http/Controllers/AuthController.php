@@ -53,6 +53,55 @@ class AuthController extends Controller
         return $this->success($result, 'Logged in successfully');
     }
 
+    public function googleLogin(Request $request)
+    {
+        $request->validate([
+            'id_token' => 'required|string',
+        ]);
+
+        try {
+            $client = new \Google\Client(['client_id' => env('GOOGLE_CLIENT_ID')]);
+            $payload = $client->verifyIdToken($request->id_token);
+
+            if (!$payload) {
+                return response()->json(['message' => 'Invalid Google token'], 401);
+            }
+
+            $googleId = $payload['sub'];
+            $email    = $payload['email'];
+            $name     = $payload['name'] ?? '';
+            $avatar   = $payload['picture'] ?? null;
+
+            // Find existing user or create a new one
+            $user = \App\Models\User::firstOrCreate(
+                ['email' => $email],
+                [
+                    'name'      => $name,
+                    'google_id' => $googleId,
+                    'avatar'    => $avatar,
+                    'password'  => bcrypt(\Illuminate\Support\Str::random(32)),
+                ]
+            );
+
+            // Update google_id if the user already existed without it
+            if (!$user->google_id) {
+                $user->update(['google_id' => $googleId]);
+            }
+
+            $token = $user->createToken('auth_token')->plainTextToken;
+
+            return response()->json([
+                'data' => [
+                    'user'  => $user,
+                    'token' => $token,
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Google sign-in failed: ' . $e->getMessage()], 500);
+        }
+    }
+
     public function logout(Request $request): JsonResponse
     {
         $this->authService->logout($request->user());

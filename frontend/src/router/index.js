@@ -15,6 +15,11 @@ const routes = [
     meta: { guest: true },
   },
   {
+    path: '/auth/google/callback',
+    name: 'google-callback',
+    component: () => import('@/views/GoogleCallback.vue'),
+  },
+  {
     path: '/',
     component: () => import('@/layouts/AppLayout.vue'),
     meta: { requiresAuth: true },
@@ -82,6 +87,12 @@ router.beforeEach(async (to) => {
 
   if (to.meta.guest && isLoggedIn) {
     return { name: 'dashboard' }
+  }
+
+  if (to.name === 'files') {
+    if (auth.user && auth.user.email !== 'martinitokristan@gmail.com') {
+      return { name: 'dashboard' }
+    }
   }
 })
 
