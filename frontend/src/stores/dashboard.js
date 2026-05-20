@@ -6,19 +6,35 @@ import { performSilentFetch } from '@/utils/storeHelper.js'
 import { cacheSingleSet, cacheSingleGet, cacheSingleRemove, isNetworkError } from '@/lib/offlineDb.js'
 
 export const useDashboardStore = defineStore('dashboard', () => {
-  const stats = ref({ notes_count: 0, expenses_total: 0, debts_owed_to_me: 0, debts_i_owe: 0, files_count: 0 })
+  const createDefaultStats = () => ({
+    notes_count: 0,
+    monthly_income: 0,
+    monthly_expenses: 0,
+    remaining_salary: 0,
+    debts_owed_to_me: 0,
+    debts_i_owe: 0,
+    files_count: 0
+  })
+
+  const stats = ref(createDefaultStats())
   const loading = ref(false)
   const fetched = ref(false)
   const error = ref(null)
   const cacheTime = ref(0)
+  const lastCacheKey = ref(null)
 
   async function fetchStats(filters = {}) {
     const m = filters.month ?? new Date().getMonth() + 1
     const y = filters.year ?? new Date().getFullYear()
     const cacheKey = `dashboard_${y}_${m}`
+    const isNewRequest = lastCacheKey.value !== cacheKey
 
-    // Hydrate from IndexedDB if we have no data yet (offline cold start)
-    if (!fetched.value && !stats.value.expenses_total) {
+    if (isNewRequest) {
+      fetched.value = false
+      lastCacheKey.value = cacheKey
+      stats.value = createDefaultStats()
+
+      // Hydrate from IndexedDB if cached for this key (offline cold start / cached month)
       try {
         const cached = await cacheSingleGet('dashboard', cacheKey)
         if (cached) stats.value = cached
@@ -48,11 +64,17 @@ export const useDashboardStore = defineStore('dashboard', () => {
     })
   }
 
-  function adjustStat(key, delta) {
+  async function adjustStat(key, delta) {
     const current = parseFloat(stats.value[key] ?? 0)
     stats.value[key] = current + delta
     if (key === 'monthly_expenses' && stats.value.remaining_salary !== undefined) {
       stats.value.remaining_salary = parseFloat(stats.value.remaining_salary ?? 0) - delta
+    }
+    const cacheKey = lastCacheKey.value || `dashboard_${new Date().getFullYear()}_${new Date().getMonth() + 1}`
+    try {
+      await cacheSingleSet('dashboard', stats.value, cacheKey)
+    } catch (e) {
+      console.error('Failed to update cached dashboard stats', e)
     }
   }
 
@@ -62,8 +84,9 @@ export const useDashboardStore = defineStore('dashboard', () => {
     const cacheKey = `dashboard_${y}_${m}`
     
     fetched.value = false
+    lastCacheKey.value = null
     cacheSingleRemove('dashboard', cacheKey)
   }
 
-  return { stats, loading, fetched, error, cacheTime, fetchStats, adjustStat, invalidate }
+  return { stats, loading, fetched, error, cacheTime, lastCacheKey, fetchStats, adjustStat, invalidate }
 })

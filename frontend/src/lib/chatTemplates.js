@@ -69,6 +69,15 @@ const TEMPLATES = [
   {
     intent: 'pay_debt',
     pattern: /^(?<person>[a-z0-9 ]+?)\s+(paid|paid me|paid me back|paide|paide me back|bayad)$/i
+  },
+  // Set Budget
+  {
+    intent: 'set_budget',
+    pattern: /^(set|change|update|adjust)\s+(my\s+)?budget\s+(limit\s+)?(to|at|is)?\s+(?<amount>(php|p)?\s*\d+(\.\d+)?(k|m)?)$/i
+  },
+  {
+    intent: 'set_budget',
+    pattern: /^(gawing|set\s+ang|iset\s+ang)\s+budget\s+(na|to|sa)?\s+(?<amount>(php|p)?\s*\d+(\.\d+)?(k|m)?)$/i
   }
 ]
 

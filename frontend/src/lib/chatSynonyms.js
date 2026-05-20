@@ -43,6 +43,13 @@ const SYNONYM_GROUPS = {
     'pila pa pwede', 'can i still buy', 'safe to spend',
     'pwede pa ba gumastos', 'naa pa bay budget'
   ],
+  set_budget: [
+    'set my budget', 'set budget', 'change my budget', 'change budget', 'update my budget', 'update budget',
+    'set the budget', 'modify my budget', 'adjust my budget', 'adjust budget', 'gawing budget',
+    'i-set ang budget', 'iset ang budget', 'set budget to', 'set my budget to', 'change budget to',
+    'limit my spending to', 'set spending limit', 'spending limit to', 'limit to',
+    'undo budget', 'revert budget', 'rollback budget', 'bawi budget', 'cancel budget'
+  ],
   create_debt_owed_to_me: [
     'borrowed from me', 'umutang sakin', 'nangutang sakin',
     'niborrow nako', 'nakautang nako', 'he owes me', 'she owes me',

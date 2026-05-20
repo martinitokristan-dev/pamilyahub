@@ -8,6 +8,7 @@ import { cacheSingleGet, cacheSingleSet } from '@/lib/offlineDb.js'
 import { processEleFamMessage, eleFamProfile, clearPendingContext } from '@/lib/chatEngine.js'
 import { detectIntent, getIntentType } from '@/lib/chatIntents.js'
 import { useAuthStore } from '@/stores/auth.js'
+import { useDarkMode } from '@/composables/useDarkMode.js'
 
 const isOpen = ref(false)
 const input = ref('')
@@ -20,11 +21,21 @@ const dragStartY = ref(0)
 const dragStartX = ref(0)
 const dragDeltaY = ref(0)
 
-const isUserCollapsed = ref(false)
+const isUserCollapsed = ref(localStorage.getItem('elefam_chat_user_collapsed') === 'true')
+watch(isUserCollapsed, (newVal) => {
+  if (newVal) {
+    localStorage.setItem('elefam_chat_user_collapsed', 'true')
+  } else {
+    localStorage.removeItem('elefam_chat_user_collapsed')
+  }
+})
+
+const { isDark } = useDarkMode()
+
 let fabStartX = 0
 let fabStartY = 0
 let suppressFabClick = false
-const FAB_SWIPE_THRESHOLD = 55
+const FAB_SWIPE_THRESHOLD = 30
 const FAB_VERTICAL_TOLERANCE = 70
 
 // Inactivity tracking for button collapse
@@ -68,27 +79,28 @@ function endFabGesture(clientX, clientY) {
   }
 }
 
+let wasCollapsedOnStart = false
+let chatOpenedOnPointerUp = false
+
 function onFabPointerDown(event) {
+  suppressFabClick = false
+  wasCollapsedOnStart = isInactive.value || isUserCollapsed.value
   beginFabGesture(event.clientX, event.clientY)
 }
 
 function onFabPointerUp(event) {
   endFabGesture(event.clientX, event.clientY)
-}
-
-function onFabTouchStart(event) {
-  const touch = event.touches?.[0]
-  if (!touch) return
-  beginFabGesture(touch.clientX, touch.clientY)
-}
-
-function onFabTouchEnd(event) {
-  const touch = event.changedTouches?.[0]
-  if (!touch) return
-  endFabGesture(touch.clientX, touch.clientY)
+  if (!suppressFabClick && wasCollapsedOnStart) {
+    chatOpenedOnPointerUp = true
+    openChat()
+  }
 }
 
 function onFabClick() {
+  if (chatOpenedOnPointerUp) {
+    chatOpenedOnPointerUp = false
+    return
+  }
   if (suppressFabClick) {
     suppressFabClick = false
     return
@@ -379,15 +391,18 @@ watch(
 
   <div v-if="!isOpen" class="fixed bottom-[140px] right-4 z-20 sm:right-6 sm:bottom-[120px]">
     <button
-      class="flex items-center bg-[#f0f4ff]/95 dark:bg-[#181f38]/95 border-2 border-black/20 dark:border-white/20 rounded-full shadow-[0_12px_40px_rgba(0,0,0,0.08)] hover:shadow-[0_16px_50px_rgba(0,0,0,0.15)] transition-all duration-500 ease-in-out hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-black/20 backdrop-blur-md overflow-hidden whitespace-nowrap"
-      :class="(isInactive || isUserCollapsed)
-        ? 'w-14 h-14 justify-center p-0 gap-0'
-        : 'w-[172px] h-14 pl-3.5 pr-5 gap-2.5'"
+      class="flex items-center border-2 rounded-full shadow-[0_12px_40px_rgba(0,0,0,0.08)] hover:shadow-[0_16px_50px_rgba(0,0,0,0.15)] transition-all duration-500 ease-in-out hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-black/20 backdrop-blur-md overflow-hidden whitespace-nowrap touch-none"
+      :class="[
+        isDark 
+          ? 'bg-[#181f38]/95 border-white/20 text-slate-200' 
+          : 'bg-[#f0f4ff]/95 border-black/20 text-slate-800',
+        (isInactive || isUserCollapsed)
+          ? 'w-14 h-14 justify-center p-0 gap-0'
+          : 'w-[172px] h-14 pl-3.5 pr-5 gap-2.5'
+      ]"
       @click="onFabClick"
       @pointerdown="onFabPointerDown"
       @pointerup="onFabPointerUp"
-      @touchstart.passive="onFabTouchStart"
-      @touchend="onFabTouchEnd"
       aria-label="Ask Marti AI"
     >
       <div class="relative shrink-0">
@@ -395,7 +410,7 @@ watch(
         <div class="absolute inset-0 rounded-full bg-primary/20 blur-md -z-10"></div>
       </div>
       <Transition name="fade-slide">
-        <span v-if="!(isInactive || isUserCollapsed)" class="font-bold text-slate-800 dark:text-slate-200 text-[13px] sm:text-sm tracking-wide shrink-0">Ask Marti AI</span>
+        <span v-if="!(isInactive || isUserCollapsed)" class="font-bold text-current text-[13px] sm:text-sm tracking-wide shrink-0">Ask Marti AI</span>
       </Transition>
     </button>
   </div>

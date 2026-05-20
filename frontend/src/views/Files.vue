@@ -26,7 +26,10 @@ onMounted(() => {
 
 watch(currentPage, (val) => {
   if (!isOffline.value) store.fetchAll(false, val)
-  window.scrollTo({ top: 0, behavior: 'smooth' })
+  const main = document.querySelector('main')
+  if (main) {
+    main.scrollTop = 0
+  }
 })
 
 const showUploadModal = ref(false)

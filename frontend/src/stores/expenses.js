@@ -147,7 +147,7 @@ export const useExpensesStore = defineStore("expenses", () => {
       invalidate();
       if (data.wallet_id) {
         const { useWalletsStore } = await import("./wallets.js");
-        useWalletsStore().adjustBalance(data.wallet_id, -parseFloat(data.amount || 0));
+        await useWalletsStore().adjustBalance(data.wallet_id, -parseFloat(data.amount || 0));
       }
       useToast().success("Expense created");
       return res.data.data;
@@ -166,6 +166,14 @@ export const useExpensesStore = defineStore("expenses", () => {
       const now = new Date().toISOString();
       const { useWalletsStore } = await import("./wallets.js");
       const walletsStore = useWalletsStore();
+      if (walletsStore.wallets.length === 0) {
+        try {
+          const cached = await cacheGet("wallets");
+          if (cached && cached.length > 0) {
+            walletsStore.wallets = cached;
+          }
+        } catch {}
+      }
       const walletRaw = walletsStore.wallets.find((w) => w.id === data.wallet_id) || null;
       const wallet = walletRaw ? JSON.parse(JSON.stringify(walletRaw)) : null;
       const optimistic = {
@@ -180,7 +188,7 @@ export const useExpensesStore = defineStore("expenses", () => {
       await cacheUpsert("expenses", optimistic);
       await outboxAdd({ method: "post", url: "/expenses", data, entity: "expenses", tempId });
       await refreshPendingCount();
-      if (data.wallet_id) walletsStore.adjustBalance(data.wallet_id, -parseFloat(data.amount || 0));
+      if (data.wallet_id) await walletsStore.adjustBalance(data.wallet_id, -parseFloat(data.amount || 0));
       useDashboardStore().adjustStat('monthly_expenses', parseFloat(data.amount || 0));
       useToast().success("Expense saved");
       return { data: { data: optimistic } };

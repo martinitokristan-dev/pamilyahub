@@ -42,6 +42,16 @@ export const INTENTS = {
       'tan-awa akong utang', 'ipakita utang', 'gusto ko makita utang', 'debt pls'
     ],
   },
+  set_budget: {
+    minScore: 1,
+    keywords: [
+      'set my budget', 'set budget', 'change my budget', 'change budget', 'update my budget', 'update budget',
+      'set the budget', 'modify my budget', 'adjust my budget', 'adjust budget', 'gawing budget',
+      'i-set ang budget', 'iset ang budget', 'set budget to', 'set my budget to', 'change budget to',
+      'limit my spending to', 'set spending limit', 'spending limit to', 'limit to',
+      'undo budget', 'revert budget', 'rollback budget', 'bawi budget', 'cancel budget'
+    ],
+  },
   query_budget: {
     minScore: 1,
     keywords: [

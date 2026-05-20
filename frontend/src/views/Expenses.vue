@@ -79,6 +79,13 @@ watch([selectedMonth, selectedYear, search], () => {
   currentPage.value = 1
 })
 
+watch(currentPage, () => {
+  const main = document.querySelector('main')
+  if (main) {
+    main.scrollTop = 0
+  }
+})
+
 watch([selectedMonth, selectedYear], () => {
   dashboard.fetchStats({ month: selectedMonth.value, year: selectedYear.value })
 }, { immediate: true })
@@ -203,7 +210,8 @@ async function remove(expense) {
       <div class="flex items-center justify-between sm:justify-end gap-2 sm:gap-3 w-full sm:w-auto">
         <div class="bg-card border border-border shadow-sm px-3 sm:px-4 py-2 rounded-2xl flex flex-col items-center sm:items-end flex-1 sm:flex-none sm:min-w-[140px] transition-all hover:shadow-md min-w-0">
           <span class="text-[9px] sm:text-[10px] font-bold text-muted-foreground uppercase tracking-widest leading-none mb-1 truncate w-full text-center sm:text-right">Total Expenses</span>
-          <span class="text-base sm:text-xl font-black text-foreground tabular-nums truncate w-full text-center sm:text-right">{{ formatCurrency(total) }}</span>
+          <span v-if="dashboard.loading" class="text-base sm:text-xl font-black text-muted-foreground animate-pulse truncate w-full text-center sm:text-right">...</span>
+          <span v-else class="text-base sm:text-xl font-black text-foreground tabular-nums truncate w-full text-center sm:text-right">{{ formatCurrency(total) }}</span>
         </div>
 
         <!-- iOS-style Date Filter -->
@@ -241,28 +249,35 @@ async function remove(expense) {
             </div>
             <h3 class="text-sm font-bold">Spending Power ({{ months[selectedMonth - 1] }})</h3>
           </div>
-          <p class="text-xs font-bold" :class="remainingSalary < 0 ? 'text-destructive' : 'text-emerald-600'">
+          <p v-if="dashboard.loading" class="text-xs font-bold text-muted-foreground animate-pulse">
+            ...
+          </p>
+          <p v-else class="text-xs font-bold" :class="remainingSalary < 0 ? 'text-destructive' : 'text-emerald-600'">
             {{ formatCurrency(Math.abs(remainingSalary)) }} {{ remainingSalary < 0 ? 'over budget' : 'left' }}
           </p>
         </div>
         
         <div class="space-y-2.5">
           <div class="flex items-center justify-between text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-            <span>Spent: {{ formatCurrency(total) }}</span>
-            <span>Budget: {{ formatCurrency(effectiveLimit) }}</span>
+            <span v-if="dashboard.loading" class="animate-pulse">Spent: ...</span>
+            <span v-else>Spent: {{ formatCurrency(total) }}</span>
+            <span v-if="dashboard.loading" class="animate-pulse">Budget: ...</span>
+            <span v-else>Budget: {{ formatCurrency(effectiveLimit) }}</span>
           </div>
           <div class="h-2 w-full bg-muted rounded-full overflow-hidden flex">
              <div 
                class="h-full transition-all duration-700 ease-out" 
-               :style="{ width: `${Math.min(spendingPercentage, 100)}%` }"
+               :style="{ width: `${dashboard.loading ? 0 : Math.min(spendingPercentage, 100)}%` }"
                :class="spendingPercentage > 100 ? 'bg-destructive' : spendingPercentage > 90 ? 'bg-destructive' : spendingPercentage > 75 ? 'bg-amber-500' : 'bg-emerald-500'"
              />
           </div>
           <div class="flex justify-between items-center">
             <p class="text-[10px] text-muted-foreground italic">
-               {{ spendingPercentage > 100 ? "You've exceeded your limit!" : `${(100 - spendingPercentage).toFixed(0)}% of budget remaining` }}
+               <span v-if="dashboard.loading" class="animate-pulse">Calculating remaining budget...</span>
+               <span v-else>{{ spendingPercentage > 100 ? "You've exceeded your limit!" : `${(100 - spendingPercentage).toFixed(0)}% of budget remaining` }}</span>
             </p>
-            <span class="text-[10px] font-black" :class="spendingPercentage > 100 ? 'text-destructive' : spendingPercentage > 90 ? 'text-destructive' : 'text-emerald-600'">
+            <span v-if="dashboard.loading" class="text-[10px] font-black text-muted-foreground animate-pulse">...</span>
+            <span v-else class="text-[10px] font-black" :class="spendingPercentage > 100 ? 'text-destructive' : spendingPercentage > 90 ? 'text-destructive' : 'text-emerald-600'">
               {{ spendingPercentage.toFixed(1) }}%
             </span>
           </div>

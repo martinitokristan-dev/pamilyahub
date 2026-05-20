@@ -4,6 +4,7 @@ import { fileService } from "@/services/fileService.js";
 import { useDashboardStore } from "./dashboard.js";
 import { useToast } from "@/composables/useToast.js";
 import { cacheSingleSet, cacheSingleGet, isNetworkError } from "@/lib/offlineDb.js";
+import { performSilentFetch } from "@/utils/storeHelper.js";
 
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 

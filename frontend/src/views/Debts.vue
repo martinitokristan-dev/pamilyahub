@@ -47,6 +47,13 @@ watch([activeTab, searchQuery], () => {
   currentPage.value = 1
 })
 
+watch([activeTab, currentPage], () => {
+  const main = document.querySelector('main')
+  if (main) {
+    main.scrollTop = 0
+  }
+})
+
 onMounted(() => {
   const filters = activeTab.value === 'all' ? {} : { type: activeTab.value }
   // Use false for force parameter to enable caching

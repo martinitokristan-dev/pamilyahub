@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, computed, watch, nextTick } from 'vue'
 import { RouterView, RouterLink, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.js'
 import { useNotesStore } from '@/stores/notes.js'
@@ -42,6 +42,14 @@ const route = useRoute()
 const { isDark } = useDarkMode()
 const { toasts } = useToast()
 
+watch(() => route.fullPath, async () => {
+  await nextTick()
+  const main = document.querySelector('main')
+  if (main) {
+    main.scrollTop = 0
+  }
+})
+
 const {
   offlineReady,
   needRefresh,
@@ -58,12 +66,34 @@ const {
   }
 })
 
+const isUpdating = ref(false)
+
 // Handle App Auto-Update when a new version is detected
 watch(needRefresh, (newValue) => {
   if (newValue) {
-    updateServiceWorker(true)
+    isUpdating.value = true
+    
+    // Trigger local push notification on the device if allowed
+    if ('Notification' in window && Notification.permission === 'granted') {
+      try {
+        new Notification("EleFam Update", {
+          body: "A new version of EleFam is installing. The app will reload to apply changes.",
+          icon: "/icons/wallets/EF-logo-192.png",
+          tag: "elefam-update",
+          requireInteraction: false
+        })
+      } catch (err) {
+        console.error("Failed to show local notification:", err)
+      }
+    }
+    
+    // Smooth transition delay so the user sees the "Updating..." splash screen
+    setTimeout(() => {
+      updateServiceWorker(true)
+    }, 2000)
   }
 })
+
 
 onMounted(async () => {
   // Ensure user is hydrated from cache before proceeding (avoids race condition where
@@ -409,8 +439,45 @@ function isActive(path) {
         </TransitionGroup>
       </div>
 
-      <!-- Update Notification -->
-      <!-- Removed UpdateNotification modal because update UI is now in Settings page -->
+      <!-- Premium PWA Update Overlay -->
+      <Transition
+        enter-active-class="transition duration-300 ease-out"
+        enter-from-class="opacity-0 scale-95"
+        enter-to-class="opacity-100 scale-100"
+        leave-active-class="transition duration-200 ease-in"
+        leave-from-class="opacity-100 scale-100"
+        leave-to-class="opacity-0 scale-95"
+      >
+        <div 
+          v-if="isUpdating" 
+          class="fixed inset-0 z-[150] flex flex-col items-center justify-center bg-background/80 backdrop-blur-xl text-foreground"
+        >
+          <div class="flex flex-col items-center max-w-xs text-center px-6 py-8 rounded-3xl bg-card border border-border/40 shadow-2xl relative overflow-hidden">
+            <!-- Pulsing/Glowing Logo or Mascot -->
+            <div class="relative h-20 w-20 mb-6 flex items-center justify-center">
+              <!-- Glow Rings -->
+              <div class="absolute inset-0 rounded-full bg-primary/20 animate-ping duration-1000"></div>
+              <div class="absolute inset-2 rounded-full bg-primary/10 animate-pulse"></div>
+              <!-- Elephant / Logo Icon -->
+              <div class="relative flex h-16 w-16 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/30">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-8 h-8 animate-bounce">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+                </svg>
+              </div>
+            </div>
+            
+            <h3 class="text-lg font-bold tracking-tight mb-2">Updating EleFam</h3>
+            <p class="text-xs text-muted-foreground leading-relaxed mb-6">
+              Installing the latest version on your device. This will only take a moment.
+            </p>
+            
+            <!-- Sleek Progress Bar -->
+            <div class="w-full h-1.5 bg-muted rounded-full overflow-hidden relative">
+              <div class="absolute inset-y-0 w-full bg-primary rounded-full origin-left animate-progress-slide"></div>
+            </div>
+          </div>
+        </div>
+      </Transition>
 
     </div>
   </div>
@@ -419,4 +486,13 @@ function isActive(path) {
 <style scoped>
 .nav-pill::-webkit-scrollbar { display: none; }
 .nav-pill { -ms-overflow-style: none; scrollbar-width: none; }
+
+@keyframes progress-slide {
+  0% { transform: translateX(-100%); }
+  50% { transform: translateX(-30%) scaleX(0.4); }
+  100% { transform: translateX(100%); }
+}
+.animate-progress-slide {
+  animation: progress-slide 1.8s infinite ease-in-out;
+}
 </style>

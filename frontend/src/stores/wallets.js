@@ -229,12 +229,25 @@ export const useWalletsStore = defineStore("wallets", () => {
     }
   }
 
-  // ── adjustBalance ── (called by expenses/debts/salary for immediate UI accuracy)
-  function adjustBalance(walletId, delta) {
+  async function adjustBalance(walletId, delta) {
+    if (wallets.value.length === 0) {
+      try {
+        const cached = await cacheGet("wallets");
+        if (cached && cached.length > 0) {
+          wallets.value = cached;
+        }
+      } catch (e) {
+        console.error("Failed to load wallets cache in adjustBalance", e);
+      }
+    }
     const w = wallets.value.find((w) => w.id === walletId);
     if (w) {
       w.balance = (parseFloat(w.balance || 0) + delta).toFixed(2);
-      cacheSet("wallets", wallets.value).catch(() => {});
+      try {
+        await cacheSet("wallets", wallets.value);
+      } catch (e) {
+        console.error("Failed to save wallets cache in adjustBalance", e);
+      }
     }
   }
 

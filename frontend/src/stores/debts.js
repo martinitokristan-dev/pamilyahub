@@ -143,7 +143,7 @@ export const useDebtsStore = defineStore("debts", () => {
       debts.value.unshift(res.data.data);
       await cacheUpsert("debts", res.data.data);
       if (data.type === "owed_to_me" && data.wallet_id) {
-        useWalletsStore().adjustBalance(data.wallet_id, -Math.abs(parseFloat(data.amount || 0)));
+        await useWalletsStore().adjustBalance(data.wallet_id, -Math.abs(parseFloat(data.amount || 0)));
       }
       useDashboardStore().invalidate({ month: new Date().getMonth() + 1, year: new Date().getFullYear() });
       invalidate();
@@ -174,6 +174,14 @@ export const useDebtsStore = defineStore("debts", () => {
         const { useExpensesStore } = await import("./expenses.js");
         const expStore = useExpensesStore();
         const walletsStore = useWalletsStore();
+        if (walletsStore.wallets.length === 0) {
+          try {
+            const cached = await cacheGet("wallets");
+            if (cached && cached.length > 0) {
+              walletsStore.wallets = cached;
+            }
+          } catch {}
+        }
         const walletRaw = walletsStore.wallets.find((w) => w.id === data.wallet_id) || null;
         const wallet = walletRaw ? JSON.parse(JSON.stringify(walletRaw)) : null;
         const amount = Math.abs(parseFloat(data.amount || 0));
@@ -193,7 +201,7 @@ export const useDebtsStore = defineStore("debts", () => {
         };
         expStore.expenses.unshift(optimisticExpense);
         await cacheUpsert("expenses", optimisticExpense);
-        walletsStore.adjustBalance(data.wallet_id, -amount);
+        await walletsStore.adjustBalance(data.wallet_id, -amount);
         useDashboardStore().adjustStat('monthly_expenses', amount);
       }
       useToast().success("Debt saved");
@@ -268,7 +276,7 @@ export const useDebtsStore = defineStore("debts", () => {
         const delta = debt.type === "owed_to_me"
           ? +Math.abs(parseFloat(debt.amount || 0))
           : -Math.abs(parseFloat(debt.amount || 0));
-        useWalletsStore().adjustBalance(walletId, delta);
+        await useWalletsStore().adjustBalance(walletId, delta);
       }
       useDashboardStore().invalidate({ month: new Date().getMonth() + 1, year: new Date().getFullYear() });
       invalidate();
@@ -295,10 +303,18 @@ export const useDebtsStore = defineStore("debts", () => {
     }
     if (walletId && debt) {
       const walletsStore = useWalletsStore();
+      if (walletsStore.wallets.length === 0) {
+        try {
+          const cached = await cacheGet("wallets");
+          if (cached && cached.length > 0) {
+            walletsStore.wallets = cached;
+          }
+        } catch {}
+      }
       const delta = debt?.type === "owed_to_me"
         ? +Math.abs(parseFloat(debt.amount || 0))
         : -Math.abs(parseFloat(debt.amount || 0));
-      walletsStore.adjustBalance(walletId, delta);
+      await walletsStore.adjustBalance(walletId, delta);
       await cacheSet("wallets", JSON.parse(JSON.stringify(walletsStore.wallets)));
     }
     await outboxAdd({
@@ -318,6 +334,14 @@ export const useDebtsStore = defineStore("debts", () => {
         const { useExpensesStore } = await import("./expenses.js");
         const expStore = useExpensesStore();
         const walletsStore = useWalletsStore();
+        if (walletsStore.wallets.length === 0) {
+          try {
+            const cached = await cacheGet("wallets");
+            if (cached && cached.length > 0) {
+              walletsStore.wallets = cached;
+            }
+          } catch {}
+        }
         const walletRaw = walletsStore.wallets.find((w) => w.id === walletId) || null;
         const wallet = walletRaw ? JSON.parse(JSON.stringify(walletRaw)) : null;
         const now = new Date().toISOString();
@@ -357,7 +381,7 @@ export const useDebtsStore = defineStore("debts", () => {
         const delta = debt.type === "owed_to_me"
           ? +Math.abs(parseFloat(amount || 0))
           : -Math.abs(parseFloat(amount || 0));
-        useWalletsStore().adjustBalance(walletId, delta);
+        await useWalletsStore().adjustBalance(walletId, delta);
       }
       useDashboardStore().invalidate({ month: new Date().getMonth() + 1, year: new Date().getFullYear() });
       invalidate();
@@ -388,10 +412,18 @@ export const useDebtsStore = defineStore("debts", () => {
     }
     if (walletId && amount) {
       const walletsStore = useWalletsStore();
+      if (walletsStore.wallets.length === 0) {
+        try {
+          const cached = await cacheGet("wallets");
+          if (cached && cached.length > 0) {
+            walletsStore.wallets = cached;
+          }
+        } catch {}
+      }
       const delta = debt?.type === "owed_to_me"
         ? +Math.abs(parseFloat(amount))
         : -Math.abs(parseFloat(amount));
-      walletsStore.adjustBalance(walletId, delta);
+      await walletsStore.adjustBalance(walletId, delta);
       await cacheSet("wallets", JSON.parse(JSON.stringify(walletsStore.wallets)));
     }
     await outboxAdd({
@@ -411,6 +443,14 @@ export const useDebtsStore = defineStore("debts", () => {
         const { useExpensesStore } = await import("./expenses.js");
         const expStore = useExpensesStore();
         const walletsStore = useWalletsStore();
+        if (walletsStore.wallets.length === 0) {
+          try {
+            const cached = await cacheGet("wallets");
+            if (cached && cached.length > 0) {
+              walletsStore.wallets = cached;
+            }
+          } catch {}
+        }
         const walletRaw = walletsStore.wallets.find((w) => w.id === walletId) || null;
         const wallet = walletRaw ? JSON.parse(JSON.stringify(walletRaw)) : null;
         const now = new Date().toISOString();

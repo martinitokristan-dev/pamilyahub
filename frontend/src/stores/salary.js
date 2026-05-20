@@ -7,6 +7,7 @@ import { useToast } from '@/composables/useToast.js'
 import {
   cacheSingleSet,
   cacheSingleGet,
+  cacheGet,
   outboxAdd,
   isNetworkError,
 } from '@/lib/offlineDb.js'
@@ -103,9 +104,11 @@ export const useSalaryStore = defineStore('salary', () => {
     try {
       await salaryService.deposit(payload)
       const walletsStore = useWalletsStore()
-      payload.allocations.forEach(a => {
-        if (parseFloat(a.amount) > 0) walletsStore.adjustBalance(a.wallet_id, parseFloat(a.amount))
-      })
+      for (const a of payload.allocations) {
+        if (parseFloat(a.amount) > 0) {
+          await walletsStore.adjustBalance(a.wallet_id, parseFloat(a.amount))
+        }
+      }
       fetched.value = false
       await fetchCurrentMonth()
       useDashboardStore().invalidate({ month: month.value, year: year.value })
@@ -138,9 +141,19 @@ export const useSalaryStore = defineStore('salary', () => {
     })
 
     const walletsStore = useWalletsStore()
-    payload.allocations.forEach(a => {
-      if (parseFloat(a.amount) > 0) walletsStore.adjustBalance(a.wallet_id, parseFloat(a.amount))
-    })
+    if (walletsStore.wallets.length === 0) {
+      try {
+        const cached = await cacheGet('wallets')
+        if (cached && cached.length > 0) {
+          walletsStore.wallets = cached
+        }
+      } catch {}
+    }
+    for (const a of payload.allocations) {
+      if (parseFloat(a.amount) > 0) {
+        await walletsStore.adjustBalance(a.wallet_id, parseFloat(a.amount))
+      }
+    }
 
     await cacheSingleSet('salary', {
       status: status.value,

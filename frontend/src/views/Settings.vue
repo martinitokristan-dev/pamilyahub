@@ -206,6 +206,6 @@ async function handleSignOut() {
       </UiCardContent>
     </UiCard>
 
-    <p class="text-center text-xs text-muted-foreground mt-6">EleFam v1.8.0</p>
+    <p class="text-center text-xs text-muted-foreground mt-6">EleFam v1.8.1</p>
   </div>
 </template>

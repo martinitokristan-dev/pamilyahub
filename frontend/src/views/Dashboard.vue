@@ -507,7 +507,10 @@ watch(
 onMounted(async () => {
   // Wave 1: Fetch stats, salary, expenses, and wallets (dashboard-critical)
   const fetches = []
-  if (!dashboard.fetched) fetches.push(dashboard.fetchStats())
+  const currentMonthKey = `dashboard_${new Date().getFullYear()}_${new Date().getMonth() + 1}`
+  if (!dashboard.fetched || dashboard.lastCacheKey !== currentMonthKey) {
+    fetches.push(dashboard.fetchStats())
+  }
   if (!salary.fetched) fetches.push(salary.fetchCurrentMonth())
   if (!expenses.fetched) fetches.push(expenses.fetchAll())
   if (!wallets.fetched) fetches.push(wallets.fetchAll())
@@ -609,14 +612,14 @@ const stats = computed(() => {
               />
             </div>
             
-            <!-- Chat Bubble (Solid White) -->
-            <div class="bg-white shadow-2xl rounded-2xl p-5 relative ml-2 z-0 flex-1 min-w-0 border border-purple-100 mt-[-32px]">
+            <!-- Chat Bubble (Solid White / Dark Mode Aware) -->
+            <div class="bg-white dark:bg-zinc-900 shadow-2xl rounded-2xl p-5 relative ml-2 z-0 flex-1 min-w-0 border border-purple-100 dark:border-zinc-800/80 mt-[-32px]">
               <!-- Speech bubble tail (Pointed to mouth) -->
-              <div class="absolute top-[75%] -translate-y-1/2 -left-[8px] w-4 h-4 bg-white border-l border-b border-purple-100 rotate-45 rounded-sm"></div>
+              <div class="absolute top-[75%] -translate-y-1/2 -left-[8px] w-4 h-4 bg-white dark:bg-zinc-900 border-l border-b border-purple-100 dark:border-zinc-800/80 rotate-45 rounded-sm"></div>
               
               <div class="relative z-10">
                 <h3 class="font-black text-primary text-[10px] tracking-widest mb-1">EleFam</h3>
-                <p class="text-xs text-muted-foreground leading-snug font-semibold">
+                <p class="text-xs text-muted-foreground dark:text-zinc-300 leading-snug font-semibold">
                   {{ eleFamBubbleLine }}
                 </p>
               </div>
@@ -824,6 +827,8 @@ const stats = computed(() => {
                 <p class="rounded-lg bg-emerald-100/80 dark:bg-emerald-900/40 px-2.5 py-1.5 text-[12px] text-emerald-900 dark:text-emerald-100 font-mono">set salary 25000</p>
                 <p class="rounded-lg bg-emerald-100/80 dark:bg-emerald-900/40 px-2.5 py-1.5 text-[12px] text-emerald-900 dark:text-emerald-100 font-mono">deposit 25000 to GCash</p>
                 <p class="rounded-lg bg-emerald-100/80 dark:bg-emerald-900/40 px-2.5 py-1.5 text-[12px] text-emerald-900 dark:text-emerald-100 font-mono">spent 500 on food from GCash</p>
+                <p class="rounded-lg bg-emerald-100/80 dark:bg-emerald-900/40 px-2.5 py-1.5 text-[12px] text-emerald-900 dark:text-emerald-100 font-mono">set my budget to 15000</p>
+                <p class="rounded-lg bg-emerald-100/80 dark:bg-emerald-900/40 px-2.5 py-1.5 text-[12px] text-emerald-900 dark:text-emerald-100 font-mono">transfer 1000 from GCash to Maya</p>
               </div>
               <UiButton size="sm" class="rounded-xl h-8 px-3 mt-3 text-[11px] font-semibold" @click="() => { dismissSetupGuide(); openAiChat(); }">
                 Open EleFam Chat
