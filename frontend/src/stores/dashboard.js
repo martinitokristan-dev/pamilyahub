@@ -23,7 +23,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
   const cacheTime = ref(0)
   const lastCacheKey = ref(null)
 
-  async function fetchStats(filters = {}) {
+  async function fetchStats(filters = {}, force = false) {
     const m = filters.month ?? new Date().getMonth() + 1
     const y = filters.year ?? new Date().getFullYear()
     const cacheKey = `dashboard_${y}_${m}`
@@ -40,13 +40,14 @@ export const useDashboardStore = defineStore('dashboard', () => {
         if (cached) stats.value = cached
       } catch { /* ignore */ }
     }
-    
+
     await performSilentFetch({
       loading,
       fetched,
       cacheTime,
       currentData: stats.value,
       cacheKey,
+      force,
       fetchFn: async () => {
         try {
           const res = await dashboardService.getStats(filters)

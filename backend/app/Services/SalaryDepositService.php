@@ -107,10 +107,7 @@ class SalaryDepositService
                 ]);
             }
 
-            // 2.6 Adjust User Stats
-            $this->statsService->adjust($userId, 'income_total', $totalAmount);
-
-            // 3. Invalidate dashboard cache
+            // 2.6 Invalidate dashboard cache (stats calculated from tables, not incremental)
             DashboardController::invalidateCache($userId);
         });
     }
@@ -121,16 +118,7 @@ class SalaryDepositService
             $deposit = $this->depositRepo->findById($id);
             if (!$deposit || $deposit->user_id !== $userId) return;
 
-            $oldAmount = (float) $deposit->amount;
-            $newAmount = (float) ($data['amount'] ?? $oldAmount);
-
             $this->depositRepo->update($deposit, $data);
-            
-            $delta = $newAmount - $oldAmount;
-            if ($delta !== 0.0) {
-                $this->statsService->adjust($userId, 'income_total', $delta);
-            }
-
             DashboardController::invalidateCache($userId);
         });
     }
@@ -141,11 +129,7 @@ class SalaryDepositService
             $deposit = $this->depositRepo->findById($id);
             if (!$deposit || $deposit->user_id !== $userId) return;
 
-            $amount = (float) $deposit->amount;
             $this->depositRepo->delete($deposit);
-            
-            $this->statsService->adjust($userId, 'income_total', -$amount);
-
             DashboardController::invalidateCache($userId);
         });
     }

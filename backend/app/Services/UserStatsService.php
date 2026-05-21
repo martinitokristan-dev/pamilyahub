@@ -21,9 +21,7 @@ class UserStatsService
                 'expenses_total'   => (float) Expense::where('user_id', $userId)
                     ->get()
                     ->sum(fn($e) => (float) $e->amount),
-                'income_total'     => (float) SalaryDeposit::where('user_id', $userId)
-                    ->get()->sum(fn($s) => (float) $s->amount)
-                    + (float) Income::where('user_id', $userId)
+                'income_total'     => (float) Income::where('user_id', $userId)
                     ->get()->sum(fn($i) => (float) $i->amount),
                 'debts_owed_to_me' => (float) Debt::where('user_id', $userId)
                     ->where('type', 'owed_to_me')

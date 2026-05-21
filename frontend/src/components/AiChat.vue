@@ -217,6 +217,12 @@ function onChatTouchMove(event) {
 function onChatTouchEnd(event) {
   const touch = event.changedTouches?.[0]
   if (!touch) return
+  
+  // Don't close if user is scrolling the message list
+  if (listEl.value && listEl.value.scrollTop > 0) {
+    return
+  }
+  
   const deltaX = touch.clientX - dragStartX.value
   const deltaY = dragDeltaY.value
   const isDownSwipe = deltaY > 90

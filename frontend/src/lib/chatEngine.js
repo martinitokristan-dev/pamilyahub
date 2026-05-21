@@ -977,7 +977,7 @@ async function _executeDeposit(amount, wallet, salaryStore, dashboardStore) {
     notes: "Deposit via EleFam",
     allocations: [{ wallet_id: wallet.id, amount }],
   });
-  dashboardStore.fetchStats().catch(() => { });
+  dashboardStore.fetchStats({}, true).catch(() => { });
 
   const wittyDone = [
     `Successfully deposited ${formatMoney(amount)} to ${wallet.name}.`,

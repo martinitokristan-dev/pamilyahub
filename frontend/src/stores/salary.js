@@ -99,7 +99,7 @@ export const useSalaryStore = defineStore('salary', () => {
 
   // ── deposit ──────────────────────────────────────────────────────────────────
   async function deposit(payload) {
-    if (!navigator.onLine) return _depositOffline(payload)
+    // Remove navigator.onLine check - it's unreliable. Let the actual request determine offline status.
     loading.value = true
     try {
       await salaryService.deposit(payload)
@@ -111,7 +111,8 @@ export const useSalaryStore = defineStore('salary', () => {
       }
       fetched.value = false
       await fetchCurrentMonth()
-      useDashboardStore().invalidate({ month: month.value, year: year.value })
+      // Invalidate dashboard AFTER fetching current month to avoid showing 0 stats
+      await useDashboardStore().fetchStats({ month: month.value, year: year.value })
       walletsStore.invalidate()
       const { useExpensesStore } = await import('./expenses.js')
       useExpensesStore().invalidate()

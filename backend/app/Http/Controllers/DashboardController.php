@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\Expense;
 use App\Models\Income;
-use App\Models\SalaryDeposit;
 use App\Services\UserStatsService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
@@ -41,20 +40,11 @@ class DashboardController extends Controller
                 ->whereNull('wallet_id')
                 ->sum(fn($e) => (float) $e->amount);
 
-            // Fetch and aggregate Salary Deposits in PHP
-            $salaryData = SalaryDeposit::where('user_id', $userId)
-                ->where('year', $year)
-                ->where('month', $month)
-                ->get()
-                ->sum(fn($s) => (float) $s->amount);
-
-            // Fetch and aggregate Other Income in PHP
-            $otherIncome = Income::where('user_id', $userId)
+            // Fetch and aggregate Income in PHP (Income is single source of truth)
+            $totalIncome = Income::where('user_id', $userId)
                 ->whereBetween('date', [$startDate, $endDate])
                 ->get()
                 ->sum(fn($i) => (float) $i->amount);
-
-            $totalIncome = (float) $salaryData + (float) $otherIncome;
 
             $stats->monthly_expenses = $expensesTotal;
             $stats->monthly_income   = $totalIncome;
