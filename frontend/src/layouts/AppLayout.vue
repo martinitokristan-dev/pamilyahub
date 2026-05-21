@@ -287,23 +287,21 @@ function isActive(path) {
         >
           <div v-if="showMoreMenu" class="absolute bottom-[calc(100%+12px)] inset-x-0 z-50">
             <div class="bg-card/95 backdrop-blur-2xl border border-border/50 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.2)] p-3 overflow-hidden">
-              <div class="grid grid-cols-4 gap-1.5">
+              <div class="flex justify-around items-center">
                 <RouterLink
                   v-for="item in filteredMoreNav"
                   :key="item.to"
                   :to="item.to"
                   @click="showMoreMenu = false"
-                  class="flex flex-col items-center gap-1 p-2 rounded-xl transition-all active:scale-90"
-                  :class="isActive(item.to) ? 'bg-primary/10 text-primary' : 'hover:bg-muted/50 text-muted-foreground hover:text-foreground'"
+                  class="relative flex flex-col items-center justify-center w-14 py-3 transition-all group active:scale-90"
+                  :class="isActive(item.to) ? 'text-primary' : 'text-muted-foreground/60 hover:text-foreground'"
                 >
-                  <div class="h-12 w-12 flex items-center justify-center rounded-2xl bg-muted/50 shadow-sm border border-border/30 relative">
-                    <component :is="item.icon" class="h-6 w-6" />
-                    <span 
-                      v-if="item.name === 'Settings' && needRefresh" 
-                      class="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-destructive border-2 border-card animate-pulse"
-                    ></span>
-                  </div>
-                  <span class="text-[9px] font-black mt-1 uppercase tracking-tighter text-center">{{ item.name }}</span>
+                  <component :is="item.icon" class="h-6 w-6 transition-transform duration-300 group-active:scale-90" :class="{ 'scale-110 drop-shadow-[0_0_8px_rgba(var(--primary-rgb),0.3)]': isActive(item.to) }" />
+                  <span class="text-[9px] font-black mt-1 uppercase tracking-tighter">{{ item.name }}</span>
+                  <span 
+                    v-if="item.name === 'Settings' && needRefresh" 
+                    class="absolute top-2 right-0 h-2.5 w-2.5 rounded-full bg-destructive border-2 border-card animate-pulse"
+                  ></span>
                 </RouterLink>
               </div>
             </div>
