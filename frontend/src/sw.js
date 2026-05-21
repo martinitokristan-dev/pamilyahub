@@ -1,3 +1,6 @@
+// Silence workbox's verbose debug logs in production (600+ messages per deploy)
+self.__WB_DISABLE_DEV_LOGS = true
+
 import { cleanupOutdatedCaches, precacheAndRoute } from 'workbox-precaching'
 import { registerRoute } from 'workbox-routing'
 import { StaleWhileRevalidate, CacheFirst, NetworkFirst } from 'workbox-strategies'

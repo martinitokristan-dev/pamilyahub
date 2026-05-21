@@ -2,7 +2,7 @@
 import { reactive, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.js'
-import { initGoogleIdentity, triggerGoogleSignIn, triggerOneTap } from '@/lib/googleAuth.js'
+import { initGoogleIdentity, triggerGoogleSignIn } from '@/lib/googleAuth.js'
 import UiButton from '@/components/ui/Button.vue'
 import UiInput from '@/components/ui/Input.vue'
 import UiLabel from '@/components/ui/Label.vue'
@@ -43,7 +43,6 @@ onMounted(() => {
   const tryInit = () => {
     if (initGoogleIdentity(handleGoogleCredential)) {
       googleReady.value = true
-      // triggerOneTap() // passive One Tap — commented out to prevent Chrome FedCM console logs
     } else {
       setTimeout(tryInit, 200)
     }
