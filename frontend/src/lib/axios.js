@@ -47,15 +47,7 @@ api.interceptors.response.use(
       if (!isRedirecting) {
         isRedirecting = true
         localStorage.removeItem('auth_token')
-        try {
-          const { default: router } = await import('@/router/index.js')
-          const { useAuthStore } = await import('@/stores/auth.js')
-          const auth = useAuthStore()
-          auth.user = null
-          router.push({ name: 'login' })
-        } catch {
-          window.location.href = '/login'
-        }
+        window.location.href = '/login'
         setTimeout(() => { isRedirecting = false }, 3000)
       }
     }
