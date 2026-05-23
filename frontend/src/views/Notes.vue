@@ -4,11 +4,12 @@ import { ref, onMounted, computed, nextTick, watch, onBeforeUnmount } from 'vue'
 import { useRegisterAddAction } from '@/composables/usePageAction.js'
 import { useNotesStore } from '@/stores/notes.js'
 import { useToast } from '@/composables/useToast.js'
-import { Plus, Pencil, Trash2, X, NotebookPen, Search, ChevronLeft, Check, Undo, Redo, MoreVertical, Star, FolderPlus, Lock, FolderOpen, Eye, EyeOff, FileText } from 'lucide-vue-next'
+import { Plus, Pencil, Trash2, X, NotebookPen, Search, Check, Undo, Redo, MoreVertical, Star, FolderPlus, Lock, FolderOpen, Eye, EyeOff, FileText } from 'lucide-vue-next'
 import UiButton from '@/components/ui/Button.vue'
 import UiInput from '@/components/ui/Input.vue'
 import UiLabel from '@/components/ui/Label.vue'
 import UiCard from '@/components/ui/Card.vue'
+import AppBackButton from '@/components/AppBackButton.vue'
 import { SkeletonNoteCard } from '@/components/skeletons'
 import { Editor, EditorContent } from '@tiptap/vue-3'
 import { BubbleMenu } from '@tiptap/vue-3/menus'
@@ -298,13 +299,11 @@ function getPreviewLines(content) {
     <template v-if="!showEditor">
       <div class="mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div class="flex items-center gap-3 space-y-1">
-          <button
+          <AppBackButton
             v-if="activeFolderId"
             @click="activeFolderId = null"
-            class="w-10 h-10 rounded-full border border-border flex items-center justify-center text-foreground hover:bg-muted transition-all active:scale-90 shrink-0"
-          >
-            <ChevronLeft class="h-5 w-5" />
-          </button>
+            class="shrink-0"
+          />
           <h1 class="text-2xl font-medium tracking-tight text-foreground">
             {{ activeFolder ? activeFolder.name : 'Notes' }}
           </h1>
@@ -442,12 +441,9 @@ function getPreviewLines(content) {
         <div v-if="showEditor" class="fixed inset-0 z-[80] flex flex-col bg-background">
           <!-- Header bar -->
           <div class="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-border bg-card/95 backdrop-blur-sm shrink-0">
-            <button
+            <AppBackButton
               @click="closeEditor"
-              class="w-10 h-10 rounded-full border border-border flex items-center justify-center text-foreground hover:bg-muted transition-all active:scale-90"
-            >
-              <ChevronLeft class="h-5 w-5" />
-            </button>
+            />
 
             <div class="flex items-center gap-2">
               <!-- Undo/Redo Pill -->

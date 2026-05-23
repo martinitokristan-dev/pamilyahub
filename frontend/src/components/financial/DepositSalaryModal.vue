@@ -3,8 +3,9 @@ import { ref, computed, watch } from 'vue'
 import { useWalletsStore } from '@/stores/wallets'
 import { useSalaryStore } from '@/stores/salary'
 import {
-  Wallet, X, CheckCircle2, AlertCircle, ChevronLeft, ChevronRight, ArrowRight
+  Wallet, X, CheckCircle2, AlertCircle, ChevronRight, ArrowRight
 } from 'lucide-vue-next'
+import AppBackButton from '@/components/AppBackButton.vue'
 import UiButton from '@/components/ui/Button.vue'
 import UiInput from '@/components/ui/Input.vue'
 import UiLabel from '@/components/ui/Label.vue'
@@ -149,13 +150,10 @@ async function handleConfirm() {
         <div class="shrink-0 p-6 border-b border-border bg-gradient-to-r from-emerald-600/10 to-transparent">
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-3">
-              <button
+              <AppBackButton
                 v-if="step === 2"
                 @click="goBack"
-                class="w-10 h-10 rounded-full border border-border flex items-center justify-center text-foreground hover:bg-muted transition-all active:scale-90"
-              >
-                <ChevronLeft class="h-5 w-5" />
-              </button>
+              />
               <div>
                 <h2 class="text-xl font-bold tracking-tight">{{ title }}</h2>
                 <p class="text-xs text-muted-foreground mt-0.5">

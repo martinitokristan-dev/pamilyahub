@@ -6,6 +6,15 @@ use Laravel\Sanctum\PersonalAccessToken as SanctumPersonalAccessToken;
 
 class PersonalAccessToken extends SanctumPersonalAccessToken
 {
+    protected static function booted()
+    {
+        static::creating(function ($token) {
+            $token->ip_address = request()->ip();
+            $token->user_agent = request()->userAgent();
+            $token->last_active_at = now();
+        });
+    }
+
     /**
      * The attributes that should be cast.
      *

@@ -1,5 +1,5 @@
 <script setup>
-import { ChevronLeft, Wallet, Banknote, HandCoins, Receipt, Sparkles } from 'lucide-vue-next'
+import AppBackButton from '@/components/AppBackButton.vue'
 import UiCard from '@/components/ui/Card.vue'
 import UiCardContent from '@/components/ui/CardContent.vue'
 
@@ -9,30 +9,22 @@ const steps = [
   {
     number: 1,
     title: 'Add your first Wallet',
-    description: 'Create at least one wallet (GCash, Cash, Bank) so your money has a place to be tracked.',
-    icon: Wallet,
-    color: 'text-blue-600 bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400 border-blue-200 dark:border-blue-900/50'
+    description: 'Create at least one wallet (GCash, Cash, Bank) so your money has a place to be tracked.'
   },
   {
     number: 2,
     title: 'Set your Monthly Salary',
-    description: 'Set your monthly salary baseline in Settings. It powers Budget Left and spending pressure insights.',
-    icon: Banknote,
-    color: 'text-emerald-600 bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/50'
+    description: 'Set your monthly salary baseline in Settings. It powers Budget Left and spending pressure insights.'
   },
   {
     number: 3,
     title: 'Deposit your Salary',
-    description: 'Deposit loads real money into a selected wallet so you can spend from actual balances.',
-    icon: HandCoins,
-    color: 'text-amber-600 bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400 border-amber-200 dark:border-amber-900/50'
+    description: 'Deposit loads real money into a selected wallet so you can spend from actual balances.'
   },
   {
     number: 4,
     title: 'Track your first Expense',
-    description: 'Log daily spending to update wallet balances and budget tracking in real time.',
-    icon: Receipt,
-    color: 'text-rose-600 bg-rose-100 dark:bg-rose-900/30 dark:text-rose-400 border-rose-200 dark:border-rose-900/50'
+    description: 'Log daily spending to update wallet balances and budget tracking in real time.'
   }
 ]
 </script>
@@ -40,13 +32,10 @@ const steps = [
 <template>
   <section class="mx-auto max-w-3xl px-4 py-8 sm:px-6 animate-fade-in">
     <div class="mb-6 flex items-center gap-2">
-      <RouterLink 
+      <AppBackButton 
         to="/settings" 
-        class="w-10 h-10 rounded-full border border-border flex items-center justify-center text-foreground hover:bg-muted transition-all active:scale-90"
         title="Back to Settings"
-      >
-        <ChevronLeft class="h-5 w-5" />
-      </RouterLink>
+      />
       <span class="text-xs font-semibold text-muted-foreground tracking-wide uppercase">Back to Settings</span>
     </div>
 
@@ -63,18 +52,12 @@ const steps = [
       <div 
         v-for="step in steps" 
         :key="step.number"
-        class="flex flex-col sm:flex-row items-start gap-4 p-5 rounded-2xl border border-border bg-card shadow-sm select-none"
+        class="p-5 rounded-2xl border border-border bg-card shadow-sm select-none"
       >
-        <div :class="`h-12 w-12 rounded-2xl flex items-center justify-center border ${step.color} shrink-0`">
-          <component :is="step.icon" class="h-6 w-6" />
-        </div>
         <div class="space-y-1">
-          <div class="flex items-center gap-2.5">
-            <span class="text-[10px] font-black uppercase tracking-wider text-muted-foreground bg-muted px-2 py-0.5 rounded border border-border">
-              Step 0{{ step.number }}
-            </span>
-            <h2 class="text-base font-bold text-foreground leading-none">{{ step.title }}</h2>
-          </div>
+          <h2 class="text-base font-bold text-foreground">
+            Step {{ step.number }}: {{ step.title }}
+          </h2>
           <p class="text-sm text-muted-foreground leading-relaxed mt-2">{{ step.description }}</p>
         </div>
       </div>
@@ -83,10 +66,7 @@ const steps = [
     <!-- AI Mascot Pro Tips -->
     <UiCard class="border-emerald-500/20 bg-emerald-500/5 select-none">
       <UiCardContent class="p-5 sm:p-6 space-y-4">
-        <div class="flex items-center gap-2.5">
-          <div class="h-8 w-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-            <Sparkles class="h-4.5 w-4.5" />
-          </div>
+        <div class="flex items-center gap-2">
           <p class="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
             AI Assistant Quick Commands
           </p>

@@ -4,13 +4,14 @@ import { useRoute, useRouter, RouterLink } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.js'
 import { useDarkMode } from '@/composables/useDarkMode.js'
 import { 
-  Moon, Sun, User, LogOut, ChevronRight, ChevronLeft, Bell, Shield, 
+  Moon, Sun, User, LogOut, ChevronRight, Bell, Shield, 
   Banknote, BookOpen, Key, Laptop, Smartphone, Globe, RefreshCw, Trash2,
-  Camera, Loader2
+  Camera, Loader2, Info, X
 } from 'lucide-vue-next'
 import UiCard from '@/components/ui/Card.vue'
 import UiCardContent from '@/components/ui/CardContent.vue'
 import UiButton from '@/components/ui/Button.vue'
+import AppBackButton from '@/components/AppBackButton.vue'
 import { useToast } from '@/composables/useToast.js'
 import { Cropper, CircleStencil } from 'vue-advanced-cropper'
 import 'vue-advanced-cropper/dist/style.css'
@@ -122,7 +123,10 @@ async function handleRemovePhoto() {
   }
 }
 
-const salaryInput = ref(auth.user?.monthly_salary ?? 0)
+const salaryInput = ref('')
+const isSalaryInputInvalid = computed(() => {
+  return salaryInput.value === null || salaryInput.value === undefined || salaryInput.value === '' || parseFloat(salaryInput.value) < 0
+})
 const nameInput = ref(auth.user?.name ?? '')
 const nameSavedText = ref('Save')
 const savingName = ref(false)
@@ -132,6 +136,12 @@ watch(() => auth.user?.name, (newVal) => {
     nameInput.value = newVal
   }
 })
+
+watch(() => auth.user?.monthly_salary, (newVal) => {
+  if (newVal !== undefined && newVal !== null) {
+    salaryInput.value = (newVal === 0 || newVal === '0' || newVal === 0.00 || newVal === '0.00' || !newVal) ? '' : newVal
+  }
+}, { immediate: true })
 
 const nameValidationError = computed(() => {
   const trimmed = nameInput.value?.trim() ?? ''
@@ -188,7 +198,8 @@ async function saveSalary() {
   try {
     const salaryValue = parseFloat(salaryInput.value) || 0
     await auth.updateProfile({ monthly_salary: salaryValue })
-    salaryInput.value = auth.user?.monthly_salary ?? 0
+    const val = auth.user?.monthly_salary
+    salaryInput.value = (val === 0 || val === '0' || val === 0.00 || val === '0.00' || !val) ? '' : val
     toast.salary('Salary updated', 'Monthly salary updated')
   } catch (e) {
     console.error('Failed to save salary:', e)
@@ -340,16 +351,20 @@ async function handleSignOut() {
 
       <!-- Financial -->
       <p class="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1 mb-2">Financial</p>
-      <UiCard class="mb-6 overflow-hidden border-emerald-500/20 shadow-emerald-500/5">
+      <UiCard class="mb-6 border-emerald-500/20 shadow-emerald-500/5 relative">
         <UiCardContent class="p-0 divide-y divide-border">
           <div class="px-5 py-4">
             <div class="flex items-center gap-3 mb-4">
               <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100 dark:bg-emerald-900/30">
                 <Banknote class="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
               </div>
-              <div>
-                <p class="text-sm font-medium">Monthly Salary</p>
-                <p class="text-xs text-muted-foreground">Used for tracking spending power</p>
+              <div class="flex-1 min-w-0 flex items-center justify-between">
+                <div>
+                  <p class="text-sm font-medium">Monthly Salary</p>
+                  <p class="text-xs text-muted-foreground mt-0.5 leading-normal">
+                    Used to auto-fill wallet deposits, calculate mascot pacing, and set budget baselines.
+                  </p>
+                </div>
               </div>
             </div>
             
@@ -363,7 +378,7 @@ async function handleSignOut() {
                   placeholder="0.00"
                 />
               </div>
-              <UiButton size="sm" variant="default" @click="saveSalary" :disabled="savingSalary" class="h-9 px-4 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 text-white">
+              <UiButton size="sm" variant="default" @click="saveSalary" :disabled="savingSalary || isSalaryInputInvalid" class="h-9 px-4 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 disabled:cursor-not-allowed">
                 {{ savingSalary ? 'Saving...' : 'Save' }}
               </UiButton>
             </div>
@@ -494,13 +509,10 @@ async function handleSignOut() {
     <!-- Tab 2: Privacy & Security Sub-view -->
     <div v-else-if="activeTab === 'privacy_security'" class="animate-fade-in">
       <div class="mb-6 flex items-center gap-2">
-        <button 
+        <AppBackButton 
           @click="activeTab = 'main'" 
-          class="w-10 h-10 rounded-full border border-border flex items-center justify-center text-foreground hover:bg-muted transition-all active:scale-90"
           title="Back to Settings"
-        >
-          <ChevronLeft class="h-5 w-5" />
-        </button>
+        />
         <span class="text-xs font-semibold text-muted-foreground tracking-wide uppercase">Back to Settings</span>
       </div>
 
@@ -672,13 +684,10 @@ async function handleSignOut() {
     <!-- Tab 3: Profile Settings Sub-view -->
     <div v-else-if="activeTab === 'profile'" class="animate-fade-in">
       <div class="mb-6 flex items-center gap-2">
-        <button 
+        <AppBackButton 
           @click="activeTab = 'main'" 
-          class="w-10 h-10 rounded-full border border-border flex items-center justify-center text-foreground hover:bg-muted transition-all active:scale-90"
           title="Back to Settings"
-        >
-          <ChevronLeft class="h-5 w-5" />
-        </button>
+        />
         <span class="text-xs font-semibold text-muted-foreground tracking-wide uppercase">Back to Settings</span>
       </div>
 
