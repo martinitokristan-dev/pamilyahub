@@ -59,7 +59,7 @@ onMounted(() => {
           <Home class="h-5 w-5 text-primary-foreground" />
         </div>
         <h1 class="text-2xl font-bold tracking-tight">Create account</h1>
-        <p class="text-sm text-muted-foreground">Join your family on Pamilya Hub</p>
+        <p class="text-sm text-muted-foreground">Join your family on EleFam</p>
       </div>
 
       <UiCard>

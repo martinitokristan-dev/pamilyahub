@@ -103,7 +103,7 @@ export const useWalletsStore = defineStore("wallets", () => {
       await cacheUpsert("wallets", res.data.data);
       useDashboardStore().invalidate({ month: new Date().getMonth() + 1, year: new Date().getFullYear() });
       invalidate();
-      useToast().success("Wallet created");
+      useToast().wallet('Wallet created', data.name);
       return res.data.data;
     } catch (e) {
       if (isNetworkError(e)) return _createOffline(data);
@@ -131,7 +131,7 @@ export const useWalletsStore = defineStore("wallets", () => {
       await cacheUpsert("wallets", optimistic);
       await outboxAdd({ method: "post", url: "/wallets", data, entity: "wallets", tempId });
       await refreshPendingCount();
-      useToast().success("Wallet saved");
+      useToast().offline('Saved offline', 'Wallet creation queued');
       return { data: { data: optimistic } };
     } finally {
       loading.value = false;
@@ -149,7 +149,7 @@ export const useWalletsStore = defineStore("wallets", () => {
       await cacheUpsert("wallets", res.data.data);
       useDashboardStore().invalidate({ month: new Date().getMonth() + 1, year: new Date().getFullYear() });
       invalidate();
-      useToast().success("Wallet updated");
+      useToast().wallet('Wallet updated', data.name);
       return res.data.data;
     } catch (e) {
       if (isNetworkError(e)) return _updateOffline(id, data);
@@ -182,7 +182,7 @@ export const useWalletsStore = defineStore("wallets", () => {
         await outboxAdd({ method: "put", url: `/wallets/${id}`, data, entity: "wallets", recordId: id });
       }
       await refreshPendingCount();
-      useToast().success("Wallet updated");
+      useToast().offline('Saved offline', 'Wallet update queued');
       return { data: { data: updated } };
     } finally {
       loading.value = false;
@@ -199,7 +199,7 @@ export const useWalletsStore = defineStore("wallets", () => {
       await cacheRemove("wallets", id);
       useDashboardStore().invalidate({ month: new Date().getMonth() + 1, year: new Date().getFullYear() });
       invalidate();
-      useToast().success("Wallet deleted");
+      useToast().delete('Wallet deleted', 'Removed successfully');
     } catch (e) {
       if (isNetworkError(e)) return _removeOffline(id);
       throw e;
@@ -222,7 +222,7 @@ export const useWalletsStore = defineStore("wallets", () => {
         await outboxAdd({ method: "delete", url: `/wallets/${id}`, entity: "wallets", recordId: id });
       }
       await refreshPendingCount();
-      useToast().success("Wallet deleted");
+      useToast().offline('Saved offline', 'Wallet deletion queued');
     } finally {
       loading.value = false;
     }

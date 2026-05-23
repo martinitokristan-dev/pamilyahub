@@ -176,7 +176,7 @@ class AuthController extends Controller
     public function uploadAvatar(Request $request): JsonResponse
     {
         $request->validate([
-            'avatar' => 'required|image|mimes:jpeg,png,jpg|max:2048'
+            'avatar' => ['required', 'image', 'mimes:jpeg,png,jpg,webp', 'max:5120']
         ]);
 
         $user = $request->user();

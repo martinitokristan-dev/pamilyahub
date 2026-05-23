@@ -63,17 +63,39 @@ export function triggerGoogleSignIn() {
     console.warn('[googleAuth] Popup was blocked — allow popups for this site.')
   }
 
-  // Listen for the callback postMessage (scoped per popup, cleaned up after use)
-  const handler = (event) => {
-    if (event.origin !== window.location.origin) return
-    if (event.data?.type !== 'GOOGLE_AUTH') return
+  const authChannel = new BroadcastChannel('google_auth_channel')
+  let resolved = false
+
+  const cleanUp = () => {
+    resolved = true
+    authChannel.close()
     window.removeEventListener('message', handler)
-    const { idToken, error } = event.data
+  }
+
+  const handleCredential = (idToken, error) => {
     if (idToken && window[CB_KEY]) {
       window[CB_KEY]({ credential: idToken })
     } else if (error) {
       console.warn('[googleAuth] OAuth callback error:', error)
     }
+  }
+
+  // 1. BroadcastChannel listener (Primary)
+  authChannel.onmessage = (event) => {
+    if (resolved) return
+    const { idToken, error } = event.data
+    cleanUp()
+    handleCredential(idToken, error)
+  }
+
+  // 2. window postMessage listener (Fallback)
+  const handler = (event) => {
+    if (resolved) return
+    if (event.origin !== window.location.origin) return
+    if (event.data?.type !== 'GOOGLE_AUTH') return
+    const { idToken, error } = event.data
+    cleanUp()
+    handleCredential(idToken, error)
   }
   window.addEventListener('message', handler)
 }

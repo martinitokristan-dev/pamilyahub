@@ -97,6 +97,7 @@ async function cropAndUpload() {
     try {
       const croppedFile = new File([blob], 'avatar.jpg', { type: 'image/jpeg' })
       await auth.uploadAvatar(croppedFile)
+      toast.avatar('Avatar uploaded', 'Profile picture updated')
     } catch (e) {
       console.error(e)
       toast.error(e.response?.data?.message ?? 'Failed to upload profile picture.')
@@ -112,6 +113,7 @@ async function handleRemovePhoto() {
   deletingAvatar.value = true
   try {
     await auth.deleteAvatar()
+    toast.avatar('Avatar deleted', 'Profile picture removed')
   } catch (e) {
     console.error(e)
     toast.error('Failed to remove profile photo.')
@@ -187,7 +189,7 @@ async function saveSalary() {
     const salaryValue = parseFloat(salaryInput.value) || 0
     await auth.updateProfile({ monthly_salary: salaryValue })
     salaryInput.value = auth.user?.monthly_salary ?? 0
-    toast.success('Monthly salary updated successfully.')
+    toast.salary('Salary updated', 'Monthly salary updated')
   } catch (e) {
     console.error('Failed to save salary:', e)
     toast.error('Failed to save monthly salary.')
@@ -201,7 +203,6 @@ async function toggleHideBalances() {
   const newValue = !auth.user?.hide_balances
   try {
     await auth.updateProfile({ hide_balances: newValue })
-    toast.success(newValue ? 'Balances are now hidden/blurred.' : 'Balances are now visible.')
   } catch (e) {
     toast.error('Failed to update balance privacy setting.')
   }
@@ -211,7 +212,6 @@ async function toggleHideStats() {
   const newValue = !auth.user?.hide_stats
   try {
     await auth.updateProfile({ hide_stats: newValue })
-    toast.success(newValue ? 'Dashboard statistics are now hidden/blurred.' : 'Dashboard statistics are now visible.')
   } catch (e) {
     toast.error('Failed to update stats privacy setting.')
   }
@@ -241,7 +241,7 @@ async function handleRevoke(sessionId) {
   revokingSessionId.value = sessionId
   try {
     await auth.revokeSession(sessionId)
-    toast.success('Session revoked successfully.')
+    toast.session('Session revoked', 'Device logged out')
   } catch (e) {
     toast.error('Failed to revoke session.')
   } finally {
@@ -253,7 +253,7 @@ async function handleLogoutOthers() {
   loggingOutOthers.value = true
   try {
     await auth.logoutOtherSessions()
-    toast.success('Logged out of all other devices.')
+    toast.session('Sessions ended', 'Logged out of other devices')
   } catch (e) {
     toast.error('Failed to log out of other devices.')
   } finally {
@@ -496,7 +496,7 @@ async function handleSignOut() {
       <div class="mb-6 flex items-center gap-2">
         <button 
           @click="activeTab = 'main'" 
-          class="flex items-center justify-center h-8 w-8 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+          class="w-10 h-10 rounded-full border border-border flex items-center justify-center text-foreground hover:bg-muted transition-all active:scale-90"
           title="Back to Settings"
         >
           <ChevronLeft class="h-5 w-5" />
@@ -674,7 +674,7 @@ async function handleSignOut() {
       <div class="mb-6 flex items-center gap-2">
         <button 
           @click="activeTab = 'main'" 
-          class="flex items-center justify-center h-8 w-8 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+          class="w-10 h-10 rounded-full border border-border flex items-center justify-center text-foreground hover:bg-muted transition-all active:scale-90"
           title="Back to Settings"
         >
           <ChevronLeft class="h-5 w-5" />

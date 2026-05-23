@@ -527,15 +527,21 @@ const HELP_MESSAGE = [
   '• "How much is in my GCash?"',
   '• "New wallet Travel Fund 1000."',
   "",
-  "Expenses & Deposits",
+  "Expenses",
   '• "Spent 500 on food from GCash."',
-  '• "Deposit 2000 to Maya."',
   '• "How much did I spend today?"',
+  "",
+  "Deposits",
+  '• "Deposit 2000 to Maya."',
   "",
   "Debts & Payments",
   '• "I owe Ana 800."',
   '• "Mark owes me 400."',
   '• "Pay Ana 300 from GCash."',
+  "",
+  "Commands",
+  '• "/help" - Show this list of suggestions',
+  '• "/clear" - Clear the conversation history',
 ].join("\n");
 
 const SYSTEM_WALLET_TYPES = WALLET_DEFINITIONS;

@@ -156,6 +156,16 @@ async function sendMessage(rawText = input.value) {
   const text = String(rawText || '').trim()
   if (!text || isThinking.value) return
 
+  if (text.toLowerCase() === '/clear') {
+    input.value = ''
+    clearPendingContext()
+    messages.value = [makeMessage('assistant', eleFamProfile.greeting, 'help')]
+    localStorage.removeItem('elefam_chat_history')
+    await cacheSingleSet('chat_history', { messages: messages.value })
+    await scrollToBottom()
+    return
+  }
+
   pushMessage('user', text)
   input.value = ''
   isThinking.value = true

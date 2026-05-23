@@ -3,9 +3,9 @@ import { ref } from 'vue'
 const toasts = ref([])
 
 export function useToast() {
-  function addToast(message, type = 'success') {
+  function addToast(title, subtitle = '', type = 'success') {
     const id = Date.now() + Math.random().toString()
-    toasts.value.push({ id, message, type })
+    toasts.value.push({ id, title, subtitle, type })
     setTimeout(() => removeToast(id), 3000)
   }
 
@@ -15,8 +15,17 @@ export function useToast() {
 
   return {
     toasts,
-    success: (msg) => addToast(msg, 'success'),
-    error: (msg) => addToast(msg, 'error'),
-    info: (msg) => addToast(msg, 'info'),
+    success: (title, subtitle = '') => addToast(title, subtitle, 'success'),
+    wallet: (title, subtitle = '') => addToast(title, subtitle, 'wallet'),
+    salary: (title, subtitle = '') => addToast(title, subtitle, 'salary'),
+    expense: (title, subtitle = '') => addToast(title, subtitle, 'expense'),
+    debt: (title, subtitle = '') => addToast(title, subtitle, 'debt'),
+    offline: (title, subtitle = '') => addToast(title, subtitle, 'offline'),
+    delete: (title, subtitle = '') => addToast(title, subtitle, 'delete'),
+    session: (title, subtitle = '') => addToast(title, subtitle, 'session'),
+    avatar: (title, subtitle = '') => addToast(title, subtitle, 'avatar'),
+    error: (title, subtitle = '') => addToast(title, subtitle, 'error'),
+    info: (title, subtitle = '') => addToast(title, subtitle, 'info'),
+    removeToast,
   }
 }

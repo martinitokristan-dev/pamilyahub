@@ -39,11 +39,10 @@ const steps = [
 
 <template>
   <section class="mx-auto max-w-3xl px-4 py-8 sm:px-6 animate-fade-in">
-    <!-- Back to Settings Link -->
     <div class="mb-6 flex items-center gap-2">
       <RouterLink 
         to="/settings" 
-        class="flex items-center justify-center h-8 w-8 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+        class="w-10 h-10 rounded-full border border-border flex items-center justify-center text-foreground hover:bg-muted transition-all active:scale-90"
         title="Back to Settings"
       >
         <ChevronLeft class="h-5 w-5" />

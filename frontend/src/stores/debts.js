@@ -156,7 +156,7 @@ export const useDebtsStore = defineStore("debts", () => {
       }
       useDashboardStore().invalidate({ month: new Date().getMonth() + 1, year: new Date().getFullYear() });
       invalidate();
-      useToast().success("Debt created");
+      useToast().debt('Debt created', data.name);
       return res.data.data;
     } catch (e) {
       if (isNetworkError(e)) return _createOffline(data);
@@ -220,7 +220,7 @@ export const useDebtsStore = defineStore("debts", () => {
         }
         useDashboardStore().adjustStat('monthly_expenses', amount);
       }
-      useToast().success("Debt saved");
+      useToast().offline('Saved offline', 'Debt creation queued');
       return { data: { data: optimistic } };
     } finally {
       loading.value = false;
@@ -238,7 +238,7 @@ export const useDebtsStore = defineStore("debts", () => {
       await cacheUpsert("debts", res.data.data);
       useDashboardStore().invalidate({ month: new Date().getMonth() + 1, year: new Date().getFullYear() });
       invalidate();
-      useToast().success("Debt updated");
+      useToast().debt('Debt updated', res.data.data.name);
       return res.data.data;
     } catch (e) {
       if (isNetworkError(e)) return _updateOffline(id, data);
@@ -274,7 +274,7 @@ export const useDebtsStore = defineStore("debts", () => {
       useDashboardStore().adjustStat(oldKey, -oldAmt);
       useDashboardStore().adjustStat(newKey, +newAmt);
     }
-    useToast().success("Debt updated");
+    useToast().offline('Saved offline', 'Debt update queued');
     return { data: { data: updated } };
   }
 
@@ -325,7 +325,7 @@ export const useDebtsStore = defineStore("debts", () => {
       }
       useDashboardStore().invalidate({ month: new Date().getMonth() + 1, year: new Date().getFullYear() });
       invalidate();
-      useToast().success("Debt marked as paid");
+      useToast().debt('Debt paid', debt?.name);
       return res.data.data;
     } catch (e) {
       if (isNetworkError(e)) return _markPaidOffline(id, walletId);
@@ -425,7 +425,7 @@ export const useDebtsStore = defineStore("debts", () => {
         useDashboardStore().adjustStat('monthly_expenses', -amount);
       }
     }
-    useToast().success("Marked as paid");
+    useToast().offline('Saved offline', 'Payment status queued');
   }
 
   // ── partialPay ──────────────────────────────────────────────────────────────
@@ -485,7 +485,7 @@ export const useDebtsStore = defineStore("debts", () => {
       }
       useDashboardStore().invalidate({ month: new Date().getMonth() + 1, year: new Date().getFullYear() });
       invalidate();
-      useToast().success("Partial payment recorded");
+      useToast().debt('Payment recorded', debt?.name);
       return res.data.data;
     } catch (e) {
       if (isNetworkError(e)) return _partialPayOffline(id, amount, walletId);
@@ -598,7 +598,7 @@ export const useDebtsStore = defineStore("debts", () => {
         useDashboardStore().adjustStat('monthly_expenses', -paidAmount);
       }
     }
-    useToast().success("Payment recorded");
+    useToast().offline('Saved offline', 'Payment queued');
   }
 
   // ── remove ──────────────────────────────────────────────────────────────────
@@ -611,7 +611,7 @@ export const useDebtsStore = defineStore("debts", () => {
       await cacheRemove("debts", id);
       useDashboardStore().invalidate({ month: new Date().getMonth() + 1, year: new Date().getFullYear() });
       invalidate();
-      useToast().success("Debt deleted");
+      useToast().delete('Debt deleted', 'Removed successfully');
     } catch (e) {
       if (isNetworkError(e)) return _removeOffline(id);
       throw e;
@@ -637,7 +637,7 @@ export const useDebtsStore = defineStore("debts", () => {
       const statKey = toRemove.type === 'owed_to_me' ? 'debts_owed_to_me' : 'debts_i_owe';
       useDashboardStore().adjustStat(statKey, -Math.abs(parseFloat(toRemove.amount || 0)));
     }
-    useToast().success("Debt deleted");
+    useToast().offline('Saved offline', 'Debt deletion queued');
   }
 
   function invalidate() {

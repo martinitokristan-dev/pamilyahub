@@ -152,9 +152,9 @@ async function handleConfirm() {
               <button
                 v-if="step === 2"
                 @click="goBack"
-                class="rounded-full p-1.5 hover:bg-muted transition-colors"
+                class="w-10 h-10 rounded-full border border-border flex items-center justify-center text-foreground hover:bg-muted transition-all active:scale-90"
               >
-                <ChevronLeft class="h-4 w-4" />
+                <ChevronLeft class="h-5 w-5" />
               </button>
               <div>
                 <h2 class="text-xl font-bold tracking-tight">{{ title }}</h2>

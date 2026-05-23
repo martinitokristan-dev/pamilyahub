@@ -114,7 +114,7 @@ export const useSalaryStore = defineStore('salary', () => {
       walletsStore.invalidate()
       const { useExpensesStore } = await import('./expenses.js')
       useExpensesStore().invalidate()
-      useToast().success('Salary deposited successfully!')
+      useToast().salary('Salary deposited', '₱' + parseFloat(payload.total_amount).toLocaleString())
       return { offline: false }
     } catch (e) {
       if (isNetworkError(e)) return _depositOffline(payload)
@@ -193,7 +193,7 @@ export const useSalaryStore = defineStore('salary', () => {
       dbStore.adjustStat('monthly_expenses', alreadySpent)
     }
 
-    useToast().info('Deposit saved offline — will sync when connected')
+    useToast().offline('Deposit saved offline', 'Will sync when connected')
     return { offline: true }
   }
 

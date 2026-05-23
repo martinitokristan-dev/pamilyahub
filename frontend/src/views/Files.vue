@@ -2,7 +2,7 @@
 import { ref, onMounted, computed, watch } from 'vue'
 import { useRegisterAddAction } from '@/composables/usePageAction.js'
 import { useFilesStore } from '@/stores/files.js'
-import { Upload, Trash2, ExternalLink, FileText, Loader2, FolderOpen, ArrowLeft, ChevronLeft, ChevronRight, WifiOff } from 'lucide-vue-next'
+import { Upload, Trash2, ExternalLink, FileText, Loader2, FolderOpen, ChevronLeft, ChevronRight, WifiOff } from 'lucide-vue-next'
 import UiButton from '@/components/ui/Button.vue'
 import UiCard from '@/components/ui/Card.vue'
 import UiInput from '@/components/ui/Input.vue'
@@ -245,9 +245,12 @@ function formatSize(bytes) {
         <!-- Inside an Album View -->
         <div v-else class="animate-fade-in">
           <div class="flex items-center gap-3 mb-6">
-            <UiButton variant="ghost" size="icon" class="shrink-0 rounded-full hover:bg-muted" @click="activeAlbum = null">
-              <ArrowLeft class="h-5 w-5" />
-            </UiButton>
+            <button
+              @click="activeAlbum = null"
+              class="w-10 h-10 rounded-full border border-border flex items-center justify-center text-foreground hover:bg-muted transition-all active:scale-90 shrink-0"
+            >
+              <ChevronLeft class="h-5 w-5" />
+            </button>
             <div class="flex items-center gap-2">
               <FolderOpen class="h-6 w-6 text-primary" />
               <h2 class="text-xl font-bold tracking-tight">{{ activeAlbum }}</h2>

@@ -1,5 +1,6 @@
 <script setup>
 import { onMounted } from 'vue'
+import AppToast from '@/components/AppToast.vue'
 
 onMounted(() => {
   const splash = document.getElementById('splash')
@@ -18,4 +19,5 @@ onMounted(() => {
 
 <template>
   <RouterView />
+  <AppToast />
 </template>

@@ -3,7 +3,8 @@ defineOptions({ name: 'Notes' })
 import { ref, onMounted, computed, nextTick, watch, onBeforeUnmount } from 'vue'
 import { useRegisterAddAction } from '@/composables/usePageAction.js'
 import { useNotesStore } from '@/stores/notes.js'
-import { Plus, Pencil, Trash2, X, NotebookPen, Search, ArrowLeft, ChevronLeft, Check, Undo, Redo, MoreVertical, Star, FolderPlus, Lock, FolderOpen, Eye, EyeOff, FileText } from 'lucide-vue-next'
+import { useToast } from '@/composables/useToast.js'
+import { Plus, Pencil, Trash2, X, NotebookPen, Search, ChevronLeft, Check, Undo, Redo, MoreVertical, Star, FolderPlus, Lock, FolderOpen, Eye, EyeOff, FileText } from 'lucide-vue-next'
 import UiButton from '@/components/ui/Button.vue'
 import UiInput from '@/components/ui/Input.vue'
 import UiLabel from '@/components/ui/Label.vue'
@@ -15,6 +16,7 @@ import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 
 const store = useNotesStore()
+const toast = useToast()
 const showEditor = ref(false)
 const editing = ref(null)
 const form = ref({ title: '', content: '', folder_id: null })
@@ -296,9 +298,13 @@ function getPreviewLines(content) {
     <template v-if="!showEditor">
       <div class="mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div class="flex items-center gap-3 space-y-1">
-          <UiButton v-if="activeFolderId" variant="ghost" size="icon" @click="activeFolderId = null" class="rounded-full">
-            <ArrowLeft class="h-5 w-5" />
-          </UiButton>
+          <button
+            v-if="activeFolderId"
+            @click="activeFolderId = null"
+            class="w-10 h-10 rounded-full border border-border flex items-center justify-center text-foreground hover:bg-muted transition-all active:scale-90 shrink-0"
+          >
+            <ChevronLeft class="h-5 w-5" />
+          </button>
           <h1 class="text-2xl font-medium tracking-tight text-foreground">
             {{ activeFolder ? activeFolder.name : 'Notes' }}
           </h1>

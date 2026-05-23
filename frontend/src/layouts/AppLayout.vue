@@ -9,7 +9,6 @@ import { useFilesStore } from '@/stores/files.js'
 import { useWalletsStore } from '@/stores/wallets.js'
 import { useDarkMode } from '@/composables/useDarkMode.js'
 import { pageAddAction } from '@/composables/usePageAction.js'
-import { useToast } from '@/composables/useToast.js'
 import { useRegisterSW } from 'virtual:pwa-register/vue'
 import { useSalaryStore } from '@/stores/salary.js'
 
@@ -41,7 +40,6 @@ const salary = useSalaryStore()
 const route = useRoute()
 const router = useRouter()
 const { isDark } = useDarkMode()
-const { toasts } = useToast()
 
 watch(() => route.fullPath, async () => {
   await nextTick()
@@ -443,33 +441,6 @@ function isActive(path) {
       </nav>
 
       <AiChat v-if="!hideNavigationAndAi" />
-
-      <!-- Global Toasts -->
-      <div class="fixed top-4 left-1/2 -translate-x-1/2 z-[100] flex flex-col gap-2 pointer-events-none w-full max-w-sm px-4">
-        <TransitionGroup
-          enter-active-class="transition-all duration-300 ease-out"
-          enter-from-class="opacity-0 -translate-y-4 scale-95"
-          enter-to-class="opacity-100 translate-y-0 scale-100"
-          leave-active-class="transition-all duration-200 ease-in"
-          leave-from-class="opacity-100 translate-y-0 scale-100"
-          leave-to-class="opacity-0 -translate-y-4 scale-95"
-        >
-          <div
-            v-for="toast in toasts"
-            :key="toast.id"
-            class="pointer-events-auto rounded-lg shadow-lg px-4 py-3 flex items-center justify-center gap-2 text-sm font-medium backdrop-blur-md"
-            :class="
-              toast.type === 'success'
-                ? 'bg-emerald-500/90 text-white dark:bg-emerald-600/90'
-                : toast.type === 'info'
-                ? 'bg-amber-500/90 text-white'
-                : 'bg-destructive/90 text-white'
-            "
-          >
-            <span>{{ toast.message }}</span>
-          </div>
-        </TransitionGroup>
-      </div>
 
       <!-- Premium PWA Update Overlay -->
       <Transition

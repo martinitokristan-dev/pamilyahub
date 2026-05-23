@@ -111,7 +111,7 @@ export const useFilesStore = defineStore("files", () => {
       files.value.unshift(res.data.data);
       useDashboardStore().invalidate();
       invalidate();
-      useToast().success("File uploaded successfully");
+      useToast().success('File uploaded', 'Successfully synced');
       return res.data.data;
     } catch (e) {
       error.value = e.response?.data?.message ?? "Failed to upload file";
@@ -130,7 +130,7 @@ export const useFilesStore = defineStore("files", () => {
       files.value = files.value.filter((f) => f.id !== id);
       useDashboardStore().invalidate();
       invalidate();
-      useToast().success("File deleted");
+      useToast().delete('File deleted', 'Removed successfully');
     } finally {
       loading.value = false;
     }
