@@ -190,6 +190,12 @@ const initials = computed(() => {
 })
 
 const isGuidePage = computed(() => route.path === '/guide')
+const isSubSettings = computed(() => {
+  return route.path === '/settings' && route.query.tab && route.query.tab !== 'main'
+})
+const hideNavigationAndAi = computed(() => {
+  return isGuidePage.value || isSubSettings.value
+})
 
 function isActive(path) {
   if (path === '/') return route.path === '/'
@@ -201,7 +207,7 @@ function isActive(path) {
   <div class="flex h-screen overflow-hidden bg-background font-sans">
 
     <!-- Desktop Sidebar -->
-    <aside v-if="!isGuidePage" class="hidden lg:flex w-[240px] shrink-0 flex-col border-r border-sidebar-border bg-sidebar shadow-sm">
+    <aside v-if="!hideNavigationAndAi" class="hidden lg:flex w-[240px] shrink-0 flex-col border-r border-sidebar-border bg-sidebar shadow-sm">
       <div class="flex h-16 shrink-0 items-center gap-3 border-b border-sidebar-border px-6">
         <div class="h-9 w-9 rounded-xl bg-primary flex items-center justify-center shrink-0 shadow-lg shadow-primary/20">
           <span class="text-white font-black text-xl leading-none">E</span>
@@ -258,7 +264,13 @@ function isActive(path) {
       <!-- Page content -->
       <main 
         class="flex-1 overflow-y-auto bg-[#e9eff6] dark:bg-zinc-950"
-        :class="isGuidePage ? 'pb-6' : 'pb-32 lg:pb-0'"
+        :class="[
+          hideNavigationAndAi ? 'pb-6' : 'pb-32 lg:pb-0',
+          {
+            'hide-balances-active': auth.user?.hide_balances,
+            'hide-stats-active': auth.user?.hide_stats
+          }
+        ]"
       >
         <RouterView v-slot="{ Component }">
           <KeepAlive :max="5">
@@ -268,7 +280,7 @@ function isActive(path) {
       </main>
 
       <!-- Mobile Bottom Navigation -->
-      <nav v-if="!isGuidePage" class="fixed bottom-0 inset-x-0 z-[60] lg:hidden pb-safe px-4 mb-6">
+      <nav v-if="!hideNavigationAndAi" class="fixed bottom-0 inset-x-0 z-[60] lg:hidden pb-safe px-4 mb-6">
         <!-- Backdrop to close More Menu -->
         <div 
           v-if="showMoreMenu" 
@@ -430,7 +442,7 @@ function isActive(path) {
         </div>
       </nav>
 
-      <AiChat v-if="!isGuidePage" />
+      <AiChat v-if="!hideNavigationAndAi" />
 
       <!-- Global Toasts -->
       <div class="fixed top-4 left-1/2 -translate-x-1/2 z-[100] flex flex-col gap-2 pointer-events-none w-full max-w-sm px-4">

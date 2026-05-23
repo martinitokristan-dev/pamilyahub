@@ -1,5 +1,6 @@
 import { ref } from 'vue'
 import {
+  getDb,
   outboxGetPending,
   outboxRemove,
   outboxUpdate,
@@ -11,15 +12,39 @@ import {
 import api from './axios.js'
 
 export const pendingCount = ref(0)
+export const hasFailedEntries = ref(false)
 export const isSyncing = ref(false)
 
 let _lock = false
 
 export async function refreshPendingCount() {
-  pendingCount.value = await outboxCount()
+  const db = await getDb()
+  const pending = await db.getAllFromIndex('outbox', 'by_status', 'pending')
+  pendingCount.value = pending.length
+
+  const failed = await db.getAllFromIndex('outbox', 'by_status', 'failed')
+  hasFailedEntries.value = failed.length > 0
+
   window.dispatchEvent(
-    new CustomEvent('pamilya:pending-count', { detail: { count: pendingCount.value } })
+    new CustomEvent('pamilya:pending-count', {
+      detail: {
+        count: pendingCount.value,
+        hasFailed: hasFailedEntries.value,
+      },
+    })
   )
+}
+
+export async function retryFailedEntries() {
+  const db = await getDb()
+  const failed = await db.getAllFromIndex('outbox', 'by_status', 'failed')
+  for (const entry of failed) {
+    await outboxUpdate(entry.id, { status: 'pending', tries: 0 })
+  }
+  await refreshPendingCount()
+  if (navigator.onLine) {
+    drainOutbox()
+  }
 }
 
 export async function initSyncEngine() {
@@ -27,6 +52,7 @@ export async function initSyncEngine() {
   window.addEventListener('online', handleOnline)
   if (navigator.onLine) drainOutbox()
 }
+
 
 function handleOnline() {
   drainOutbox()

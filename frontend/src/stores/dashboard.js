@@ -71,6 +71,9 @@ export const useDashboardStore = defineStore('dashboard', () => {
     if (key === 'monthly_expenses' && stats.value.remaining_salary !== undefined) {
       stats.value.remaining_salary = parseFloat(stats.value.remaining_salary ?? 0) - delta
     }
+    if (key === 'monthly_income' && stats.value.remaining_salary !== undefined) {
+      stats.value.remaining_salary = parseFloat(stats.value.remaining_salary ?? 0) + delta
+    }
     const cacheKey = lastCacheKey.value || `dashboard_${new Date().getFullYear()}_${new Date().getMonth() + 1}`
     try {
       await cacheSingleSet('dashboard', stats.value, cacheKey)
@@ -89,5 +92,13 @@ export const useDashboardStore = defineStore('dashboard', () => {
     cacheSingleRemove('dashboard', cacheKey)
   }
 
+  if (typeof window !== 'undefined') {
+    window.addEventListener('pamilya:drain-complete', () => {
+      fetched.value = false
+      lastCacheKey.value = null
+    })
+  }
+
   return { stats, loading, fetched, error, cacheTime, lastCacheKey, fetchStats, adjustStat, invalidate }
+
 })

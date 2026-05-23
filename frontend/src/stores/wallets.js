@@ -37,25 +37,23 @@ export const useWalletsStore = defineStore("wallets", () => {
   // ── Sync event listeners ────────────────────────────────────────────────────
   if (typeof window !== "undefined") {
     window.addEventListener("pamilya:id-remap", (e) => {
-      const { entity, tempId, realId, serverData } = e.detail;
+      const { entity, tempId, realId } = e.detail;
       if (entity !== "wallets" || !tempId) return;
       const idx = wallets.value.findIndex((w) => w.id === tempId);
-      if (idx !== -1 && serverData) {
-        wallets.value[idx] = { ...serverData, _pending: false };
+      if (idx !== -1) {
+        wallets.value[idx].id = realId;
+        wallets.value[idx]._pending = false;
       }
     });
     window.addEventListener("pamilya:sync-done", (e) => {
       if (e.detail.entity === "wallets") {
-        fetched.value = false;
-        fetchAll();
         useDashboardStore().invalidate();
       }
     });
-    // After full drain: force fresh server fetch so UI matches TiDB
+    // After full drain: mark stale for lazy refetch; optimistic UI stays stable
     window.addEventListener("pamilya:drain-complete", () => {
       fetched.value = false;
       cacheTime.value = null;
-      fetchAll(true);
     });
   }
 
@@ -123,6 +121,7 @@ export const useWalletsStore = defineStore("wallets", () => {
       const optimistic = {
         ...data,
         id: tempId,
+        _clientKey: crypto.randomUUID(),
         balance: parseFloat(data.balance) || 0,
         _pending: true,
         created_at: now,
@@ -240,7 +239,7 @@ export const useWalletsStore = defineStore("wallets", () => {
         console.error("Failed to load wallets cache in adjustBalance", e);
       }
     }
-    const w = wallets.value.find((w) => w.id === walletId);
+    const w = wallets.value.find((w) => String(w.id) === String(walletId));
     if (w) {
       w.balance = (parseFloat(w.balance || 0) + delta).toFixed(2);
       try {

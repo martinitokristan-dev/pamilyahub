@@ -20,14 +20,19 @@ Route::prefix('auth')->group(function () {
     Route::post('/login-with-data', [AuthController::class, 'loginWithData']);
     Route::post('/google', [AuthController::class, 'googleLogin']);
 
-    Route::middleware('auth:sanctum')->group(function () {
+    Route::middleware(['auth:sanctum', 'track_activity'])->group(function () {
         Route::post('/logout', [AuthController::class, 'logout']);
         Route::get('/me', [AuthController::class, 'me']);
         Route::patch('/profile', [AuthController::class, 'updateProfile']);
+        Route::post('/profile/avatar', [AuthController::class, 'uploadAvatar']);
+        Route::delete('/profile/avatar', [AuthController::class, 'deleteAvatar']);
+        Route::get('/sessions', [AuthController::class, 'getSessions']);
+        Route::post('/sessions/logout-others', [AuthController::class, 'logoutOtherSessions']);
+        Route::delete('/sessions/{id}', [AuthController::class, 'revokeSession']);
     });
 });
 
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', 'track_activity'])->group(function () {
     Route::get('dashboard/stats', [DashboardController::class, 'stats']);
 
     Route::apiResource('notes', NoteController::class)->only(['index', 'store', 'update', 'destroy']);

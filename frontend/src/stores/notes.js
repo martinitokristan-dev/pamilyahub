@@ -22,15 +22,12 @@ export const useNotesStore = defineStore('notes', () => {
   if (typeof window !== 'undefined') {
     window.addEventListener('pamilya:sync-done', (e) => {
       if (e.detail.entity === 'notes') {
-        fetched.value = false
-        fetchAll()
         useDashboardStore().invalidate()
       }
     })
 
     window.addEventListener('pamilya:drain-complete', () => {
       fetched.value = false
-      fetchAll(true)
       useDashboardStore().invalidate()
     })
   }
@@ -109,6 +106,7 @@ export const useNotesStore = defineStore('notes', () => {
 
       const newNote = {
         id: tempId,
+        _clientKey: crypto.randomUUID(),
         _pending: true,
         ...data,
         created_at: now,

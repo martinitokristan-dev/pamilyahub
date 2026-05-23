@@ -113,10 +113,6 @@ async function submit() {
     await store.update(editingId.value, data)
   } else {
     await store.create(data)
-    // Optimistic balance adjustment (only for lending)
-    if (data.wallet_id && data.type === 'owed_to_me') {
-      walletsStore.adjustBalance(data.wallet_id, -data.amount)
-    }
   }
   showForm.value = false
   dashboardStore.fetchStats()
@@ -167,17 +163,9 @@ async function confirmPay() {
   if (payMode.value === 'full') {
     // Full payment — mark as paid
     await store.markPaid(debt.id, payWalletId.value)
-    if (payWalletId.value) {
-      const delta = debt.type === 'i_owe' ? -payAmount : payAmount
-      walletsStore.adjustBalance(payWalletId.value, delta)
-    }
   } else {
     // Partial payment — reduce the amount via backend
     await store.partialPay(debt.id, payAmount, payWalletId.value)
-    if (payWalletId.value) {
-      const delta = debt.type === 'i_owe' ? -payAmount : payAmount
-      walletsStore.adjustBalance(payWalletId.value, delta)
-    }
   }
 
   showPayModal.value = false
@@ -209,13 +197,13 @@ const totalBalance = computed(() => {
   <div class="p-6 max-w-4xl mx-auto animate-fade-in">
     <div class="mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
       <div class="space-y-1">
-        <h1 class="text-[32px] sm:text-[40px] font-black tracking-tight text-foreground leading-none">Debts</h1>
+        <h1 class="text-2xl font-medium tracking-tight text-foreground">Debts</h1>
       </div>
       <div class="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto">
         <div class="bg-card border border-border shadow-sm px-4 py-2 rounded-2xl flex flex-col items-start sm:items-end min-w-[140px] transition-all hover:shadow-md">
           <span class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest leading-none mb-1">Net Balance</span>
           <span 
-            class="text-xl font-black tabular-nums"
+            class="text-xl font-black tabular-nums sensitive-balance"
             :class="parseFloat(totalBalance) >= 0 ? 'text-emerald-600' : 'text-destructive'"
           >
             {{ parseFloat(totalBalance) >= 0 ? '+' : '' }}{{ formatCurrency(totalBalance) }}
@@ -257,7 +245,7 @@ const totalBalance = computed(() => {
     <div v-else class="space-y-2">
       <UiCard
         v-for="debt in filtered"
-        :key="debt.id"
+        :key="debt._clientKey || debt.id"
         class="px-4 py-3 transition-all duration-200 cursor-pointer sm:cursor-default"
         @click="openEdit(debt)"
       >
@@ -428,7 +416,7 @@ const totalBalance = computed(() => {
                           </div>
                           <div class="min-w-0">
                             <p class="text-xs font-semibold truncate">{{ wallet.name }}</p>
-                            <p class="text-[10px] text-muted-foreground">{{ formatCurrency(wallet.balance) }}</p>
+                            <p class="text-[10px] text-muted-foreground sensitive-balance">{{ formatCurrency(wallet.balance) }}</p>
                           </div>
                         </button>
                         <button
@@ -570,7 +558,7 @@ const totalBalance = computed(() => {
                       </div>
                       <div class="flex-1 min-w-0">
                         <p class="text-sm font-bold truncate">{{ wallet.name }}</p>
-                        <p class="text-xs text-muted-foreground font-medium tabular-nums">{{ formatCurrency(wallet.balance) }}</p>
+                        <p class="text-xs text-muted-foreground font-medium tabular-nums sensitive-balance">{{ formatCurrency(wallet.balance) }}</p>
                       </div>
                       <div v-if="payWalletId === wallet.id" class="h-5 w-5 rounded-full bg-primary flex items-center justify-center shrink-0 shadow-sm shadow-primary/20">
                         <CheckCircle2 class="h-3 w-3 text-white" />

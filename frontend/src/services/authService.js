@@ -8,4 +8,11 @@ export const authService = {
   logout: () => api.post('/auth/logout'),
   me: () => api.get('/auth/me'),
   updateProfile: (data) => api.patch('/auth/profile', data),
+  uploadAvatar: (formData) => api.post('/auth/profile/avatar', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
+  deleteAvatar: () => api.delete('/auth/profile/avatar'),
+  getSessions: () => api.get('/auth/sessions'),
+  logoutOtherSessions: () => api.post('/auth/sessions/logout-others'),
+  revokeSession: (id) => api.delete(`/auth/sessions/${id}`),
 }

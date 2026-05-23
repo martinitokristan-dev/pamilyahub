@@ -19,6 +19,7 @@ class Expense extends Model
         'description',
         'date',
         'payment_method',
+        'is_settled',
     ];
 
     protected $casts = [
@@ -26,6 +27,7 @@ class Expense extends Model
         'title'       => EncryptedValue::class,
         'description' => EncryptedValue::class,
         'date'        => 'date:Y-m-d',
+        'is_settled'  => 'boolean',
     ];
 
     public function user(): BelongsTo

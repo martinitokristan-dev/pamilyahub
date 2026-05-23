@@ -299,7 +299,7 @@ function getPreviewLines(content) {
           <UiButton v-if="activeFolderId" variant="ghost" size="icon" @click="activeFolderId = null" class="rounded-full">
             <ArrowLeft class="h-5 w-5" />
           </UiButton>
-          <h1 class="text-[32px] sm:text-[40px] font-black tracking-tight text-foreground leading-none">
+          <h1 class="text-2xl font-medium tracking-tight text-foreground">
             {{ activeFolder ? activeFolder.name : 'Notes' }}
           </h1>
         </div>
@@ -372,7 +372,7 @@ function getPreviewLines(content) {
         <div class="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-3 lg:grid-cols-4">
           <UiCard
             v-for="note in filteredNotes"
-            :key="note.id"
+            :key="note._clientKey || note.id"
             class="flex flex-col h-36 hover:shadow-md transition-all duration-200 cursor-pointer active:scale-[0.98] relative group"
             :class="{ 'z-50': menuOpenId === note.id }"
             @click="openNote(note)"

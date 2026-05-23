@@ -76,16 +76,24 @@ class AuthController extends Controller
             $user = \App\Models\User::firstOrCreate(
                 ['email' => $email],
                 [
-                    'name'      => $name,
-                    'google_id' => $googleId,
-                    'avatar'    => $avatar,
-                    'password'  => bcrypt(\Illuminate\Support\Str::random(32)),
+                    'name'          => $name,
+                    'google_id'     => $googleId,
+                    'google_avatar' => $avatar,
+                    'avatar'        => null,
+                    'password'      => bcrypt(\Illuminate\Support\Str::random(32)),
                 ]
             );
 
-            // Update google_id if the user already existed without it
+            // Update google_id or google_avatar if they already existed but these were different/missing
+            $updates = [];
             if (!$user->google_id) {
-                $user->update(['google_id' => $googleId]);
+                $updates['google_id'] = $googleId;
+            }
+            if ($user->google_avatar !== $avatar) {
+                $updates['google_avatar'] = $avatar;
+            }
+            if (!empty($updates)) {
+                $user->update($updates);
             }
 
             $token = $user->createToken('auth_token')->plainTextToken;
@@ -119,9 +127,118 @@ class AuthController extends Controller
         $validated = $request->validate([
             'name' => 'sometimes|string|max:255',
             'monthly_salary' => 'sometimes|numeric|min:0',
+            'hide_balances' => 'sometimes|boolean',
+            'hide_stats' => 'sometimes|boolean',
         ]);
 
         $user->update($validated);
         return $this->success($user, 'Profile updated successfully');
+    }
+
+    public function getSessions(Request $request): JsonResponse
+    {
+        $currentId = $request->user()->currentAccessToken()->id;
+        $tokens = $request->user()->tokens()
+            ->orderBy('last_active_at', 'desc')
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->map(function ($token) use ($currentId) {
+                return [
+                    'id' => $token->id,
+                    'name' => $token->name,
+                    'ip_address' => $token->ip_address,
+                    'last_active_at' => $token->last_active_at ?? $token->created_at,
+                    'device_details' => $token->device_details,
+                    'is_current' => $token->id === $currentId,
+                ];
+            });
+
+        return $this->success($tokens);
+    }
+
+    public function logoutOtherSessions(Request $request): JsonResponse
+    {
+        $currentToken = $request->user()->currentAccessToken();
+        
+        $request->user()->tokens()
+            ->where('id', '!=', $currentToken->id)
+            ->delete();
+
+        return $this->success(null, 'Successfully logged out of all other devices.');
+    }
+
+    public function revokeSession(Request $request, $id): JsonResponse
+    {
+        $request->user()->tokens()->where('id', $id)->delete();
+        return $this->success(null, 'Session successfully revoked.');
+    }
+
+    public function uploadAvatar(Request $request): JsonResponse
+    {
+        $request->validate([
+            'avatar' => 'required|image|mimes:jpeg,png,jpg|max:2048'
+        ]);
+
+        $user = $request->user();
+        $file = $request->file('avatar');
+
+        // Read image and cover it to 200x200
+        $image = \Intervention\Image\Laravel\Facades\Image::read($file);
+        $image->cover(200, 200);
+
+        // Generate temporary path
+        $tempPath = tempnam(sys_get_temp_dir(), 'avatar_');
+
+        try {
+            // Save compressed image as jpeg with 80% quality
+            $image->toJpeg(80)->save($tempPath);
+
+            // Upload to Cloudinary
+            $uploadResult = \CloudinaryLabs\CloudinaryLaravel\Facades\Cloudinary::uploadApi()->upload($tempPath, [
+                'folder' => 'avatars',
+            ]);
+
+            // Delete old avatar from Cloudinary if it exists
+            if ($user->avatar_public_id) {
+                try {
+                    \CloudinaryLabs\CloudinaryLaravel\Facades\Cloudinary::uploadApi()->destroy($user->avatar_public_id);
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::error("Failed to delete old avatar: " . $e->getMessage());
+                }
+            }
+
+            // Update user with secure path and public ID
+            $user->update([
+                'avatar' => $uploadResult['secure_url'] ?? null,
+                'avatar_public_id' => $uploadResult['public_id'] ?? null
+            ]);
+
+            return $this->success($user, 'Profile picture uploaded successfully.');
+
+        } finally {
+            if (file_exists($tempPath)) {
+                unlink($tempPath);
+            }
+        }
+    }
+
+    public function deleteAvatar(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        if ($user->avatar_public_id) {
+            try {
+                \CloudinaryLabs\CloudinaryLaravel\Facades\Cloudinary::uploadApi()->destroy($user->avatar_public_id);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error("Failed to delete avatar from Cloudinary: " . $e->getMessage());
+            }
+        }
+
+        $user->update([
+            'avatar' => null,
+            'avatar_public_id' => null
+        ]);
+
+        return $this->success($user, 'Profile picture removed successfully.');
     }
 }

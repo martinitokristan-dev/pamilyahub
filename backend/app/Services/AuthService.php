@@ -81,20 +81,24 @@ class AuthService
 
             if ($user) {
                 // Link Google ID to the existing account
-                $user->update(['google_id' => $googleId, 'avatar' => $avatar]);
+                $user->update([
+                    'google_id' => $googleId,
+                    'google_avatar' => $avatar,
+                ]);
             } else {
                 // 3. Create a brand-new user (no password needed)
                 $user = User::create([
-                    'name'      => $name,
-                    'email'     => $email,
-                    'google_id' => $googleId,
-                    'avatar'    => $avatar,
-                    'password'  => null,
+                    'name'          => $name,
+                    'email'         => $email,
+                    'google_id'     => $googleId,
+                    'google_avatar' => $avatar,
+                    'avatar'        => null,
+                    'password'      => null,
                 ]);
             }
         } else {
-            // Update avatar on each login in case it changed
-            $user->update(['avatar' => $avatar]);
+            // Update google_avatar on each login in case it changed
+            $user->update(['google_avatar' => $avatar]);
         }
 
         // Establish session-based authentication for SPA (only if stateful)

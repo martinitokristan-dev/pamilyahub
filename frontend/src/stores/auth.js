@@ -162,7 +162,7 @@ export const useAuthStore = defineStore('auth', () => {
     error.value = null
     try {
       const res = await authService.updateProfile(data)
-      user.value = res.data.data
+      user.value = { ...user.value, ...res.data.data }
       await cacheSingleSet('user', user.value)
       return res.data.data
     } catch (e) {
@@ -195,5 +195,100 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  return { user, loading, error, register, login, logout, fetchMe, updateProfile, hydrateUser, loginWithGoogle }
+  const sessions = ref([])
+
+  async function fetchSessions() {
+    try {
+      const res = await authService.getSessions()
+      sessions.value = res.data.data
+      return res.data.data
+    } catch (e) {
+      console.error('Failed to fetch sessions:', e)
+      throw e
+    }
+  }
+
+  async function logoutOtherSessions() {
+    loading.value = true
+    try {
+      await authService.logoutOtherSessions()
+      sessions.value = sessions.value.filter(s => s.is_current)
+    } catch (e) {
+      console.error('Failed to log out other devices:', e)
+      throw e
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function revokeSession(id) {
+    loading.value = true
+    try {
+      await authService.revokeSession(id)
+      const sessionObj = sessions.value.find(s => s.id === id)
+      if (sessionObj?.is_current) {
+        await logout()
+      } else {
+        sessions.value = sessions.value.filter(s => s.id !== id)
+      }
+    } catch (e) {
+      console.error('Failed to revoke session:', e)
+      throw e
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function uploadAvatar(file) {
+    loading.value = true
+    error.value = null
+    try {
+      const formData = new FormData()
+      formData.append('avatar', file)
+      const res = await authService.uploadAvatar(formData)
+      user.value = res.data.data
+      await cacheSingleSet('user', user.value)
+      return res.data.data
+    } catch (e) {
+      error.value = e.response?.data?.message ?? 'Image upload failed'
+      throw e
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function deleteAvatar() {
+    loading.value = true
+    error.value = null
+    try {
+      const res = await authService.deleteAvatar()
+      user.value = res.data.data
+      await cacheSingleSet('user', user.value)
+      return res.data.data
+    } catch (e) {
+      error.value = e.response?.data?.message ?? 'Failed to delete avatar'
+      throw e
+    } finally {
+      loading.value = false
+    }
+  }
+
+  return { 
+    user, 
+    loading, 
+    error, 
+    register, 
+    login, 
+    logout, 
+    fetchMe, 
+    updateProfile, 
+    hydrateUser, 
+    loginWithGoogle,
+    sessions,
+    fetchSessions,
+    logoutOtherSessions,
+    revokeSession,
+    uploadAvatar,
+    deleteAvatar
+  }
 })

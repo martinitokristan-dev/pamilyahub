@@ -1,5 +1,5 @@
 <script setup>
-import { ArrowLeft, Wallet, Banknote, HandCoins, Receipt, Sparkles } from 'lucide-vue-next'
+import { ChevronLeft, Wallet, Banknote, HandCoins, Receipt, Sparkles } from 'lucide-vue-next'
 import UiCard from '@/components/ui/Card.vue'
 import UiCardContent from '@/components/ui/CardContent.vue'
 
@@ -40,20 +40,21 @@ const steps = [
 <template>
   <section class="mx-auto max-w-3xl px-4 py-8 sm:px-6 animate-fade-in">
     <!-- Back to Settings Link -->
-    <div class="mb-6">
+    <div class="mb-6 flex items-center gap-2">
       <RouterLink 
         to="/settings" 
-        class="inline-flex items-center gap-2 text-sm font-bold text-muted-foreground hover:text-foreground transition-colors"
+        class="flex items-center justify-center h-8 w-8 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+        title="Back to Settings"
       >
-        <ArrowLeft class="h-4 w-4" />
-        Back to Settings
+        <ChevronLeft class="h-5 w-5" />
       </RouterLink>
+      <span class="text-xs font-semibold text-muted-foreground tracking-wide uppercase">Back to Settings</span>
     </div>
 
     <!-- Page Header -->
     <div class="mb-8">
-      <h1 class="text-3xl font-black tracking-tight text-foreground sm:text-4xl">Quick Start Guidelines</h1>
-      <p class="mt-2 text-sm text-muted-foreground sm:text-base leading-relaxed">
+      <h1 class="text-2xl font-medium tracking-tight text-foreground">Quick Start Guidelines</h1>
+      <p class="mt-1 text-xs text-muted-foreground">
         Reference these baseline setup principles to ensure your financial dashboards, wallets, and automated tracking are configured correctly.
       </p>
     </div>

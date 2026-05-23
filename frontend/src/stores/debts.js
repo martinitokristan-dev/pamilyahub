@@ -35,17 +35,16 @@ export const useDebtsStore = defineStore("debts", () => {
   // ── Sync event listeners ────────────────────────────────────────────────────
   if (typeof window !== "undefined") {
     window.addEventListener("pamilya:id-remap", (e) => {
-      const { entity, tempId, realId, serverData } = e.detail;
+      const { entity, tempId, realId } = e.detail;
       if (entity !== "debts" || !tempId) return;
       const idx = debts.value.findIndex((d) => d.id === tempId);
-      if (idx !== -1 && serverData) {
-        debts.value[idx] = { ...serverData, _pending: false };
+      if (idx !== -1) {
+        debts.value[idx].id = realId;
+        debts.value[idx]._pending = false;
       }
     });
     window.addEventListener("pamilya:sync-done", (e) => {
       if (e.detail.entity === "debts") {
-        fetched.value = false;
-        fetchAll();
         useDashboardStore().invalidate();
       }
     });
@@ -54,7 +53,6 @@ export const useDebtsStore = defineStore("debts", () => {
       if (entities.includes("debts")) {
         fetched.value = false;
         lastCacheKey.value = null;
-        fetchAll();
       }
     });
   }
@@ -145,6 +143,17 @@ export const useDebtsStore = defineStore("debts", () => {
       if (data.type === "owed_to_me" && data.wallet_id) {
         await useWalletsStore().adjustBalance(data.wallet_id, -Math.abs(parseFloat(data.amount || 0)));
       }
+      const statKey = data.type === 'owed_to_me' ? 'debts_owed_to_me' : 'debts_i_owe';
+      useDashboardStore().adjustStat(statKey, Math.abs(parseFloat(data.amount || 0)));
+      if (data.type === 'owed_to_me') {
+        useDashboardStore().adjustStat('monthly_expenses', Math.abs(parseFloat(data.amount || 0)));
+        const { useExpensesStore } = await import("./expenses.js");
+        const expStore = useExpensesStore();
+        expStore.invalidate();
+        try {
+          await expStore.fetchAll();
+        } catch { /* ignore background refresh error */ }
+      }
       useDashboardStore().invalidate({ month: new Date().getMonth() + 1, year: new Date().getFullYear() });
       invalidate();
       useToast().success("Debt created");
@@ -162,7 +171,7 @@ export const useDebtsStore = defineStore("debts", () => {
     try {
       const tempId = `tmp_${crypto.randomUUID()}`;
       const now = new Date().toISOString();
-      const optimistic = { ...data, id: tempId, _pending: true, created_at: now, updated_at: now };
+      const optimistic = { ...data, id: tempId, _clientKey: crypto.randomUUID(), _pending: true, created_at: now, updated_at: now };
       debts.value.unshift(optimistic);
       await cacheUpsert("debts", optimistic);
       await outboxAdd({ method: "post", url: "/debts", data, entity: "debts", tempId });
@@ -170,38 +179,45 @@ export const useDebtsStore = defineStore("debts", () => {
       const statKey = data.type === 'owed_to_me' ? 'debts_owed_to_me' : 'debts_i_owe';
       useDashboardStore().adjustStat(statKey, parseFloat(data.amount || 0));
       // When someone owes me (owed_to_me), I lent them money — log as an optimistic expense
-      if (data.type === 'owed_to_me' && data.wallet_id) {
+      if (data.type === 'owed_to_me') {
         const { useExpensesStore } = await import("./expenses.js");
         const expStore = useExpensesStore();
         const walletsStore = useWalletsStore();
-        if (walletsStore.wallets.length === 0) {
-          try {
-            const cached = await cacheGet("wallets");
-            if (cached && cached.length > 0) {
-              walletsStore.wallets = cached;
-            }
-          } catch {}
+        let wallet = null;
+        if (data.wallet_id) {
+          if (walletsStore.wallets.length === 0) {
+            try {
+              const cached = await cacheGet("wallets");
+              if (cached && cached.length > 0) {
+                walletsStore.wallets = cached;
+              }
+            } catch { }
+          }
+          const walletRaw = walletsStore.wallets.find((w) => String(w.id) === String(data.wallet_id)) || null;
+          wallet = walletRaw ? JSON.parse(JSON.stringify(walletRaw)) : null;
         }
-        const walletRaw = walletsStore.wallets.find((w) => w.id === data.wallet_id) || null;
-        const wallet = walletRaw ? JSON.parse(JSON.stringify(walletRaw)) : null;
         const amount = Math.abs(parseFloat(data.amount || 0));
         const optimisticExpense = {
           id: `tmp_debt_lent_${crypto.randomUUID()}`,
-          title: `Lent to ${data.name}`,
+          _debt_temp_id: tempId,
+          title: `Lent money to: ${data.name}`,
           amount: String(amount),
           category: "Bills/Debt",
           date: now.split("T")[0],
-          wallet_id: data.wallet_id,
+          wallet_id: data.wallet_id || null,
           wallet,
-          description: data.description ?? "Money lent",
+          description: data.description ?? "Lending money",
           created_at: now,
           updated_at: now,
+          is_settled: false,
           _pending: true,
           _debt_lent: true,
         };
         expStore.expenses.unshift(optimisticExpense);
         await cacheUpsert("expenses", optimisticExpense);
-        await walletsStore.adjustBalance(data.wallet_id, -amount);
+        if (data.wallet_id) {
+          await walletsStore.adjustBalance(data.wallet_id, -amount);
+        }
         useDashboardStore().adjustStat('monthly_expenses', amount);
       }
       useToast().success("Debt saved");
@@ -278,6 +294,35 @@ export const useDebtsStore = defineStore("debts", () => {
           : -Math.abs(parseFloat(debt.amount || 0));
         await useWalletsStore().adjustBalance(walletId, delta);
       }
+      if (debt) {
+        const amount = Math.abs(parseFloat(debt.amount || 0));
+        const statKey = debt.type === 'owed_to_me' ? 'debts_owed_to_me' : 'debts_i_owe';
+        useDashboardStore().adjustStat(statKey, -amount);
+        if (debt.type === 'owed_to_me') {
+          useDashboardStore().adjustStat('monthly_expenses', -amount);
+        } else {
+          useDashboardStore().adjustStat('monthly_expenses', amount);
+        }
+
+        const { useExpensesStore } = await import("./expenses.js");
+        const expStore = useExpensesStore();
+        if (debt.type === 'owed_to_me') {
+          expStore.expenses.forEach(async (ex) => {
+            if (
+              ex.title === `Lent to ${debt.name}` ||
+              ex.title === `Lent money to: ${debt.name}` ||
+              ex.title === `Debt Repayment: ${debt.name}`
+            ) {
+              ex.is_settled = true;
+              await cacheUpsert("expenses", ex);
+            }
+          });
+        }
+        expStore.invalidate();
+        try {
+          await expStore.fetchAll();
+        } catch { /* ignore background refresh error */ }
+      }
       useDashboardStore().invalidate({ month: new Date().getMonth() + 1, year: new Date().getFullYear() });
       invalidate();
       useToast().success("Debt marked as paid");
@@ -293,9 +338,11 @@ export const useDebtsStore = defineStore("debts", () => {
   async function _markPaidOffline(id, walletId) {
     const debt = debts.value.find((d) => d.id === id);
     const idx = debts.value.findIndex((d) => d.id === id);
+    const amount = debt ? Math.abs(parseFloat((debt.amount || 0) - (debt.amount_paid || 0))) : 0;
     if (idx !== -1) {
       debts.value[idx] = {
         ...debts.value[idx],
+        is_paid: true,
         status: "paid",
         _pending: true,
       };
@@ -309,11 +356,11 @@ export const useDebtsStore = defineStore("debts", () => {
           if (cached && cached.length > 0) {
             walletsStore.wallets = cached;
           }
-        } catch {}
+        } catch { }
       }
       const delta = debt?.type === "owed_to_me"
-        ? +Math.abs(parseFloat(debt.amount || 0))
-        : -Math.abs(parseFloat(debt.amount || 0));
+        ? +amount
+        : -amount;
       await walletsStore.adjustBalance(walletId, delta);
       await cacheSet("wallets", JSON.parse(JSON.stringify(walletsStore.wallets)));
     }
@@ -326,27 +373,28 @@ export const useDebtsStore = defineStore("debts", () => {
     });
     await refreshPendingCount();
     if (debt) {
-      const amount = Math.abs(parseFloat(debt.amount || 0));
       const statKey = debt.type === 'owed_to_me' ? 'debts_owed_to_me' : 'debts_i_owe';
       useDashboardStore().adjustStat(statKey, -amount);
-      // For i_owe debts: log optimistic expense so it shows in expenses list offline
+
+      const { useExpensesStore } = await import("./expenses.js");
+      const expStore = useExpensesStore();
+      const walletsStore = useWalletsStore();
+      if (walletsStore.wallets.length === 0) {
+        try {
+          const cached = await cacheGet("wallets");
+          if (cached && cached.length > 0) {
+            walletsStore.wallets = cached;
+          }
+        } catch { }
+      }
+      const walletRaw = walletsStore.wallets.find((w) => String(w.id) === String(walletId)) || null;
+      const wallet = walletRaw ? JSON.parse(JSON.stringify(walletRaw)) : null;
+      const now = new Date().toISOString();
+
       if (debt.type === 'i_owe') {
-        const { useExpensesStore } = await import("./expenses.js");
-        const expStore = useExpensesStore();
-        const walletsStore = useWalletsStore();
-        if (walletsStore.wallets.length === 0) {
-          try {
-            const cached = await cacheGet("wallets");
-            if (cached && cached.length > 0) {
-              walletsStore.wallets = cached;
-            }
-          } catch {}
-        }
-        const walletRaw = walletsStore.wallets.find((w) => w.id === walletId) || null;
-        const wallet = walletRaw ? JSON.parse(JSON.stringify(walletRaw)) : null;
-        const now = new Date().toISOString();
         const optimisticExpense = {
           id: `tmp_debt_${crypto.randomUUID()}`,
+          _debt_temp_id: id,
           title: `Debt Payment: ${debt.name}`,
           amount: String(amount),
           category: "Bills/Debt",
@@ -356,12 +404,25 @@ export const useDebtsStore = defineStore("debts", () => {
           description: debt.description ?? "Paid off debt",
           created_at: now,
           updated_at: now,
+          is_settled: false,
           _pending: true,
           _debt_payment: true,
         };
         expStore.expenses.unshift(optimisticExpense);
         await cacheUpsert("expenses", optimisticExpense);
         useDashboardStore().adjustStat('monthly_expenses', amount);
+      } else if (debt.type === 'owed_to_me') {
+        expStore.expenses.forEach(async (ex) => {
+          if (
+            ex.title === `Lent to ${debt.name}` ||
+            ex.title === `Lent money to: ${debt.name}` ||
+            ex.title === `Debt Repayment: ${debt.name}`
+          ) {
+            ex.is_settled = true;
+            await cacheUpsert("expenses", ex);
+          }
+        });
+        useDashboardStore().adjustStat('monthly_expenses', -amount);
       }
     }
     useToast().success("Marked as paid");
@@ -383,6 +444,45 @@ export const useDebtsStore = defineStore("debts", () => {
           : -Math.abs(parseFloat(amount || 0));
         await useWalletsStore().adjustBalance(walletId, delta);
       }
+      if (debt) {
+        const paidAmount = Math.abs(parseFloat(amount || 0));
+        const statKey = debt.type === 'owed_to_me' ? 'debts_owed_to_me' : 'debts_i_owe';
+        useDashboardStore().adjustStat(statKey, -paidAmount);
+        if (debt.type === 'owed_to_me') {
+          useDashboardStore().adjustStat('monthly_expenses', -paidAmount);
+        } else {
+          useDashboardStore().adjustStat('monthly_expenses', paidAmount);
+        }
+
+        const { useExpensesStore } = await import("./expenses.js");
+        const expStore = useExpensesStore();
+        if (debt.type === 'owed_to_me') {
+          const walletsStore = useWalletsStore();
+          const walletRaw = walletsStore.wallets.find((w) => String(w.id) === String(walletId)) || null;
+          const wallet = walletRaw ? JSON.parse(JSON.stringify(walletRaw)) : null;
+          const nowStr = new Date().toISOString();
+          const repaymentExpense = {
+            id: `tmp_debt_repayment_${crypto.randomUUID()}`,
+            title: `Debt Repayment: ${debt.name}`,
+            amount: String(-paidAmount),
+            category: "Bills/Debt",
+            date: nowStr.split("T")[0],
+            wallet_id: walletId,
+            wallet,
+            description: "Partial repayment received",
+            created_at: nowStr,
+            updated_at: nowStr,
+            is_settled: false,
+            _pending: true,
+          };
+          expStore.expenses.unshift(repaymentExpense);
+          await cacheUpsert("expenses", repaymentExpense);
+        }
+        expStore.invalidate();
+        try {
+          await expStore.fetchAll();
+        } catch { /* ignore background refresh error */ }
+      }
       useDashboardStore().invalidate({ month: new Date().getMonth() + 1, year: new Date().getFullYear() });
       invalidate();
       useToast().success("Partial payment recorded");
@@ -402,10 +502,13 @@ export const useDebtsStore = defineStore("debts", () => {
       const currentPaid = parseFloat(debt.amount_paid || 0);
       const newPaid = currentPaid + parseFloat(amount);
       const totalAmount = parseFloat(debt.amount || 0);
+      const isPaid = newPaid >= totalAmount;
       debts.value[idx] = {
         ...debts.value[idx],
         amount_paid: newPaid.toFixed(2),
         amount_remaining: Math.max(0, totalAmount - newPaid).toFixed(2),
+        is_paid: isPaid,
+        status: isPaid ? "paid" : (debts.value[idx].status || ""),
         _pending: true,
       };
       await cacheUpsert("debts", debts.value[idx]);
@@ -418,7 +521,7 @@ export const useDebtsStore = defineStore("debts", () => {
           if (cached && cached.length > 0) {
             walletsStore.wallets = cached;
           }
-        } catch {}
+        } catch { }
       }
       const delta = debt?.type === "owed_to_me"
         ? +Math.abs(parseFloat(amount))
@@ -438,24 +541,26 @@ export const useDebtsStore = defineStore("debts", () => {
       const paidAmount = Math.abs(parseFloat(amount || 0));
       const statKey = debt.type === 'owed_to_me' ? 'debts_owed_to_me' : 'debts_i_owe';
       useDashboardStore().adjustStat(statKey, -paidAmount);
-      // For i_owe debts: log optimistic expense so it shows in expenses list offline
+
+      const { useExpensesStore } = await import("./expenses.js");
+      const expStore = useExpensesStore();
+      const walletsStore = useWalletsStore();
+      if (walletsStore.wallets.length === 0) {
+        try {
+          const cached = await cacheGet("wallets");
+          if (cached && cached.length > 0) {
+            walletsStore.wallets = cached;
+          }
+        } catch { }
+      }
+      const walletRaw = walletsStore.wallets.find((w) => String(w.id) === String(walletId)) || null;
+      const wallet = walletRaw ? JSON.parse(JSON.stringify(walletRaw)) : null;
+      const now = new Date().toISOString();
+
       if (debt.type === 'i_owe') {
-        const { useExpensesStore } = await import("./expenses.js");
-        const expStore = useExpensesStore();
-        const walletsStore = useWalletsStore();
-        if (walletsStore.wallets.length === 0) {
-          try {
-            const cached = await cacheGet("wallets");
-            if (cached && cached.length > 0) {
-              walletsStore.wallets = cached;
-            }
-          } catch {}
-        }
-        const walletRaw = walletsStore.wallets.find((w) => w.id === walletId) || null;
-        const wallet = walletRaw ? JSON.parse(JSON.stringify(walletRaw)) : null;
-        const now = new Date().toISOString();
         const optimisticExpense = {
           id: `tmp_debt_${crypto.randomUUID()}`,
+          _debt_temp_id: id,
           title: `Partial Debt Payment: ${debt.name}`,
           amount: String(paidAmount),
           category: "Bills/Debt",
@@ -465,12 +570,32 @@ export const useDebtsStore = defineStore("debts", () => {
           description: "Partial payment towards debt",
           created_at: now,
           updated_at: now,
+          is_settled: false,
           _pending: true,
           _debt_payment: true,
         };
         expStore.expenses.unshift(optimisticExpense);
         await cacheUpsert("expenses", optimisticExpense);
         useDashboardStore().adjustStat('monthly_expenses', paidAmount);
+      } else if (debt.type === 'owed_to_me') {
+        const repaymentExpense = {
+          id: `tmp_debt_repayment_${crypto.randomUUID()}`,
+          _debt_temp_id: id,
+          title: `Debt Repayment: ${debt.name}`,
+          amount: String(-paidAmount),
+          category: "Bills/Debt",
+          date: now.split("T")[0],
+          wallet_id: walletId,
+          wallet,
+          description: "Partial repayment received",
+          created_at: now,
+          updated_at: now,
+          is_settled: false,
+          _pending: true,
+        };
+        expStore.expenses.unshift(repaymentExpense);
+        await cacheUpsert("expenses", repaymentExpense);
+        useDashboardStore().adjustStat('monthly_expenses', -paidAmount);
       }
     }
     useToast().success("Payment recorded");

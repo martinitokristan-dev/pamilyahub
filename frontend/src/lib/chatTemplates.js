@@ -56,19 +56,19 @@ const TEMPLATES = [
   // Pay Debt
   {
     intent: 'pay_debt',
-    pattern: /^(i|ako|ni)?\s*(paid|bayad|paide)\s+(?<person>[a-z0-9 ]+?)\s+(?<amount>(php|p)?\s*\d+(\.\d+)?(k|m)?)$/i
+    pattern: /^(i|ako|ni)?\s*(paid|pay|bayad|paide)\s+(?<person>[a-z0-9 ]+?)\s+(?<amount>(php|p)?\s*\d+(\.\d+)?(k|m)?)$/i
   },
   {
     intent: 'pay_debt',
-    pattern: /^(?<person>[a-z0-9 ]+?)\s+(paid|paid me|paid me back|paide|paide me back|bayad)\s+(?<amount>(php|p)?\s*\d+(\.\d+)?(k|m)?)$/i
+    pattern: /^(?<person>[a-z0-9 ]+?)\s+(paid|paid me|paid me back|pay|pay me|pay me back|paide|paide me back|bayad)\s+(?<amount>(php|p)?\s*\d+(\.\d+)?(k|m)?)$/i
   },
   {
     intent: 'pay_debt',
-    pattern: /^(i|ako|ni)?\s*(paid|bayad|paide)\s+(?<person>[a-z0-9 ]+)$/i
+    pattern: /^(i|ako|ni)?\s*(paid|pay|bayad|paide)\s+(?<person>[a-z0-9 ]+)$/i
   },
   {
     intent: 'pay_debt',
-    pattern: /^(?<person>[a-z0-9 ]+?)\s+(paid|paid me|paid me back|paide|paide me back|bayad)$/i
+    pattern: /^(?<person>[a-z0-9 ]+?)\s+(paid|paid me|paid me back|pay|pay me|pay me back|paide|paide me back|bayad)$/i
   },
   // Set Budget
   {

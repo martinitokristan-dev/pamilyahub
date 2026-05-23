@@ -3,9 +3,9 @@ import { normalizeText } from '@/lib/chatIntents.js'
 // Large phrase mappings covering English, Tagalog, and Bisaya
 const SYNONYM_GROUPS = {
   deposit: [
-    'put money', 'add cash', 'load up', 'fill wallet', 
-    'lagay pera', 'dagdag funds', 'top up account', 'ihulog', 
-    'pasok pera', 'nag add ako', 'nag lagay', 'maglagay', 
+    'put money', 'add cash', 'load up', 'fill wallet',
+    'lagay pera', 'dagdag funds', 'top up account', 'ihulog',
+    'pasok pera', 'nag add ako', 'nag lagay', 'maglagay',
     'butang kwarta', 'dungag kwarta', 'nag butang',
     'add to wallet', 'fund wallet', 'put in wallet',
     'puno ng pera', 'butangan ug kwarta', 'mag top up',
@@ -17,7 +17,7 @@ const SYNONYM_GROUPS = {
     'naggastos ako', 'nabayran nako', 'gipalit nako', 'nagasto',
     'bayad sa', 'spent on', 'paid to',
     'i paid', 'i bought', 'may bayad ako',
-    'ginastos ko', 'nagasto ako', 'nagastos', 
+    'ginastos ko', 'nagasto ako', 'nagastos',
     'para sa', 'bayad para sa', 'kumuha ako',
     'add 150 pesos for transpo', 'bumili ako ng drinks for 100', 'add 2000 pesos for food', 'bumili ako ng electricity for 2000', 'i spent 200 on transpo'
   ],
@@ -33,8 +33,8 @@ const SYNONYM_GROUPS = {
     'check balance for bdo', 'magkano laman ng gcash ko', 'magkano laman ng bpi ko'
   ],
   query_expenses: [
-    'how much spent', 'ano gastos', 'magkano gastos', 
-    'pila nagasto', 'pila gigasto', 'what did i spend', 
+    'how much spent', 'ano gastos', 'magkano gastos',
+    'pila nagasto', 'pila gigasto', 'what did i spend',
     'saan napunta pera ko', 'asa napunta', 'spending today',
     'check my expenses this week', 'pila akong gasto today lang', 'how much did i spend kanina'
   ],
@@ -60,7 +60,7 @@ const SYNONYM_GROUPS = {
     'niborrow ko', 'i owe', 'utang ko'
   ],
   transfer: [
-    'move money', 'transfer cash', 'lipat pera', 
+    'move money', 'transfer cash', 'lipat pera',
     'pasa pera', 'send funds', 'balhin kwarta',
     'ipasa nako', 'ilipat sa'
   ],
@@ -121,7 +121,7 @@ const CONTEXTUAL_PATTERNS = [
 
 export function matchSynonyms(text) {
   const normalizedText = normalizeText(text)
-  
+
   let bestIntent = null
   let maxScore = 0
 

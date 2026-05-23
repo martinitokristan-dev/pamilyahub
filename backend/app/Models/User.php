@@ -25,6 +25,10 @@ class User extends Authenticatable
         'monthly_salary',
         'google_id',
         'avatar',
+        'google_avatar',
+        'avatar_public_id',
+        'hide_balances',
+        'hide_stats',
     ];
 
     /**
@@ -48,6 +52,8 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password'          => 'hashed',
             'monthly_salary'    => EncryptedValue::class,
+            'hide_balances'     => 'boolean',
+            'hide_stats'        => 'boolean',
         ];
     }
 

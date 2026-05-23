@@ -181,6 +181,9 @@ function getPendingReminder(ctx) {
           : `how much ${entities.person} owes you`;
       return `I'm still waiting for ${verb}.`;
     }
+    if (entities.type === "owed_to_me" && !entities.walletId) {
+      return `I'm still waiting for which wallet you used to lend money to ${normalizeName(entities.person)}.`;
+    }
   }
   if (ctx.intent === "pay_debt") {
     if (!entities.debtId) {
@@ -190,6 +193,11 @@ function getPendingReminder(ctx) {
       return `I'm still waiting for how much you paid.`;
     }
     if (!entities.walletId) {
+      const debtsStore = useDebtsStore();
+      const debt = debtsStore.debts.find(d => String(d.id) === String(entities.debtId));
+      if (debt && debt.type === "owed_to_me") {
+        return `I'm still waiting for which wallet ${debt.name} paid you.`;
+      }
       return `I'm still waiting for which wallet to use for this payment.`;
     }
   }
@@ -217,13 +225,23 @@ export function clearPendingContext(sessionId = "default") {
 
 function askForMissingField(field, pendingCtx) {
   const intent = pendingCtx.intent;
+  const walletsStore = useWalletsStore();
   if (field === "amount") {
     if (intent === "deposit")
       return "How much are you depositing? Just type a number.";
     if (intent === "log_expense") return "How much did you spend?";
     if (intent === "transfer") return "How much do you want to transfer?";
     if (intent === "create_debt") return "How much is the debt amount?";
-    if (intent === "pay_debt") return "How much did you pay?";
+    if (intent === "pay_debt") {
+      const debtsStore = useDebtsStore();
+      const debt = debtsStore.debts.find(
+        (d) => String(d.id) === String(pendingCtx.entities.debtId),
+      );
+      if (debt && debt.type === "owed_to_me") {
+        return `How much did ${debt.name} pay you?`;
+      }
+      return "How much did you pay?";
+    }
     if (intent === "set_budget") return "How much limit would you like to set? (e.g. 12000)";
     return "How much did you spend?";
   }
@@ -250,8 +268,19 @@ function askForMissingField(field, pendingCtx) {
   if (field === "debtId") {
     return "Which debt are you paying? (Please provide the name or reference)";
   }
-  if (field === "walletId" && intent === "pay_debt") {
-    return "Which wallet should this be applied to?";
+  if (field === "walletId") {
+    const walletList = walletsStore.wallets.map((w) => w.name).join(", ");
+    if (intent === "pay_debt") {
+      const debtsStore = useDebtsStore();
+      const debt = debtsStore.debts.find((d) => String(d.id) === String(pendingCtx.entities.debtId));
+      if (debt && debt.type === "owed_to_me") {
+        return `Which wallet did ${debt.name} pay you?\n(${walletList})`;
+      }
+      return `Which wallet should this be deducted from?\n(${walletList})`;
+    }
+    if (intent === "create_debt") {
+      return `Which wallet did you use to lend money to ${normalizeName(pendingCtx.entities.person)}?\n(${walletList})`;
+    }
   }
   return `Please provide the ${field}.`;
 }
@@ -295,7 +324,7 @@ async function executeIntent(intent, entities, sessionId) {
       entities.person,
       entities.amount,
       entities.type,
-      null,
+      entities.walletId || null,
       debtsStore,
       dashboardStore,
     );
@@ -344,7 +373,12 @@ export async function resolvePendingContext(
   // Extract new entities from text
   const newEntities = {};
 
-  const required = REQUIRED_FIELDS[pendingCtx.intent] || [];
+  let required = [...(REQUIRED_FIELDS[pendingCtx.intent] || [])];
+  if (pendingCtx.intent === "create_debt" && pendingCtx.entities.type === "owed_to_me") {
+    if (!required.includes("walletId")) {
+      required.push("walletId");
+    }
+  }
   const missingBefore = required.filter((field) => !pendingCtx.entities[field]);
 
   const extractedAmount = extractAmount(text);
@@ -379,10 +413,14 @@ export async function resolvePendingContext(
   if (pendingCtx.intent === "create_debt") {
     const extractedPerson = extractPersonName(text);
     if (extractedPerson) newEntities.person = extractedPerson;
+    if (matchedWallet) newEntities.walletId = matchedWallet.id;
   }
 
   if (pendingCtx.intent === "pay_debt") {
     const debtsStore = useDebtsStore();
+    if (debtsStore.debts.length === 0) {
+      await debtsStore.fetchAll();
+    }
     const debt = findDebtByName(text, debtsStore.debts);
     if (debt) newEntities.debtId = debt.id;
 
@@ -1064,6 +1102,24 @@ async function handleCreateDebt(text, type, sessionId = "default") {
     };
   }
 
+  // ── Case: wallet missing, but type is owed_to_me (lending) ───────────
+  if (type === "owed_to_me" && !wallet) {
+    setPendingContext(sessionId, {
+      intent: "create_debt",
+      entities: {
+        amount,
+        person: name,
+        type,
+        walletId: null,
+      },
+    });
+    return {
+      ok: true,
+      message: `Which wallet did you use to lend money to ${normalizeName(name)}?\n(${walletsStore.wallets.map((w) => w.name).join(", ")})`,
+      kind: "question",
+    };
+  }
+
   // ── Case: both present → execute ──────────────────────────────────────
   return _executeCreateDebt(
     normalizeName(name),
@@ -1109,6 +1165,9 @@ async function _executeCreateDebt(
 
 async function handlePayDebt(text, sessionId = "default") {
   const debtsStore = useDebtsStore();
+  if (debtsStore.debts.length === 0) {
+    await debtsStore.fetchAll();
+  }
   const walletsStore = useWalletsStore();
   const dashboardStore = useDashboardStore();
 
@@ -1134,14 +1193,23 @@ async function handlePayDebt(text, sessionId = "default") {
           "Which debt are you paying? (Please provide the name or reference)",
         kind: "question",
       };
-    if (!amount)
-      return { ok: false, message: "How much did you pay?", kind: "question" };
-    if (!walletId)
+    if (!amount) {
+      const promptText = debt?.type === "owed_to_me"
+        ? `How much did ${debt.name} pay you?`
+        : "How much did you pay?";
+      return { ok: false, message: promptText, kind: "question" };
+    }
+    if (!walletId) {
+      const walletList = walletsStore.wallets.map((w) => w.name).join(", ");
+      const promptText = debt?.type === "owed_to_me"
+        ? `Which wallet did ${debt.name} pay you?\n(${walletList})`
+        : `Which wallet should this be deducted from?\n(${walletList})`;
       return {
-        ok: false,
-        message: `Which wallet should this be ${debt?.type === "i_owe" ? "deducted from" : "deposited to"}?`,
+        ok: true,
+        message: promptText,
         kind: "question",
       };
+    }
   }
 
   return _executePayDebt(
@@ -2033,7 +2101,12 @@ export async function processEleFamMessage(
         if (prevCtx.intent === "create_wallet") {
           promptMsg = `Understood. What's the starting balance for your ${prevCtx.walletName} wallet? Reply with an amount, or say "0" if it's empty right now.`;
         } else {
-          const required = REQUIRED_FIELDS[prevCtx.intent] || [];
+          let required = [...(REQUIRED_FIELDS[prevCtx.intent] || [])];
+          if (prevCtx.intent === "create_debt" && prevCtx.entities.type === "owed_to_me") {
+            if (!required.includes("walletId")) {
+              required.push("walletId");
+            }
+          }
           const missing = required.filter(f => prevCtx.entities[f] === null || prevCtx.entities[f] === undefined);
           if (missing.length > 0) {
             promptMsg = askForMissingField(missing[0], prevCtx);
@@ -2141,7 +2214,7 @@ export async function processEleFamMessage(
           return handleCreateDebt(text, "i_owe", sessionId);
         if (incomingIntent.name === "create_debt_owed_to_me")
           return handleCreateDebt(text, "owed_to_me", sessionId);
-        if (incomingIntent.name === "pay_debt") return handlePayDebt(text);
+        if (incomingIntent.name === "pay_debt") return handlePayDebt(text, sessionId);
         if (incomingIntent.name === "query_balance")
           return handleQueryBalance(text);
         if (incomingIntent.name === "query_expenses")

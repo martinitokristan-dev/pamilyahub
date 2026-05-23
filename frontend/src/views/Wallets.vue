@@ -78,12 +78,12 @@ const netWorth = computed(() =>
   <div class="p-4 md:p-6 max-w-2xl mx-auto animate-fade-in">
     <div class="mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
       <div class="space-y-1">
-        <h1 class="text-[32px] sm:text-[40px] font-black tracking-tight text-foreground leading-none">Wallets</h1>
+        <h1 class="text-2xl font-medium tracking-tight text-foreground">Wallets</h1>
       </div>
       <div class="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto">
         <div class="bg-card border border-border shadow-sm px-4 py-2 rounded-2xl flex flex-col items-start sm:items-end min-w-[140px] transition-all hover:shadow-md">
           <span class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest leading-none mb-1">Net Worth</span>
-          <span class="text-xl font-black text-foreground tabular-nums">{{ formatCurrency(netWorth) }}</span>
+          <span class="text-xl font-black text-foreground tabular-nums sensitive-balance">{{ formatCurrency(netWorth) }}</span>
         </div>
         <UiButton @click="openCreate" class="hidden sm:flex h-12 px-6 rounded-2xl">
           <Plus class="h-5 w-5 mr-1" /> Add
@@ -103,7 +103,7 @@ const netWorth = computed(() =>
     <div v-else class="grid grid-cols-2 gap-3">
       <div
         v-for="wallet in store.wallets"
-        :key="wallet.id"
+        :key="wallet._clientKey || wallet.id"
         class="relative rounded-2xl p-4 text-white shadow-md overflow-hidden bg-gradient-to-br sm:cursor-default cursor-pointer"
         @click="openEdit(wallet)"
         :class="typeInfo(wallet.type).bg"
@@ -134,7 +134,7 @@ const netWorth = computed(() =>
         
         <div class="mt-auto">
           <p class="text-[8px] uppercase tracking-[0.15em] text-white/50 font-black leading-none mb-1.5">Balance</p>
-          <p class="text-base font-black leading-none tabular-nums tracking-tight">
+          <p class="text-base font-black leading-none tabular-nums tracking-tight sensitive-balance">
             ₱{{ Number(wallet.balance).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
           </p>
         </div>

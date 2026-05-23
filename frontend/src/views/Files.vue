@@ -133,7 +133,7 @@ function formatSize(bytes) {
     <div v-else>
       <div class="mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div class="space-y-1">
-          <h1 class="text-[32px] sm:text-[40px] font-black tracking-tight text-foreground leading-none">Files & Albums</h1>
+          <h1 class="text-2xl font-medium tracking-tight text-foreground">Files & Albums</h1>
           <p class="text-sm font-medium text-muted-foreground">{{ store.files.length }} file{{ store.files.length !== 1 ? 's' : '' }} stored securely</p>
         </div>
         <UiButton @click="showUploadModal = true" :disabled="store.uploading || !!compressionStatus" class="hidden sm:flex shrink-0">

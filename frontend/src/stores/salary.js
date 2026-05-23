@@ -8,6 +8,7 @@ import {
   cacheSingleSet,
   cacheSingleGet,
   cacheGet,
+  cacheUpsert,
   outboxAdd,
   isNetworkError,
 } from '@/lib/offlineDb.js'
@@ -38,8 +39,6 @@ export const useSalaryStore = defineStore('salary', () => {
   if (typeof window !== 'undefined') {
     window.addEventListener('pamilya:sync-done', (e) => {
       if (e.detail.entity === 'salary') {
-        fetched.value = false
-        fetchCurrentMonth()
         useDashboardStore().invalidate()
       }
     })
@@ -47,7 +46,6 @@ export const useSalaryStore = defineStore('salary', () => {
       const entities = e.detail?.entities || []
       if (entities.includes('salary')) {
         fetched.value = false
-        fetchCurrentMonth()
       }
     })
   }
@@ -112,7 +110,7 @@ export const useSalaryStore = defineStore('salary', () => {
       fetched.value = false
       await fetchCurrentMonth()
       // Invalidate dashboard AFTER fetching current month to avoid showing 0 stats
-      await useDashboardStore().fetchStats({ month: month.value, year: year.value })
+      await useDashboardStore().fetchStats({ month: month.value, year: year.value }, true)
       walletsStore.invalidate()
       const { useExpensesStore } = await import('./expenses.js')
       useExpensesStore().invalidate()
@@ -133,6 +131,7 @@ export const useSalaryStore = defineStore('salary', () => {
     status.value = 'received'
     deposits.value.push({
       id: tempId,
+      _clientKey: crypto.randomUUID(),
       _pending: true,
       total_amount: payload.total_amount,
       already_spent: payload.already_spent,
@@ -166,7 +165,34 @@ export const useSalaryStore = defineStore('salary', () => {
 
     await outboxAdd({ method: 'post', url: '/salary-deposits', data: payload, entity: 'salary' })
     await refreshPendingCount()
-    useDashboardStore().invalidate({ month: month.value, year: year.value })
+
+    const dbStore = useDashboardStore()
+    const totalAmount = parseFloat(payload.total_amount || 0)
+    dbStore.adjustStat('monthly_income', totalAmount)
+
+    const alreadySpent = parseFloat(payload.already_spent || 0)
+    if (alreadySpent > 0) {
+      const { useExpensesStore } = await import("./expenses.js")
+      const expStore = useExpensesStore()
+      const nowStr = new Date().toISOString()
+      const optimisticExpense = {
+        id: `tmp_spent_${crypto.randomUUID()}`,
+        title: "Already Spent",
+        amount: String(payload.already_spent),
+        category: "Already Spent",
+        date: nowStr.split("T")[0],
+        wallet_id: null,
+        wallet: null,
+        description: "Pre-existing spending logged during salary deposit",
+        created_at: nowStr,
+        updated_at: nowStr,
+        _pending: true,
+      }
+      expStore.expenses.unshift(optimisticExpense)
+      await cacheUpsert("expenses", optimisticExpense)
+      dbStore.adjustStat('monthly_expenses', alreadySpent)
+    }
+
     useToast().info('Deposit saved offline — will sync when connected')
     return { offline: true }
   }

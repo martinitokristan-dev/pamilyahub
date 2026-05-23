@@ -25,7 +25,6 @@ class ExpenseRepository
             $search = strtolower($filters['search']);
             $results = $results->filter(function($e) use ($search) {
                 return str_contains(strtolower($e->title ?? ''), $search) ||
-                       str_contains(strtolower($e->category ?? ''), $search) ||
                        str_contains(strtolower($e->description ?? ''), $search);
             });
         }
@@ -71,7 +70,6 @@ class ExpenseRepository
             $search = strtolower($filters['search']);
             $allResults = $allResults->filter(function($e) use ($search) {
                 return str_contains(strtolower($e->title ?? ''), $search) ||
-                       str_contains(strtolower($e->category ?? ''), $search) ||
                        str_contains(strtolower($e->description ?? ''), $search);
             });
         }

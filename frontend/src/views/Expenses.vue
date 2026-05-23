@@ -170,9 +170,9 @@ async function submit() {
 
   // Balance validation
   if (newWalletId) {
-    const wallet = walletsStore.wallets.find(w => w.id === newWalletId)
+    const wallet = walletsStore.wallets.find(w => String(w.id) === String(newWalletId))
     if (wallet) {
-      const available = parseFloat(wallet.balance) + (oldWalletId === newWalletId ? oldAmount : 0)
+      const available = parseFloat(wallet.balance) + (String(oldWalletId) === String(newWalletId) ? oldAmount : 0)
       if (newAmount > available) {
         balanceError.value = `Insufficient balance. ${wallet.name} only has ${formatCurrency(wallet.balance)}.`
         return
@@ -183,12 +183,8 @@ async function submit() {
   const data = { ...form.value, amount: newAmount }
   if (editingId.value) {
     await store.update(editingId.value, data)
-    // Reflect balance in store optimistically
-    if (oldWalletId) walletsStore.adjustBalance(oldWalletId, oldAmount)
-    if (newWalletId) walletsStore.adjustBalance(newWalletId, -newAmount)
   } else {
     await store.create(data)
-    if (newWalletId) walletsStore.adjustBalance(newWalletId, -newAmount)
   }
   showForm.value = false
   dashboard.fetchStats({ month: selectedMonth.value, year: selectedYear.value })
@@ -196,7 +192,6 @@ async function submit() {
 
 async function remove(expense) {
   await store.remove(expense.id)
-  if (expense.wallet_id) walletsStore.adjustBalance(expense.wallet_id, parseFloat(expense.amount))
   dashboard.fetchStats({ month: selectedMonth.value, year: selectedYear.value })
 }
 </script>
@@ -205,13 +200,13 @@ async function remove(expense) {
   <div class="p-4 md:p-6 max-w-6xl mx-auto animate-fade-in">
     <div class="mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
       <div class="space-y-1">
-        <h1 class="text-[32px] sm:text-[40px] font-black tracking-tight text-foreground leading-none">Expenses</h1>
+        <h1 class="text-2xl font-medium tracking-tight text-foreground">Expenses</h1>
       </div>
       <div class="flex items-center justify-between sm:justify-end gap-2 sm:gap-3 w-full sm:w-auto">
         <div class="bg-card border border-border shadow-sm px-3 sm:px-4 py-2 rounded-2xl flex flex-col items-center sm:items-end flex-1 sm:flex-none sm:min-w-[140px] transition-all hover:shadow-md min-w-0">
           <span class="text-[9px] sm:text-[10px] font-bold text-muted-foreground uppercase tracking-widest leading-none mb-1 truncate w-full text-center sm:text-right">Total Expenses</span>
           <span v-if="dashboard.loading" class="text-base sm:text-xl font-black text-muted-foreground animate-pulse truncate w-full text-center sm:text-right">...</span>
-          <span v-else class="text-base sm:text-xl font-black text-foreground tabular-nums truncate w-full text-center sm:text-right">{{ formatCurrency(total) }}</span>
+          <span v-else class="text-base sm:text-xl font-black text-foreground tabular-nums truncate w-full text-center sm:text-right sensitive-stat">{{ formatCurrency(total) }}</span>
         </div>
 
         <!-- iOS-style Date Filter -->
@@ -253,16 +248,16 @@ async function remove(expense) {
             ...
           </p>
           <p v-else class="text-xs font-bold" :class="remainingSalary < 0 ? 'text-destructive' : 'text-emerald-600'">
-            {{ formatCurrency(Math.abs(remainingSalary)) }} {{ remainingSalary < 0 ? 'over budget' : 'left' }}
+            <span class="sensitive-stat">{{ formatCurrency(Math.abs(remainingSalary)) }}</span> {{ remainingSalary < 0 ? 'over budget' : 'left' }}
           </p>
         </div>
         
         <div class="space-y-2.5">
           <div class="flex items-center justify-between text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
             <span v-if="dashboard.loading" class="animate-pulse">Spent: ...</span>
-            <span v-else>Spent: {{ formatCurrency(total) }}</span>
+            <span v-else>Spent: <span class="sensitive-stat">{{ formatCurrency(total) }}</span></span>
             <span v-if="dashboard.loading" class="animate-pulse">Budget: ...</span>
-            <span v-else>Budget: {{ formatCurrency(effectiveLimit) }}</span>
+            <span v-else>Budget: <span class="sensitive-stat">{{ formatCurrency(effectiveLimit) }}</span></span>
           </div>
           <div class="h-2 w-full bg-muted rounded-full overflow-hidden flex">
              <div 
@@ -314,7 +309,7 @@ async function remove(expense) {
     <div v-else class="flex flex-col gap-2 md:hidden">
       <div
         v-for="expense in filteredExpenses"
-        :key="expense.id"
+        :key="expense._clientKey || expense.id"
         class="rounded-2xl border border-border bg-card p-4 flex items-center gap-3 overflow-hidden cursor-pointer sm:cursor-default"
         @click="openEdit(expense)"
       >
@@ -336,7 +331,11 @@ async function remove(expense) {
           <span v-else class="text-xl">📦</span>
         </div>
         <div class="min-w-0 flex-1">
-          <p class="font-semibold text-sm truncate">{{ expense.title }}</p>
+          <div class="flex items-center gap-1.5 min-w-0">
+            <span class="font-semibold text-sm truncate" :class="{ 'line-through text-muted-foreground/70': expense.is_settled }">
+              {{ expense.title }}
+            </span>
+          </div>
           <div class="flex flex-wrap items-center gap-1.5 mt-0.5">
             <!-- Category badge removed -->
             <span v-if="expense.wallet" class="text-[10px] text-muted-foreground font-medium">{{ expense.wallet.name }}</span>
@@ -344,7 +343,18 @@ async function remove(expense) {
           <p class="text-[11px] text-muted-foreground mt-0.5">{{ formatDateTime(expense.date, expense.created_at) }}</p>
         </div>
         <div class="shrink-0 text-right">
-          <p class="font-bold text-sm text-destructive">-{{ formatCurrency(expense.amount) }}</p>
+          <p 
+            class="font-bold text-sm" 
+            :class="[
+              expense.is_settled ? 'line-through text-muted-foreground/50' : '',
+              parseFloat(expense.amount) < 0 ? 'text-emerald-600' : 'text-destructive'
+            ]"
+          >
+            {{ parseFloat(expense.amount) < 0 ? '+' : '-' }}{{ formatCurrency(Math.abs(parseFloat(expense.amount))) }}
+          </p>
+          <div v-if="expense.is_settled" class="mt-1 flex justify-end">
+            <UiBadge variant="outline" class="text-[9px] uppercase tracking-wider py-0 px-1 border-emerald-500/30 bg-emerald-500/10 text-emerald-600">PAID</UiBadge>
+          </div>
           <div class="hidden sm:flex gap-1 mt-1 justify-end" @click.stop>
             <button class="h-8 w-8 flex items-center justify-center rounded-md hover:bg-muted transition-colors" @click="openEdit(expense)">
               <Pencil class="h-4 w-4 text-muted-foreground" />
@@ -372,7 +382,7 @@ async function remove(expense) {
         <tbody class="divide-y divide-border">
           <tr
             v-for="expense in filteredExpenses"
-            :key="expense.id"
+            :key="expense._clientKey || expense.id"
             class="hover:bg-muted/30 transition-colors"
           >
             <td class="px-4 py-3 font-medium">
@@ -396,7 +406,10 @@ async function remove(expense) {
                   </div>
                 </template>
                 <span v-else class="text-xl w-8 h-8 flex items-center justify-center">📦</span>
-                {{ expense.title }}
+                <span :class="{ 'line-through text-muted-foreground/70': expense.is_settled }">
+                  {{ expense.title }}
+                </span>
+                <UiBadge v-if="expense.is_settled" variant="outline" class="shrink-0 ml-1.5 text-[9px] uppercase tracking-wider py-0 px-1 border-emerald-500/30 bg-emerald-500/10 text-emerald-600">PAID</UiBadge>
               </div>
             </td>
             <td class="px-4 py-3">
@@ -415,7 +428,15 @@ async function remove(expense) {
             </td>
             <!-- Category cell removed -->
             <td class="px-4 py-3 text-muted-foreground text-xs">{{ formatDateTime(expense.date, expense.created_at) }}</td>
-            <td class="px-4 py-3 text-right font-semibold tabular-nums text-destructive">-{{ formatCurrency(expense.amount) }}</td>
+            <td 
+              class="px-4 py-3 text-right font-semibold tabular-nums"
+              :class="[
+                expense.is_settled ? 'line-through text-muted-foreground/50' : '',
+                parseFloat(expense.amount) < 0 ? 'text-emerald-600' : 'text-destructive'
+              ]"
+            >
+              {{ parseFloat(expense.amount) < 0 ? '+' : '-' }}{{ formatCurrency(Math.abs(parseFloat(expense.amount))) }}
+            </td>
             <td class="px-4 py-3">
               <div class="flex justify-end gap-1">
                 <UiButton variant="ghost" size="icon" class="h-8 w-8" @click="openEdit(expense)">
@@ -523,7 +544,7 @@ async function remove(expense) {
                         </div>
                         <div class="min-w-0">
                           <p class="text-xs font-semibold truncate">{{ wallet.name }}</p>
-                          <p class="text-[10px] text-muted-foreground">{{ formatCurrency(wallet.balance) }}</p>
+                          <p class="text-[10px] text-muted-foreground sensitive-balance">{{ formatCurrency(wallet.balance) }}</p>
                         </div>
                       </button>
                       <button

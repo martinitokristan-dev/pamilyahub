@@ -35,8 +35,9 @@ class DashboardController extends Controller
                 ->whereBetween('date', [$startDate, $endDate])
                 ->get();
 
-            $expensesTotal = (float) $expenses->sum(fn($e) => (float) $e->amount);
+            $expensesTotal = (float) $expenses->where('is_settled', false)->sum(fn($e) => (float) $e->amount);
             $unallocatedTotal = (float) $expenses
+                ->where('is_settled', false)
                 ->whereNull('wallet_id')
                 ->sum(fn($e) => (float) $e->amount);
 

@@ -47,7 +47,6 @@ class DebtService
                     'user_id'     => $userId,
                     'title'       => "Lent money to: " . $data['name'],
                     'amount'      => $data['amount'],
-                    'category'    => 'Bills/Debt',
                     'date'        => now()->toDateString(),
                     'wallet_id'   => $data['wallet_id'] ?? null,
                     'description' => $data['description'] ?? 'Lending money'
@@ -104,24 +103,25 @@ class DebtService
                     'user_id' => $userId,
                     'title' => "Debt Payment: " . $debt->name,
                     'amount' => $amount,
-                    'category' => 'Bills/Debt',
                     'date' => now()->toDateString(),
                     'wallet_id' => $walletId,
                     'description' => $debt->description ?? 'Paid off debt'
                 ]);
                 $this->stats->adjust($userId, 'expenses_total', $amount);
             } else {
-                // If it's a debt OWED TO ME, log it as a general Income (NOT Salary)
-                DB::table('incomes')->insert([
-                    'user_id'     => $userId,
-                    'wallet_id'   => $walletId,
-                    'amount'      => $amount,
-                    'source'      => 'Debt Collection',
-                    'date'        => now()->toDateString(),
-                    'description' => "Debt Payment from: " . $debt->name,
-                    'created_at'  => now(),
-                    'updated_at'  => now(),
-                ]);
+                // If it's a debt OWED TO ME, find original lending expense and repayment expenses and mark them settled
+                $expensesToSettle = \App\Models\Expense::where('user_id', $userId)
+                    ->get()
+                    ->filter(function ($e) use ($debt) {
+                        return $e->title === 'Lent money to: ' . $debt->name ||
+                               $e->title === 'Lent to ' . $debt->name ||
+                               $e->title === 'Debt Repayment: ' . $debt->name;
+                    });
+
+                foreach ($expensesToSettle as $exp) {
+                    $exp->update(['is_settled' => true]);
+                }
+                $this->stats->adjust($userId, 'expenses_total', -$amount);
             }
 
             // Subtract from the appropriate debt field
@@ -166,24 +166,22 @@ class DebtService
                     'user_id' => $userId,
                     'title' => "Partial Debt Payment: " . $debt->name,
                     'amount' => $amount,
-                    'category' => 'Bills/Debt',
                     'date' => now()->toDateString(),
                     'wallet_id' => $walletId,
                     'description' => 'Partial payment towards debt'
                 ]);
                 $this->stats->adjust($userId, 'expenses_total', $amount);
             } else {
-                // If it's a debt OWED TO ME, log partial payment as a general Income
-                DB::table('incomes')->insert([
-                    'user_id'     => $userId,
-                    'wallet_id'   => $walletId,
-                    'amount'      => $amount,
-                    'source'      => 'Debt Collection',
-                    'date'        => now()->toDateString(),
-                    'description' => "Partial Debt Payment from: " . $debt->name,
-                    'created_at'  => now(),
-                    'updated_at'  => now(),
+                // If it's a debt OWED TO ME, create a negative repayment expense
+                $this->expenseRepository->create([
+                    'user_id' => $userId,
+                    'title' => "Debt Repayment: " . $debt->name,
+                    'amount' => -$amount,
+                    'date' => now()->toDateString(),
+                    'wallet_id' => $walletId,
+                    'description' => 'Partial repayment received'
                 ]);
+                $this->stats->adjust($userId, 'expenses_total', -$amount);
             }
 
             return $result;

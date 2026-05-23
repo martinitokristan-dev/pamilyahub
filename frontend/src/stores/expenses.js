@@ -27,27 +27,44 @@ export const useExpensesStore = defineStore("expenses", () => {
 
   // ── Sync event listeners ────────────────────────────────────────────────────
   if (typeof window !== "undefined") {
-    window.addEventListener("pamilya:id-remap", (e) => {
-      const { entity, tempId, realId, serverData } = e.detail;
-      if (entity !== "expenses" || !tempId) return;
-      const idx = expenses.value.findIndex((ex) => ex.id === tempId);
-      if (idx !== -1 && serverData) {
-        expenses.value[idx] = { ...serverData, _pending: false };
+    window.addEventListener("pamilya:id-remap", async (e) => {
+      const { entity, tempId, realId } = e.detail;
+      if (entity === "expenses" && tempId) {
+        const idx = expenses.value.findIndex((ex) => ex.id === tempId);
+        if (idx !== -1) {
+          expenses.value[idx].id = realId;
+          expenses.value[idx]._pending = false;
+        }
+      } else if (entity === "debts" && tempId) {
+        expenses.value = expenses.value.filter((ex) => ex._debt_temp_id !== tempId);
+        try {
+          const cached = await cacheGet("expenses");
+          if (cached && cached.length > 0) {
+            const filtered = cached.filter((ex) => ex._debt_temp_id !== tempId);
+            await cacheSet("expenses", filtered);
+          }
+        } catch { }
       }
     });
     window.addEventListener("pamilya:sync-done", (e) => {
       if (e.detail.entity === "expenses" || e.detail.entity === "debts") {
-        fetched.value = false;
-        fetchAll();
         useDashboardStore().invalidate();
       }
     });
-    window.addEventListener("pamilya:drain-complete", (e) => {
+    window.addEventListener("pamilya:drain-complete", async (e) => {
       const entities = e.detail?.entities || [];
       if (entities.some((en) => ["expenses", "debts", "salary"].includes(en))) {
+        expenses.value = expenses.value.filter((ex) => !String(ex.id).startsWith("tmp_debt"));
+        try {
+          const cached = await cacheGet("expenses");
+          if (cached && cached.length > 0) {
+            const filtered = cached.filter((ex) => !String(ex.id).startsWith("tmp_debt"));
+            await cacheSet("expenses", filtered);
+          }
+        } catch { }
+        
         fetched.value = false;
         lastCacheKey.value = null;
-        fetchAll();
       }
     });
   }
@@ -147,8 +164,11 @@ export const useExpensesStore = defineStore("expenses", () => {
       invalidate();
       if (data.wallet_id) {
         const { useWalletsStore } = await import("./wallets.js");
-        await useWalletsStore().adjustBalance(data.wallet_id, -parseFloat(data.amount || 0));
+        const walletsStore = useWalletsStore();
+        await walletsStore.adjustBalance(data.wallet_id, -parseFloat(data.amount || 0));
+        await cacheSet("wallets", JSON.parse(JSON.stringify(walletsStore.wallets)));
       }
+      useDashboardStore().adjustStat('monthly_expenses', parseFloat(data.amount || 0));
       useToast().success("Expense created");
       return res.data.data;
     } catch (e) {
@@ -172,13 +192,14 @@ export const useExpensesStore = defineStore("expenses", () => {
           if (cached && cached.length > 0) {
             walletsStore.wallets = cached;
           }
-        } catch {}
+        } catch { }
       }
-      const walletRaw = walletsStore.wallets.find((w) => w.id === data.wallet_id) || null;
+      const walletRaw = walletsStore.wallets.find((w) => String(w.id) === String(data.wallet_id)) || null;
       const wallet = walletRaw ? JSON.parse(JSON.stringify(walletRaw)) : null;
       const optimistic = {
         ...data,
         id: tempId,
+        _clientKey: crypto.randomUUID(),
         _pending: true,
         wallet,
         created_at: data.date || now,
@@ -188,7 +209,10 @@ export const useExpensesStore = defineStore("expenses", () => {
       await cacheUpsert("expenses", optimistic);
       await outboxAdd({ method: "post", url: "/expenses", data, entity: "expenses", tempId });
       await refreshPendingCount();
-      if (data.wallet_id) await walletsStore.adjustBalance(data.wallet_id, -parseFloat(data.amount || 0));
+      if (data.wallet_id) {
+        await walletsStore.adjustBalance(data.wallet_id, -parseFloat(data.amount || 0));
+        await cacheSet("wallets", JSON.parse(JSON.stringify(walletsStore.wallets)));
+      }
       useDashboardStore().adjustStat('monthly_expenses', parseFloat(data.amount || 0));
       useToast().success("Expense saved");
       return { data: { data: optimistic } };
@@ -202,16 +226,32 @@ export const useExpensesStore = defineStore("expenses", () => {
     if (!navigator.onLine) return _updateOffline(id, data);
     loading.value = true;
     try {
+      const existing = expenses.value.find((e) => e.id === id);
       const res = await expenseService.update(id, data);
       const idx = expenses.value.findIndex((e) => e.id === id);
       if (idx !== -1) expenses.value[idx] = res.data.data;
       await cacheUpsert("expenses", res.data.data);
-      const existing = expenses.value.find((e) => e.id === id);
       const date = new Date(data.date || existing?.date || new Date())
       const m = date.getMonth() + 1
       const y = date.getFullYear()
       useDashboardStore().invalidate({ month: m, year: y });
       invalidate();
+
+      // Adjust wallet balances online
+      if (existing) {
+        const { useWalletsStore } = await import("./wallets.js");
+        const walletsStore = useWalletsStore();
+        if (existing.wallet_id) {
+          await walletsStore.adjustBalance(existing.wallet_id, parseFloat(existing.amount || 0));
+        }
+        if (data.wallet_id) {
+          await walletsStore.adjustBalance(data.wallet_id, -parseFloat(data.amount || 0));
+        }
+        await cacheSet("wallets", JSON.parse(JSON.stringify(walletsStore.wallets)));
+      }
+
+      const amtDelta = parseFloat(data.amount ?? existing?.amount ?? 0) - parseFloat(existing?.amount || 0);
+      if (amtDelta !== 0) useDashboardStore().adjustStat('monthly_expenses', amtDelta);
       useToast().success("Expense updated");
       return res.data.data;
     } catch (e) {
@@ -228,10 +268,25 @@ export const useExpensesStore = defineStore("expenses", () => {
       const now = new Date().toISOString();
       const existing = expenses.value.find((e) => e.id === id);
       const idx = expenses.value.findIndex((e) => e.id === id);
+
+      const { useWalletsStore } = await import("./wallets.js");
+      const walletsStore = useWalletsStore();
+      if (walletsStore.wallets.length === 0) {
+        try {
+          const cached = await cacheGet("wallets");
+          if (cached && cached.length > 0) {
+            walletsStore.wallets = cached;
+          }
+        } catch { }
+      }
+      const walletRaw = walletsStore.wallets.find((w) => String(w.id) === String(data.wallet_id)) || null;
+      const wallet = walletRaw ? JSON.parse(JSON.stringify(walletRaw)) : null;
+
       const updated = {
         ...(existing || {}),
         ...data,
         id,
+        wallet,
         _pending: true,
         updated_at: now,
       };
@@ -249,6 +304,18 @@ export const useExpensesStore = defineStore("expenses", () => {
         await outboxAdd({ method: "put", url: `/expenses/${id}`, data, entity: "expenses", recordId: id });
       }
       await refreshPendingCount();
+
+      // Adjust wallet balances offline
+      if (existing) {
+        if (existing.wallet_id) {
+          await walletsStore.adjustBalance(existing.wallet_id, parseFloat(existing.amount || 0));
+        }
+        if (data.wallet_id) {
+          await walletsStore.adjustBalance(data.wallet_id, -parseFloat(data.amount || 0));
+        }
+        await cacheSet("wallets", JSON.parse(JSON.stringify(walletsStore.wallets)));
+      }
+
       if (amtDelta !== 0) useDashboardStore().adjustStat('monthly_expenses', amtDelta);
       useToast().success("Expense updated");
       return { data: { data: updated } };
@@ -262,15 +329,28 @@ export const useExpensesStore = defineStore("expenses", () => {
     if (!navigator.onLine) return _removeOffline(id);
     loading.value = true;
     try {
+      const existing = expenses.value.find((e) => e.id === id);
       await expenseService.delete(id);
       expenses.value = expenses.value.filter((e) => e.id !== id);
       await cacheRemove("expenses", id);
-      const existing = expenses.value.find((e) => e.id === id);
+
       const date = new Date(existing?.date || new Date())
       const m = date.getMonth() + 1
       const y = date.getFullYear()
       useDashboardStore().invalidate({ month: m, year: y });
       invalidate();
+
+      // Refund the wallet online
+      if (existing && existing.wallet_id) {
+        const { useWalletsStore } = await import("./wallets.js");
+        const walletsStore = useWalletsStore();
+        await walletsStore.adjustBalance(existing.wallet_id, parseFloat(existing.amount || 0));
+        await cacheSet("wallets", JSON.parse(JSON.stringify(walletsStore.wallets)));
+      }
+
+      if (existing?.amount) {
+        useDashboardStore().adjustStat('monthly_expenses', -parseFloat(existing.amount));
+      }
       useToast().success("Expense deleted");
     } catch (e) {
       if (isNetworkError(e)) return _removeOffline(id);
@@ -300,6 +380,15 @@ export const useExpensesStore = defineStore("expenses", () => {
         });
       }
       await refreshPendingCount();
+
+      // Refund the wallet offline
+      if (toRemove && toRemove.wallet_id) {
+        const { useWalletsStore } = await import("./wallets.js");
+        const walletsStore = useWalletsStore();
+        await walletsStore.adjustBalance(toRemove.wallet_id, parseFloat(toRemove.amount || 0));
+        await cacheSet("wallets", JSON.parse(JSON.stringify(walletsStore.wallets)));
+      }
+
       if (toRemove?.amount) {
         useDashboardStore().adjustStat('monthly_expenses', -parseFloat(toRemove.amount));
       }

@@ -100,7 +100,6 @@ class SalaryDepositService
                 $this->expenseService->create($userId, [
                     'title'       => 'Already Spent',
                     'amount'      => $alreadySpent,
-                    'category'    => 'Already Spent',
                     'description' => 'Pre-existing spending logged during salary deposit',
                     'date'        => $now->toDateString(),
                     'wallet_id'   => null,

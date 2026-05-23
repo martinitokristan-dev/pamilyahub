@@ -16,6 +16,7 @@ import UiCardHeader from '@/components/ui/CardHeader.vue'
 import UiCardTitle from '@/components/ui/CardTitle.vue'
 import UiCardContent from '@/components/ui/CardContent.vue'
 import UiButton from '@/components/ui/Button.vue'
+import UiBadge from '@/components/ui/Badge.vue'
 import DepositSalaryModal from '@/components/financial/DepositSalaryModal.vue'
 import dashboardService from '@/services/dashboardService.js'
 import { formatCurrency } from '@/utils/format'
@@ -547,6 +548,8 @@ const stats = computed(() => {
     bg: remaining < 0
       ? 'bg-gradient-to-br from-rose-500 to-red-600'
       : 'bg-gradient-to-br from-emerald-500 to-teal-600',
+    isBalance: true,
+    isStat: true,
   })
 
   baseStats.push(
@@ -555,30 +558,40 @@ const stats = computed(() => {
       value: dashboard.stats.notes_count,
       icon: NotebookPen,
       bg: 'bg-gradient-to-br from-blue-500 to-indigo-600',
+      isBalance: false,
+      isStat: true,
     },
     {
       label: 'Income (Monthly)',
       value: formatCurrency(dashboard.stats.monthly_income),
       icon: TrendingUp,
       bg: 'bg-gradient-to-br from-emerald-400 to-teal-500',
+      isBalance: true,
+      isStat: true,
     },
     {
       label: 'Expenses (Monthly)',
       value: formatCurrency(dashboard.stats.monthly_expenses),
       icon: Receipt,
       bg: 'bg-gradient-to-br from-orange-500 to-amber-500',
+      isBalance: true,
+      isStat: true,
     },
     {
       label: 'Owed to Me',
       value: formatCurrency(dashboard.stats.debts_owed_to_me),
       icon: TrendingUp,
       bg: 'bg-gradient-to-br from-blue-400 to-blue-600',
+      isBalance: true,
+      isStat: true,
     },
     {
       label: 'I Owe',
       value: formatCurrency(dashboard.stats.debts_i_owe),
       icon: TrendingDown,
       bg: 'bg-gradient-to-br from-rose-500 to-red-600',
+      isBalance: true,
+      isStat: true,
     }
   )
 
@@ -656,7 +669,9 @@ const stats = computed(() => {
                 <component :is="stat.icon" class="h-3.5 w-3.5 text-white" />
               </div>
             </div>
-            <p class="text-lg font-bold leading-none mb-1 truncate">{{ stat.value }}</p>
+            <p class="text-lg font-bold leading-none mb-1 truncate sensitive-stat">
+              {{ stat.value }}
+            </p>
             <p class="text-[9px] font-bold text-white/80 uppercase tracking-widest">{{ stat.label }}</p>
           </div>
         </template>
@@ -716,7 +731,11 @@ const stats = computed(() => {
 
               <!-- Details -->
               <div class="min-w-0 flex-1">
-                <p class="font-semibold text-sm truncate">{{ expense.title }}</p>
+                <div class="flex items-center gap-1.5 min-w-0">
+                  <span class="font-semibold text-sm truncate" :class="{ 'line-through text-muted-foreground/70': expense.is_settled }">
+                    {{ expense.title }}
+                  </span>
+                </div>
                 <div class="flex flex-wrap items-center gap-1.5 mt-0.5">
                   <!-- Category badge removed -->
                   <span v-if="expense.wallet" class="text-[10px] text-muted-foreground font-medium lowercase first-letter:uppercase">
@@ -729,8 +748,19 @@ const stats = computed(() => {
               </div>
 
               <!-- Amount -->
-              <div class="shrink-0 text-right">
-                <p class="font-bold text-sm text-destructive">-{{ formatCurrency(expense.amount) }}</p>
+              <div class="shrink-0 text-right flex flex-col items-end justify-center">
+                <p 
+                  class="font-bold text-sm" 
+                  :class="[
+                    expense.is_settled ? 'line-through text-muted-foreground/50' : '',
+                    parseFloat(expense.amount) < 0 ? 'text-emerald-600' : 'text-destructive'
+                  ]"
+                >
+                  {{ parseFloat(expense.amount) < 0 ? '+' : '-' }}{{ formatCurrency(Math.abs(parseFloat(expense.amount))) }}
+                </p>
+                <div v-if="expense.is_settled" class="mt-1">
+                  <UiBadge variant="outline" class="text-[9px] uppercase tracking-wider py-0 px-1 border-emerald-500/30 bg-emerald-500/10 text-emerald-600">PAID</UiBadge>
+                </div>
               </div>
             </div>
           </div>

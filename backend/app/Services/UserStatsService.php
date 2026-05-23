@@ -19,6 +19,7 @@ class UserStatsService
             [
                 'notes_count'      => Note::where('user_id', $userId)->count(),
                 'expenses_total'   => (float) Expense::where('user_id', $userId)
+                    ->where('is_settled', false)
                     ->get()
                     ->sum(fn($e) => (float) $e->amount),
                 'income_total'     => (float) Income::where('user_id', $userId)
