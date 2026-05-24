@@ -30,3 +30,4 @@ if (isMobile) {
   app.mount('#app')
   getDb().then(() => initSyncEngine()).catch(() => {})
 }
+ 
