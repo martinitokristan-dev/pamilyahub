@@ -41,6 +41,7 @@ import {
 
 import { advancedClassify } from "@/lib/chatNlu.js";
 import { generateSmartFallback } from "@/lib/chatSmartFallback.js";
+import api from "@/lib/axios.js";
 
 // FIXED: replaced single global with TTL-aware session Map
 // to prevent race conditions and stale context execution
@@ -50,6 +51,231 @@ const _lastPickedIndex = new Map();
 const _chatBudgetByMonth = new Map();
 const _chatBudgetUndoByMonth = new Map();
 const CHAT_BUDGET_STORAGE_KEY = "elefam_chat_budget_by_month";
+const _sessionLastAction = new Map();
+
+function rememberSessionAction(sessionId = "default", intent = "", entities = {}) {
+  _sessionLastAction.set(sessionId, {
+    intent,
+    entities: { ...entities },
+    at: Date.now(),
+  });
+}
+
+function getSessionLastAction(sessionId = "default") {
+  return _sessionLastAction.get(sessionId) || null;
+}
+
+function resolveWalletLikeEntity(walletCandidate, wallets = []) {
+  if (!walletCandidate) return null;
+  if (walletCandidate.id) {
+    return wallets.find((w) => String(w.id) === String(walletCandidate.id)) || walletCandidate;
+  }
+  if (walletCandidate.name) {
+    const byName = wallets.find(
+      (w) => String(w.name || "").toLowerCase() === String(walletCandidate.name || "").toLowerCase(),
+    );
+    if (byName) return byName;
+  }
+  return null;
+}
+
+function pickAlternativeWallet(wallets = [], ...excludeCandidates) {
+  const excludedIds = new Set(
+    excludeCandidates
+      .map((c) => resolveWalletLikeEntity(c, wallets))
+      .filter(Boolean)
+      .map((w) => String(w.id)),
+  );
+
+  if (!excludedIds.size) return wallets[0] || null;
+  return wallets.find((w) => !excludedIds.has(String(w.id))) || null;
+}
+
+function inferFollowupEntitiesFromContext(
+  text,
+  pendingCtx,
+  sessionId,
+  missingBefore = [],
+  wallets = [],
+) {
+  const normalized = normalizeText(text);
+  const prior = getSessionLastAction(sessionId);
+  const priorEntities = prior?.entities || {};
+  const inferred = {};
+  if (!priorEntities || !Object.keys(priorEntities).length) return inferred;
+
+  const missingSet = new Set(missingBefore);
+  const hasContextRef =
+    /\b(same|again|that one|that|this|it|there|as before|previous|earlier|before|prior|other|another|else)\b/.test(
+      normalized,
+    );
+
+  if (!hasContextRef) return inferred;
+
+  if (
+    missingSet.has("amount") &&
+    /\b(same amount|same|again|that amount|as before|previous amount|prior amount|use previous amount|use that amount|that amount|it)\b/.test(
+      normalized,
+    )
+  ) {
+    if (priorEntities.amount && Number(priorEntities.amount) > 0) {
+      inferred.amount = Number(priorEntities.amount);
+    }
+  }
+
+  if (pendingCtx.intent === "deposit" || pendingCtx.intent === "log_expense") {
+    if (
+      missingSet.has("wallet") &&
+      /\b(wallet|account|same|again|that one|same one|there|that wallet|that account|it|other wallet|another wallet)\b/.test(
+        normalized,
+      )
+    ) {
+      const candidate =
+        (/\b(other wallet|another wallet|other account|another account|else)\b/.test(normalized)
+          ? pickAlternativeWallet(
+              wallets,
+              pendingCtx.entities.wallet,
+              priorEntities.wallet,
+              priorEntities.fromWallet,
+              priorEntities.toWallet,
+            )
+          : null) ||
+        resolveWalletLikeEntity(priorEntities.wallet, wallets) ||
+        resolveWalletLikeEntity(priorEntities.fromWallet, wallets) ||
+        resolveWalletLikeEntity(priorEntities.toWallet, wallets);
+      if (candidate) inferred.wallet = candidate;
+    }
+  }
+
+  if (pendingCtx.intent === "transfer") {
+    if (
+      missingSet.has("fromWallet") &&
+      /\b(from|source|same|again|that one|there|from there|that wallet|it|other wallet|another wallet)\b/.test(
+        normalized,
+      )
+    ) {
+      const candidate =
+        (/\b(other wallet|another wallet|other account|another account|else)\b/.test(normalized)
+          ? pickAlternativeWallet(
+              wallets,
+              pendingCtx.entities.toWallet,
+              priorEntities.fromWallet,
+              priorEntities.toWallet,
+              priorEntities.wallet,
+            )
+          : null) ||
+        resolveWalletLikeEntity(priorEntities.fromWallet, wallets) ||
+        resolveWalletLikeEntity(priorEntities.wallet, wallets);
+      if (candidate) inferred.fromWallet = candidate;
+    }
+    if (
+      missingSet.has("toWallet") &&
+      /\b(to|destination|target|same|again|that one|there|to there|that wallet|it|other wallet|another wallet)\b/.test(
+        normalized,
+      )
+    ) {
+      const candidate =
+        (/\b(other wallet|another wallet|other account|another account|else)\b/.test(normalized)
+          ? pickAlternativeWallet(
+              wallets,
+              pendingCtx.entities.fromWallet,
+              priorEntities.toWallet,
+              priorEntities.fromWallet,
+              priorEntities.wallet,
+            )
+          : null) ||
+        resolveWalletLikeEntity(priorEntities.toWallet, wallets) ||
+        resolveWalletLikeEntity(priorEntities.wallet, wallets);
+      if (candidate) inferred.toWallet = candidate;
+    }
+  }
+
+  if (pendingCtx.intent === "log_expense") {
+    if (
+      missingSet.has("category") &&
+      /\b(same|again|same category|that category|same type|for that|for it|same reason|same as before)\b/.test(
+        normalized,
+      )
+    ) {
+      if (priorEntities.category) inferred.category = priorEntities.category;
+      if (priorEntities.reason && !pendingCtx.entities.reason) {
+        inferred.reason = priorEntities.reason;
+      }
+    }
+  }
+
+  if (pendingCtx.intent === "create_debt") {
+    if (
+      missingSet.has("person") &&
+      /\b(same person|same|again|that one|that person|for him|for her|for them|that)\b/.test(
+        normalized,
+      )
+    ) {
+      if (priorEntities.person) inferred.person = priorEntities.person;
+    }
+    if (
+      missingSet.has("walletId") &&
+      /\b(same wallet|same account|same|again|that one|there|it|other wallet|another wallet)\b/.test(
+        normalized,
+      )
+    ) {
+      const candidate =
+        (/\b(other wallet|another wallet|other account|another account|else)\b/.test(normalized)
+          ? pickAlternativeWallet(
+              wallets,
+              pendingCtx.entities.walletId
+                ? wallets.find((w) => String(w.id) === String(pendingCtx.entities.walletId))
+                : null,
+              priorEntities.wallet,
+              priorEntities.fromWallet,
+              priorEntities.toWallet,
+            )
+          : null) ||
+        resolveWalletLikeEntity(priorEntities.wallet, wallets) ||
+        resolveWalletLikeEntity(priorEntities.fromWallet, wallets) ||
+        resolveWalletLikeEntity(priorEntities.toWallet, wallets);
+      if (candidate?.id) inferred.walletId = candidate.id;
+      else if (priorEntities.walletId) inferred.walletId = priorEntities.walletId;
+    }
+  }
+
+  if (pendingCtx.intent === "pay_debt") {
+    if (
+      missingSet.has("debtId") &&
+      /\b(same debt|same person|same|again|that one|that debt|for that debt|for it|that one)\b/.test(
+        normalized,
+      )
+    ) {
+      if (priorEntities.debtId) inferred.debtId = priorEntities.debtId;
+    }
+    if (
+      missingSet.has("walletId") &&
+      /\b(same wallet|same account|same|again|that one|there|it|other wallet|another wallet)\b/.test(
+        normalized,
+      )
+    ) {
+      const candidate =
+        (/\b(other wallet|another wallet|other account|another account|else)\b/.test(normalized)
+          ? pickAlternativeWallet(
+              wallets,
+              pendingCtx.entities.walletId
+                ? wallets.find((w) => String(w.id) === String(pendingCtx.entities.walletId))
+                : null,
+              priorEntities.wallet,
+              priorEntities.fromWallet,
+              priorEntities.toWallet,
+            )
+          : null) ||
+        resolveWalletLikeEntity(priorEntities.wallet, wallets) ||
+        resolveWalletLikeEntity(priorEntities.fromWallet, wallets) ||
+        resolveWalletLikeEntity(priorEntities.toWallet, wallets);
+      if (candidate?.id) inferred.walletId = candidate.id;
+      else if (priorEntities.walletId) inferred.walletId = priorEntities.walletId;
+    }
+  }
+
+  return inferred;
+}
 
 function getMonthKey(date = new Date()) {
   const y = date.getFullYear();
@@ -141,6 +367,60 @@ const REQUIRED_FIELDS = {
   set_budget: ["amount"],
 };
 
+// ================================================================
+// DELIBERATIVE ACTION ORCHESTRATOR
+// Centralizes UNDERSTAND → VALIDATE → PLAN → RESPOND for actions
+// ================================================================
+
+/**
+ * Plan an action intent: validate required fields, decide next step,
+ * and return appropriate response (ask follow-up or execute).
+ *
+ * @param {string} intent - Action intent name (e.g., "log_expense")
+ * @param {object} entities - Extracted entities from NLU
+ * @param {string} sessionId - Chat session ID
+ * @param {string} rawText - Original user text (for context)
+ * @returns {Promise<{ok: boolean, message: string, kind: string, intentType?: string}>}
+ */
+async function planAction(intent, entities, sessionId, rawText = "") {
+  const walletsStore = useWalletsStore();
+  const normalized = normalizeText(rawText);
+
+  // ── STAGE 1: VALIDATE REQUIRED FIELDS ───────────────────────────────
+  const required = REQUIRED_FIELDS[intent] || [];
+  const missing = required.filter((field) => {
+    const val = entities[field];
+    if (val === null || val === undefined) return true;
+    if (typeof val === "string" && val.trim() === "") return true;
+    // Special case: category "expense" is not a real category
+    if (intent === "log_expense" && field === "category" && val === "expense")
+      return true;
+    return false;
+  });
+
+  // ── STAGE 2: PLAN NEXT ACTION ────────────────────────────────────────
+  if (missing.length > 0) {
+    // Missing fields → ask follow-up
+    const nextField = missing[0];
+    setPendingContext(sessionId, { intent, entities });
+    const question = askForMissingField(nextField, { intent, entities });
+    return {
+      ok: false,
+      message: question,
+      kind: "question",
+      intentType: "action",
+    };
+  }
+
+  // ── STAGE 3: EXECUTE (all fields present) ────────────────────────────
+  clearPendingContext(sessionId);
+  return executeIntent(intent, entities, sessionId);
+}
+
+// ================================================================
+// END ORCHESTRATOR
+// ================================================================
+
 // FIXED: dynamic reminder message for all pending intent types
 function getPendingReminder(ctx) {
   if (!ctx) return "";
@@ -226,6 +506,7 @@ export function clearPendingContext(sessionId = "default") {
 function askForMissingField(field, pendingCtx) {
   const intent = pendingCtx.intent;
   const walletsStore = useWalletsStore();
+  const walletList = walletsStore.wallets.map((w) => w.name).join(", ");
   if (field === "amount") {
     if (intent === "deposit")
       return "How much are you depositing? Just type a number.";
@@ -246,18 +527,21 @@ function askForMissingField(field, pendingCtx) {
     return "How much did you spend?";
   }
   if (field === "wallet") {
-    if (intent === "deposit") return "Which wallet are you depositing to?";
-    if (intent === "log_expense") return "Which wallet did you use?";
-    return "Which wallet?";
+    const suffix = walletList ? `\n(${walletList})` : "";
+    if (intent === "deposit") return `Which wallet are you depositing to?${suffix}`;
+    if (intent === "log_expense") return `Which wallet did you use?${suffix}`;
+    return `Which wallet?${suffix}`;
   }
   if (field === "category") {
     return "What was it for? (e.g. food, transpo)";
   }
   if (field === "fromWallet") {
-    return "Which wallet is the money coming FROM?";
+    const suffix = walletList ? `\n(${walletList})` : "";
+    return `Which wallet is the money coming FROM?${suffix}`;
   }
   if (field === "toWallet") {
-    return "Which wallet are you sending it TO?";
+    const suffix = walletList ? `\n(${walletList})` : "";
+    return `Which wallet are you sending it TO?${suffix}`;
   }
   if (field === "person") {
     return "Who is this debt with?";
@@ -269,7 +553,6 @@ function askForMissingField(field, pendingCtx) {
     return "Which debt are you paying? (Please provide the name or reference)";
   }
   if (field === "walletId") {
-    const walletList = walletsStore.wallets.map((w) => w.name).join(", ");
     if (intent === "pay_debt") {
       const debtsStore = useDebtsStore();
       const debt = debtsStore.debts.find((d) => String(d.id) === String(pendingCtx.entities.debtId));
@@ -293,12 +576,14 @@ async function executeIntent(intent, entities, sessionId) {
   const expensesStore = useExpensesStore();
 
   if (intent === "deposit") {
-    return _executeDeposit(
+    const result = await _executeDeposit(
       entities.amount,
       entities.wallet,
       salaryStore,
       dashboardStore,
     );
+    if (result?.ok) rememberSessionAction(sessionId, intent, entities);
+    return result;
   }
   if (intent === "log_expense") {
     const payload = {
@@ -307,10 +592,12 @@ async function executeIntent(intent, entities, sessionId) {
       categoryKey: entities.category,
       reason: entities.reason || "",
     };
-    return _executeLogExpense(payload, expensesStore, dashboardStore);
+    const result = await _executeLogExpense(payload, expensesStore, dashboardStore);
+    if (result?.ok) rememberSessionAction(sessionId, intent, entities);
+    return result;
   }
   if (intent === "transfer") {
-    return _executeTransfer(
+    const result = await _executeTransfer(
       entities.fromWallet,
       entities.toWallet,
       entities.amount,
@@ -318,9 +605,11 @@ async function executeIntent(intent, entities, sessionId) {
       dashboardStore,
       sessionId,
     );
+    if (result?.ok) rememberSessionAction(sessionId, intent, entities);
+    return result;
   }
   if (intent === "create_debt") {
-    return _executeCreateDebt(
+    const result = await _executeCreateDebt(
       entities.person,
       entities.amount,
       entities.type,
@@ -328,9 +617,11 @@ async function executeIntent(intent, entities, sessionId) {
       debtsStore,
       dashboardStore,
     );
+    if (result?.ok) rememberSessionAction(sessionId, intent, entities);
+    return result;
   }
   if (intent === "pay_debt") {
-    return _executePayDebt(
+    const result = await _executePayDebt(
       entities.debtId,
       entities.amount,
       entities.walletId,
@@ -338,9 +629,13 @@ async function executeIntent(intent, entities, sessionId) {
       walletsStore,
       dashboardStore,
     );
+    if (result?.ok) rememberSessionAction(sessionId, intent, entities);
+    return result;
   }
   if (intent === "set_budget") {
-    return _executeSetBudget(entities.amount);
+    const result = await _executeSetBudget(entities.amount);
+    if (result?.ok) rememberSessionAction(sessionId, intent, entities);
+    return result;
   }
   return { ok: false, message: `Unknown intent: ${intent}` };
 }
@@ -380,6 +675,15 @@ export async function resolvePendingContext(
     }
   }
   const missingBefore = required.filter((field) => !pendingCtx.entities[field]);
+
+  const inferredFromContext = inferFollowupEntitiesFromContext(
+    text,
+    pendingCtx,
+    sessionId,
+    missingBefore,
+    walletsStore.wallets,
+  );
+  Object.assign(newEntities, inferredFromContext);
 
   const extractedAmount = extractAmount(text);
   if (extractedAmount && extractedAmount > 0)
@@ -506,18 +810,18 @@ export async function resolvePendingContext(
 }
 
 export const eleFamProfile = {
-  name: "EleFam",
+  name: "Marti",
   greeting:
-    'Hi! I am EleFam. I can help you with EleFam flows like wallets, deposits, transfers, expenses, debts, and budget. Type "/help" to see detailed commands on how to use me.',
+    'Hi! I\'m Marti. I can help you with finance flows in this app like wallets, deposits, transfers, expenses, debts, and budget. Type "/help" to see detailed commands.',
   guardReply:
-    'I can only help with EleFam flows: add wallet, deposit, transfer, log expense, debt tracking, and budget checks. You can type "/help" for list of commands.',
+    'I can only help with finance flows in this app: add wallet, deposit, transfer, log expense, debt tracking, and budget checks. You can type "/help" for commands.',
 };
 
 const TECHNICAL_GUARD_REPLY =
-  "I can't answer technical or developer questions. I only guide EleFam usage flows like adding wallet, depositing, transferring, logging expenses, debts, and budget.";
+  "I can't answer technical or developer questions. I only guide finance flows in this app like adding wallets, depositing, transferring, logging expenses, debt tracking, and budget.";
 
 const FLOW_ONLY_FALLBACK =
-  'I can help with EleFam flows only. Try asking: "how to add wallet", "how to deposit", "how to transfer", "how to log expense", "how to track debt", or "how to check budget".';
+  'I can help with finance flows only. Try asking: "how to add wallet", "how to deposit", "how to transfer", "how to log expense", "how to track debt", or "how to check budget".';
 
 const HELP_MESSAGE = [
   "Here are some things you can say to me directly:",
@@ -607,7 +911,29 @@ function normalizeName(value = "") {
   return v.charAt(0).toUpperCase() + v.slice(1);
 }
 
-function handleFlowHelp(text = "") {
+const FLOW_TOPIC_TRIGGER_TEXT = {
+  add_wallet: "how to add wallet",
+  deposit: "how to deposit",
+  transfer: "how to transfer",
+  log_expense: "how to log expense",
+  debts: "how to pay debt",
+  budget: "how to set budget",
+  general_onboarding: "how to use this app",
+};
+
+function handleFlowHelp(text = "", entities = {}) {
+  const topic = String(entities?.topic || "").trim();
+  if (topic && FLOW_TOPIC_TRIGGER_TEXT[topic]) {
+    const topicMatched = getFlowKnowledgeMatch(FLOW_TOPIC_TRIGGER_TEXT[topic]);
+    if (topicMatched) {
+      return {
+        ok: true,
+        message: topicMatched.answer,
+        kind: "help",
+      };
+    }
+  }
+
   const matched = getFlowKnowledgeMatch(text);
   if (matched) {
     return {
@@ -755,9 +1081,7 @@ function financeTipFromStats(stats = {}) {
 }
 
 async function handleLogExpense(text, sessionId = "default") {
-  const expensesStore = useExpensesStore();
   const walletsStore = useWalletsStore();
-  const dashboardStore = useDashboardStore();
   const amount = extractAmount(text);
   const wallet = matchWallet(text, walletsStore.wallets);
   const categoryKey = detectCategory(text);
@@ -784,85 +1108,11 @@ async function handleLogExpense(text, sessionId = "default") {
     ? null
     : extractedReason;
   const hasCategory = categoryKey && categoryKey !== "expense";
-
-  if ((!amount || amount <= 0) && !wallet) {
-    setPendingContext(sessionId, {
-      intent: "log_expense",
-      entities: {
-        amount: null,
-        wallet: null,
-        category: hasCategory ? categoryKey : "expense",
-        reason,
-      },
-    });
-    const prefix = getCommandStartPrefix();
-    return {
-      ok: false,
-      message: `${prefix} How much did you spend?`,
-      kind: "question",
-    };
-  }
-
-  if (!amount || amount <= 0) {
-    setPendingContext(sessionId, {
-      intent: "log_expense",
-      entities: {
-        amount: null,
-        wallet,
-        category: hasCategory ? categoryKey : "expense",
-        reason,
-      },
-    });
-    return {
-      ok: false,
-      message: `Understood — using ${wallet.name}. How much did you spend?`,
-      kind: "question",
-    };
-  }
-
-  if (!wallet) {
-    setPendingContext(sessionId, {
-      intent: "log_expense",
-      entities: {
-        amount,
-        wallet: null,
-        category: hasCategory ? categoryKey : "expense",
-        reason,
-      },
-    });
-    return {
-      ok: false,
-      message: `Noted ${formatMoney(amount)}. Which wallet was used?\n(${walletsStore.wallets.map((w) => w.name).join(", ")})`,
-      kind: "question",
-    };
-  }
-
-  if (!reason && !hasCategory) {
-    setPendingContext(sessionId, {
-      intent: "log_expense",
-      entities: {
-        amount,
-        wallet,
-        category: "expense",
-        reason: null,
-      },
-    });
-    return {
-      ok: false,
-      message: `Understood — ${formatMoney(amount)} from ${wallet.name}. What was it for? (e.g., food, transport, bills)`,
-      kind: "question",
-    };
-  }
-
-  return _executeLogExpense(
-    {
-      amount,
-      wallet,
-      categoryKey: hasCategory ? categoryKey : "expense",
-      reason,
-    },
-    expensesStore,
-    dashboardStore,
+  return planAction(
+    "log_expense",
+    { amount, wallet, category: hasCategory ? categoryKey : "expense", reason },
+    sessionId,
+    text,
   );
 }
 
@@ -951,66 +1201,12 @@ function handleMissingWalletsQuery(text = "") {
   };
 }
 
-// FIXED: multi-turn deposit — asks for missing amount or wallet
+// FIXED: multi-turn deposit — now delegates to deliberative orchestrator
 async function handleDeposit(text, sessionId = "default") {
   const walletsStore = useWalletsStore();
-  const salaryStore = useSalaryStore();
-  const dashboardStore = useDashboardStore();
-
   const amount = extractAmount(text);
   const wallet = matchWallet(text, walletsStore.wallets);
-
-  // ── Case: both missing ────────────────────────────────────────────────
-  if ((!amount || amount <= 0) && !wallet) {
-    setPendingContext(sessionId, {
-      intent: "deposit",
-      entities: {
-        amount: null,
-        wallet: null,
-      },
-    });
-    const prefix = getCommandStartPrefix();
-    return {
-      ok: true,
-      message: `${prefix} How much are you depositing?`,
-      kind: "question",
-    };
-  }
-
-  // ── Case: amount missing, wallet found ────────────────────────────────
-  if (!amount || amount <= 0) {
-    setPendingContext(sessionId, {
-      intent: "deposit",
-      entities: {
-        amount: null,
-        wallet,
-      },
-    });
-    return {
-      ok: true,
-      message: `Understood — depositing to ${wallet.name}! How much are you depositing?`,
-      kind: "question",
-    };
-  }
-
-  // ── Case: wallet missing, amount found ────────────────────────────────
-  if (!wallet) {
-    setPendingContext(sessionId, {
-      intent: "deposit",
-      entities: {
-        amount,
-        wallet: null,
-      },
-    });
-    return {
-      ok: true,
-      message: `Understood — ${formatMoney(amount)} noted. Which wallet are you depositing to?\n(${walletsStore.wallets.map((w) => w.name).join(", ")})`,
-      kind: "question",
-    };
-  }
-
-  // ── Case: both present → execute ──────────────────────────────────────
-  return _executeDeposit(amount, wallet, salaryStore, dashboardStore);
+  return planAction("deposit", { amount, wallet }, sessionId, text);
 }
 
 // FIXED: private deposit executor used by both handleDeposit and resolveDeposit
@@ -1035,105 +1231,17 @@ async function _executeDeposit(amount, wallet, salaryStore, dashboardStore) {
   };
 }
 
-// FIXED: multi-turn debt creation — asks for missing name or amount
+// FIXED: multi-turn debt creation — now delegates to deliberative orchestrator
 async function handleCreateDebt(text, type, sessionId = "default") {
-  const debtsStore = useDebtsStore();
   const walletsStore = useWalletsStore();
-  const dashboardStore = useDashboardStore();
-
   const amount = extractAmount(text);
   const name = extractPersonName(text);
   const wallet = matchWallet(text, walletsStore.wallets);
-
-  const iOwe = type === "i_owe";
-
-  // ── Case: both name and amount missing ────────────────────────────────
-  if (!name && (!amount || amount <= 0)) {
-    setPendingContext(sessionId, {
-      intent: "create_debt",
-      entities: {
-        amount: null,
-        person: null,
-        type,
-        walletId: wallet?.id ?? null,
-      },
-    });
-    const prefix = getCommandStartPrefix();
-    return {
-      ok: true,
-      message: iOwe
-        ? `${prefix} Who do you owe?`
-        : `${prefix} Who owes you?`,
-      kind: "question",
-    };
-  }
-
-  // ── Case: amount missing, name found ─────────────────────────────────
-  if (!amount || amount <= 0) {
-    setPendingContext(sessionId, {
-      intent: "create_debt",
-      entities: {
-        amount: null,
-        person: name,
-        type,
-        walletId: wallet?.id ?? null,
-      },
-    });
-    return {
-      ok: true,
-      message: iOwe
-        ? `Understood. How much do you owe ${normalizeName(name)}?`
-        : `Understood. How much does ${normalizeName(name)} owe you?`,
-      kind: "question",
-    };
-  }
-
-  // ── Case: name missing, amount found ─────────────────────────────────
-  if (!name) {
-    setPendingContext(sessionId, {
-      intent: "create_debt",
-      entities: {
-        amount,
-        person: null,
-        type,
-        walletId: wallet?.id ?? null,
-      },
-    });
-    return {
-      ok: true,
-      message: iOwe
-        ? `You owe ${formatMoney(amount)} — who are you borrowing from?`
-        : `${formatMoney(amount)} noted — who owes you this?`,
-      kind: "question",
-    };
-  }
-
-  // ── Case: wallet missing, but type is owed_to_me (lending) ───────────
-  if (type === "owed_to_me" && !wallet) {
-    setPendingContext(sessionId, {
-      intent: "create_debt",
-      entities: {
-        amount,
-        person: name,
-        type,
-        walletId: null,
-      },
-    });
-    return {
-      ok: true,
-      message: `Which wallet did you use to lend money to ${normalizeName(name)}?\n(${walletsStore.wallets.map((w) => w.name).join(", ")})`,
-      kind: "question",
-    };
-  }
-
-  // ── Case: both present → execute ──────────────────────────────────────
-  return _executeCreateDebt(
-    normalizeName(name),
-    amount,
-    type,
-    wallet?.id ?? null,
-    debtsStore,
-    dashboardStore,
+  return planAction(
+    "create_debt",
+    { amount, person: name, type, walletId: wallet?.id },
+    sessionId,
+    text,
   );
 }
 
@@ -1175,56 +1283,15 @@ async function handlePayDebt(text, sessionId = "default") {
     await debtsStore.fetchAll();
   }
   const walletsStore = useWalletsStore();
-  const dashboardStore = useDashboardStore();
-
   const debt = findDebtByName(text, debtsStore.debts);
   const amount = extractAmount(text);
   const wallet = matchWallet(text, walletsStore.wallets);
   const walletId = wallet?.id ?? null;
-
-  if (!debt || !amount || !walletId) {
-    setPendingContext(sessionId, {
-      intent: "pay_debt",
-      entities: {
-        debtId: debt?.id ?? null,
-        amount: amount || null,
-        walletId: walletId,
-      },
-    });
-
-    if (!debt)
-      return {
-        ok: false,
-        message:
-          "Which debt are you paying? (Please provide the name or reference)",
-        kind: "question",
-      };
-    if (!amount) {
-      const promptText = debt?.type === "owed_to_me"
-        ? `How much did ${debt.name} pay you?`
-        : "How much did you pay?";
-      return { ok: false, message: promptText, kind: "question" };
-    }
-    if (!walletId) {
-      const walletList = walletsStore.wallets.map((w) => w.name).join(", ");
-      const promptText = debt?.type === "owed_to_me"
-        ? `Which wallet did ${debt.name} pay you?\n(${walletList})`
-        : `Which wallet should this be deducted from?\n(${walletList})`;
-      return {
-        ok: true,
-        message: promptText,
-        kind: "question",
-      };
-    }
-  }
-
-  return _executePayDebt(
-    debt.id,
-    amount,
-    walletId,
-    debtsStore,
-    walletsStore,
-    dashboardStore,
+  return planAction(
+    "pay_debt",
+    { debtId: debt?.id, amount, walletId },
+    sessionId,
+    text,
   );
 }
 
@@ -1504,6 +1571,18 @@ async function handleQueryExpenses(text = "") {
   const expensesStore = useExpensesStore();
   const walletsStore = useWalletsStore();
   const normalized = normalizeText(text);
+  const asksLatest =
+    /\b(latest|recent)\b.*\b(expense|expenses|spending)\b/.test(normalized) ||
+    /\bshow\b.*\b(latest|recent)\b.*\bexpenses?\b/.test(normalized);
+  const asksOverspending =
+    /\bover\s*spend(ing)?\b/.test(normalized) ||
+    /\btop\s+spending\s+categories\b/.test(normalized) ||
+    /\bcategories\b.*\bspending\b/.test(normalized);
+  const asksMonthCompare =
+    /\bcompare\b.*\b(this\s+month|last\s+month)\b/.test(normalized) ||
+    /\bthis\s+month\b.*\bvs\b.*\blast\s+month\b/.test(normalized) ||
+    /\blast\s+month\b.*\bvs\b.*\bthis\s+month\b/.test(normalized) ||
+    /\bmonth\s+over\s+month\b/.test(normalized);
 
   // ── 1. Detect wallet filter (existing logic) ──────────────────────────
   const wallet = matchWallet(text, walletsStore.wallets);
@@ -1534,6 +1613,45 @@ async function handleQueryExpenses(text = "") {
 
   // ── 4. Ensure expenses loaded ─────────────────────────────────────────
   if (!expensesStore.fetched) await expensesStore.fetchAll();
+
+  const parseExpenseDate = (expense) => {
+    const raw = expense?.date || expense?.created_at || "";
+    const parsed = new Date(raw);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  };
+
+  if (asksMonthCompare) {
+    const now = new Date();
+    const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+
+    let thisMonthTotal = 0;
+    let lastMonthTotal = 0;
+
+    for (const expense of expensesStore.expenses) {
+      const d = parseExpenseDate(expense);
+      if (!d) continue;
+      if (d >= thisMonthStart) {
+        thisMonthTotal += parseFloat(expense.amount || 0);
+      } else if (d >= lastMonthStart && d < thisMonthStart) {
+        lastMonthTotal += parseFloat(expense.amount || 0);
+      }
+    }
+
+    const diff = thisMonthTotal - lastMonthTotal;
+    const trend =
+      diff > 0
+        ? `up by ${formatMoney(diff)}`
+        : diff < 0
+          ? `down by ${formatMoney(Math.abs(diff))}`
+          : "unchanged";
+
+    return {
+      ok: true,
+      message: `Spending comparison:\n• This month: ${formatMoney(thisMonthTotal)}\n• Last month: ${formatMoney(lastMonthTotal)}\n• Trend: ${trend}.`,
+      kind: "query",
+    };
+  }
 
   // ── 5. Apply date range filter (existing logic) ───────────────────────
   let filtered = expensesStore.expenses;
@@ -1578,10 +1696,6 @@ async function handleQueryExpenses(text = "") {
     );
   }
 
-  // ── 8. Compute total ──────────────────────────────────────────────────
-  const total = filtered.reduce((sum, e) => sum + parseFloat(e.amount || 0), 0);
-
-  // ── 9. Build human-readable labels ────────────────────────────────────
   const rangeLabel =
     range === "today"
       ? "today"
@@ -1590,9 +1704,79 @@ async function handleQueryExpenses(text = "") {
         : range === "week"
           ? "this week"
           : "this month";
-
   const walletLabel = wallet ? ` via ${wallet.name}` : "";
-  const categoryLabel = queryCategory ? ` on ${queryCategory.label}` : "";
+
+  if (asksLatest) {
+    const latestItems = [...filtered]
+      .map((expense) => ({ ...expense, _parsedDate: parseExpenseDate(expense) }))
+      .sort((a, b) => (b._parsedDate?.getTime() || 0) - (a._parsedDate?.getTime() || 0))
+      .slice(0, 5);
+
+    if (latestItems.length === 0) {
+      return {
+        ok: true,
+        message: `I couldn't find recent expenses yet. Try logging one first, then ask me again for latest expenses.`,
+        kind: "query",
+        walletType: wallet?.type || null,
+      };
+    }
+
+    const lines = latestItems
+      .map((expense) => {
+        const dateText = expense._parsedDate
+          ? expense._parsedDate.toLocaleDateString("en-PH", { month: "short", day: "numeric" })
+          : "date unknown";
+        return `• ${dateText} — ${expense.title || getCategoryLabel(expense.category) || "Expense"}: ${formatMoney(expense.amount)}`;
+      })
+      .join("\n");
+
+    return {
+      ok: true,
+      message: `Here are your latest expenses:\n${lines}`,
+      kind: "query",
+      walletType: wallet?.type || null,
+    };
+  }
+
+  if (asksOverspending) {
+    const totalsByCategory = new Map();
+    for (const expense of filtered) {
+      const categoryKey = String(expense.category || "expense").toLowerCase();
+      totalsByCategory.set(
+        categoryKey,
+        (totalsByCategory.get(categoryKey) || 0) + parseFloat(expense.amount || 0),
+      );
+    }
+
+    const ranked = [...totalsByCategory.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3);
+
+    if (ranked.length === 0) {
+      return {
+        ok: true,
+        message: `I couldn't find enough expense data this month to rank overspending categories yet.`,
+        kind: "query",
+        walletType: wallet?.type || null,
+      };
+    }
+
+    const lines = ranked
+      .map(([key, amount], index) => `${index + 1}. ${CATEGORY_LABELS[key] || getCategoryLabel(key) || key}: ${formatMoney(amount)}`)
+      .join("\n");
+
+    return {
+      ok: true,
+      message: `Top spending categories ${range === "month" ? "this month" : rangeLabel}:\n${lines}`,
+      kind: "query",
+      walletType: wallet?.type || null,
+    };
+  }
+
+  // ── 8. Compute total ──────────────────────────────────────────────────
+  const total = filtered.reduce((sum, e) => sum + parseFloat(e.amount || 0), 0);
+
+  // ── 9. Build human-readable labels ────────────────────────────────────
 
   // ── 10. Build response ────────────────────────────────────────────────
   // Case A: Category-specific query with zero results
@@ -1803,22 +1987,7 @@ async function handleSetBudget(text = "", sessionId = "default") {
   }
 
   const amount = extractAmount(text);
-  if (!amount || amount <= 0) {
-    setPendingContext(sessionId, {
-      intent: "set_budget",
-      entities: {
-        amount: null,
-      },
-    });
-    const prefix = getCommandStartPrefix();
-    return {
-      ok: false,
-      message: `${prefix} Do you want to set your budget? How much limit would you like to set? (e.g. 12000 or "set budget to 12000"). You can also say "undo budget" to revert your last change.`,
-      kind: "question",
-    };
-  }
-
-  return _executeSetBudget(amount);
+  return planAction("set_budget", { amount }, sessionId, text);
 }
 
 function _executeSetBudget(amount) {
@@ -1858,80 +2027,16 @@ function _executeSetBudget(amount) {
 // FIXED: multi-turn transfer — asks for missing fromWallet, toWallet, or amount
 async function handleTransfer(text, sessionId = "default") {
   const walletsStore = useWalletsStore();
-  const dashboardStore = useDashboardStore();
-
   const amount = extractAmount(text);
   const { from: fromWallet, to: toWallet } = extractTransferWallets(
     text,
     walletsStore.wallets,
   );
-
-  // Both wallets present + amount — execute immediately
-  if (fromWallet && toWallet && amount && amount > 0) {
-    return _executeTransfer(
-      fromWallet,
-      toWallet,
-      amount,
-      walletsStore,
-      dashboardStore,
-      sessionId,
-    );
-  }
-
-  // Store what we have and ask for what's missing
-  setPendingContext(sessionId, {
-    intent: "transfer",
-    entities: {
-      fromWallet: fromWallet ?? null,
-      toWallet: toWallet ?? null,
-      amount: amount ?? null,
-    },
-  });
-
-  if (!fromWallet && !toWallet) {
-    const prefix = getCommandStartPrefix();
-    return {
-      ok: false,
-      message: `${prefix} Which wallet are you transferring FROM, and which wallet TO?`,
-      kind: "question",
-    };
-  }
-
-  if (!fromWallet) {
-    const toName = toWallet.name || toWallet.type;
-    return {
-      ok: false,
-      message: `Understood — transferring to ${toName}. Which wallet is the money coming FROM?`,
-      kind: "question",
-    };
-  }
-
-  if (!toWallet) {
-    const fromName = fromWallet.name || fromWallet.type;
-    return {
-      ok: false,
-      message: `Understood — transferring from ${fromName}. Which wallet are you sending it TO?`,
-      kind: "question",
-    };
-  }
-
-  if (!amount || amount <= 0) {
-    const fromName = fromWallet.name || fromWallet.type;
-    const toName = toWallet.name || toWallet.type;
-    return {
-      ok: false,
-      message: `Understood — transferring from ${fromName} to ${toName}. How much are you transferring?`,
-      kind: "question",
-    };
-  }
-
-  return _executeTransfer(
-    fromWallet,
-    toWallet,
-    amount,
-    walletsStore,
-    dashboardStore,
+  return planAction(
+    "transfer",
+    { amount, fromWallet, toWallet },
     sessionId,
+    text,
   );
 }
 
@@ -1992,18 +2097,64 @@ async function _dispatchIntent(intentName, text, sessionId, entities = {}) {
   const mappedIntent = _mapNluIntent(intentName, entities);
   const intentType = getIntentType(mappedIntent);
 
+  // ── ACTION INTENTS: route through deliberative orchestrator ───────────────
+  const actionIntents = [
+    "log_expense",
+    "deposit",
+    "create_debt_i_owe",
+    "create_debt_owed_to_me",
+    "pay_debt",
+    "transfer",
+    "set_budget",
+  ];
+
+  if (actionIntents.includes(mappedIntent)) {
+    // Extract entities if not already provided by NLU
+    const walletsStore = useWalletsStore();
+    const expensesStore = useExpensesStore();
+    const debtsStore = useDebtsStore();
+
+    // Ensure entities are populated from text if NLU didn't provide them
+    if (!entities.amount) entities.amount = extractAmount(text);
+    if (!entities.wallet) entities.wallet = matchWallet(text, walletsStore.wallets);
+    if (!entities.category) entities.category = detectCategory(text);
+    if (!entities.reason) entities.reason = extractExpenseReason(text, walletsStore.wallets);
+    if (!entities.person) entities.person = extractPersonName(text);
+
+    // Special handling for transfer and debt intents
+    if (mappedIntent === "transfer") {
+      const { from: extractedFrom, to: extractedTo } = extractTransferWallets(
+        text,
+        walletsStore.wallets,
+      );
+      if (!entities.fromWallet) entities.fromWallet = extractedFrom;
+      if (!entities.toWallet) entities.toWallet = extractedTo;
+    }
+
+    if (mappedIntent === "pay_debt") {
+      if (debtsStore.debts.length === 0) await debtsStore.fetchAll();
+      const debt = findDebtByName(text, debtsStore.debts);
+      if (!entities.debtId && debt) entities.debtId = debt.id;
+    }
+
+    // Normalize debt type for orchestrator
+    if (mappedIntent === "create_debt_i_owe") {
+      entities.type = "i_owe";
+    } else if (mappedIntent === "create_debt_owed_to_me") {
+      entities.type = "owed_to_me";
+    }
+
+    // Route through deliberative orchestrator
+    const orchestratorIntent = mappedIntent.startsWith("create_debt_")
+      ? "create_debt"
+      : mappedIntent;
+    const result = await planAction(orchestratorIntent, entities, sessionId, text);
+    return result ? { ...result, intentType } : null;
+  }
+
+  // ── QUERY INTENTS: direct routing (existing behavior preserved) ────────────
   let result = null;
-  if (mappedIntent === "log_expense")
-    result = await handleLogExpense(text, sessionId);
-  else if (mappedIntent === "deposit")
-    result = await handleDeposit(text, sessionId);
-  else if (mappedIntent === "create_debt_i_owe")
-    result = await handleCreateDebt(text, "i_owe", sessionId);
-  else if (mappedIntent === "create_debt_owed_to_me")
-    result = await handleCreateDebt(text, "owed_to_me", sessionId);
-  else if (mappedIntent === "pay_debt")
-    result = await handlePayDebt(text, sessionId);
-  else if (mappedIntent === "query_balance")
+  if (mappedIntent === "query_balance")
     result = await handleQueryBalance(text);
   else if (mappedIntent === "query_expenses")
     result = await handleQueryExpenses(text);
@@ -2021,14 +2172,9 @@ async function _dispatchIntent(intentName, text, sessionId, entities = {}) {
       message: financeTipFromStats(dashboard.stats),
       kind: "tip",
     };
-  } else if (mappedIntent === "flow_help") result = handleFlowHelp(text);
-  else if (mappedIntent === "set_budget") result = await handleSetBudget(text);
-  else if (mappedIntent === "transfer")
-    result = await handleTransfer(text, sessionId);
+  } else if (mappedIntent === "flow_help") result = handleFlowHelp(text, entities || {});
   else if (mappedIntent === "create_savings_goal")
     result = handleCreateSavingsGoal();
-  else if (mappedIntent === "create_wallet")
-    result = await handleCreateWallet(text, sessionId);
 
   if (result) {
     return { ...result, intentType };
@@ -2056,6 +2202,53 @@ function getIntentVerbPhrase(intent) {
   if (intent === "set_budget") return "set a budget";
   if (intent === "create_wallet") return "create a wallet";
   return intent.replace(/_/g, " ");
+}
+
+async function executeAiAction(aiData, aiProvider, text, sessionId) {
+  const walletsStore = useWalletsStore();
+  const dashboardStore = useDashboardStore();
+  const debtsStore = useDebtsStore();
+  const salaryStore = useSalaryStore();
+  const expensesStore = useExpensesStore();
+  const aiEntities = {};
+
+  // Map AI-extracted fields to local entity format
+  if (aiData.amount) aiEntities.amount = Number(aiData.amount);
+  if (aiData.category) aiEntities.category = aiData.category;
+  if (aiData.reason) aiEntities.reason = aiData.reason;
+
+  // Match wallet names to actual wallet objects
+  if (aiData.wallet_name) {
+    aiEntities.wallet = matchWallet(aiData.wallet_name, walletsStore.wallets);
+  }
+  if (aiData.from_wallet) {
+    aiEntities.fromWallet = matchWallet(aiData.from_wallet, walletsStore.wallets);
+  }
+  if (aiData.to_wallet) {
+    aiEntities.toWallet = matchWallet(aiData.to_wallet, walletsStore.wallets);
+  }
+
+  // Debt fields
+  if (aiData.person) aiEntities.person = aiData.person;
+  if (aiData.debt_type) aiEntities.type = aiData.debt_type;
+
+  // Wallet creation fields
+  if (aiData.balance !== undefined) aiEntities.balance = Number(aiData.balance);
+
+  // Map the AI action to local intent name
+  let localIntent = aiData.action;
+  if (localIntent === "create_debt" && aiEntities.type === "i_owe") {
+    localIntent = "create_debt_i_owe";
+  } else if (localIntent === "create_debt" && aiEntities.type === "owed_to_me") {
+    localIntent = "create_debt_owed_to_me";
+  }
+
+  // Dispatch through local engine
+  const result = await _dispatchIntent(localIntent, text, sessionId, aiEntities);
+  if (result) {
+    return { ...result, aiProvider };
+  }
+  return null;
 }
 
 // FIXED: sessionId allows multi-tab/session-safe pending context handling
@@ -2169,8 +2362,13 @@ export async function processEleFamMessage(
       };
     }
 
-    const incomingIntent = detectIntent(text);
-    const isNewIntent = incomingIntent.name !== "unknown";
+    const incomingNlu = advancedClassify(text);
+    const incomingIntentName = incomingNlu.intent;
+    const isLocalNewIntent =
+      incomingNlu.matched &&
+      incomingIntentName &&
+      incomingIntentName !== "unknown" &&
+      incomingIntentName !== "ambiguous";
     const isCancelWord = [
       "cancel",
       "nevermind",
@@ -2193,17 +2391,51 @@ export async function processEleFamMessage(
       };
     }
 
-    if (isNewIntent && incomingIntent.name !== existingCtx.intent) {
-      const intentType = getIntentType(incomingIntent.name);
+    let aiIncomingIntent = null;
+    let aiData = null;
+    let aiProvider = null;
+
+    if (!isLocalNewIntent) {
+      try {
+        const interpretResponse = await api.post("/chat/interpret", {
+          message: text,
+        });
+        if (interpretResponse.data?.success && interpretResponse.data?.data) {
+          aiData = interpretResponse.data.data;
+          aiProvider = interpretResponse.data.provider;
+          if (aiData.action && aiData.action !== "reply") {
+            let localIntent = aiData.action;
+            if (localIntent === "create_debt" && aiData.debt_type === "i_owe") {
+              localIntent = "create_debt_i_owe";
+            } else if (localIntent === "create_debt" && aiData.debt_type === "owed_to_me") {
+              localIntent = "create_debt_owed_to_me";
+            }
+            aiIncomingIntent = localIntent;
+          }
+        }
+      } catch (err) {
+        console.warn("[EleFam AI] Interpret API error during pending context check:", err);
+      }
+    }
+
+    const resolvedIntentName = incomingIntentName || aiIncomingIntent;
+    const isNewIntent = isLocalNewIntent || !!aiIncomingIntent;
+
+    if (isNewIntent && resolvedIntentName !== existingCtx.intent) {
+      const mappedIncomingIntent = _mapNluIntent(
+        resolvedIntentName,
+        incomingNlu.entities || aiData || {},
+      );
+      const intentType = getIntentType(mappedIncomingIntent);
       if (intentType === "action") {
         setPendingContext(sessionId, {
           intent: "confirm_interruption",
           previousCtx: existingCtx,
           newText: text,
-          newIntent: incomingIntent.name,
+          newIntent: resolvedIntentName,
         });
         const prevDisp = getIntentDisplayName(existingCtx.intent);
-        const newVerb = getIntentVerbPhrase(incomingIntent.name);
+        const newVerb = getIntentVerbPhrase(resolvedIntentName);
         return {
           ok: true,
           message: `You still have an unfinished ${prevDisp}. Do you want to continue it, or cancel it to ${newVerb}?`,
@@ -2211,50 +2443,22 @@ export async function processEleFamMessage(
           intentType: "action",
         };
       }
-      const result = await (async () => {
-        if (incomingIntent.name === "log_expense")
-          return handleLogExpense(text, sessionId);
-        if (incomingIntent.name === "deposit")
-          return handleDeposit(text, sessionId);
-        if (incomingIntent.name === "create_debt_i_owe")
-          return handleCreateDebt(text, "i_owe", sessionId);
-        if (incomingIntent.name === "create_debt_owed_to_me")
-          return handleCreateDebt(text, "owed_to_me", sessionId);
-        if (incomingIntent.name === "pay_debt") return handlePayDebt(text, sessionId);
-        if (incomingIntent.name === "query_balance")
-          return handleQueryBalance(text);
-        if (incomingIntent.name === "query_expenses")
-          return handleQueryExpenses(text);
-        if (incomingIntent.name === "query_missing_wallets")
-          return handleMissingWalletsQuery(text);
-        if (incomingIntent.name === "query_debts")
-          return handleQueryDebts(text);
-        if (incomingIntent.name === "query_budget") return handleQueryBudget();
-        if (incomingIntent.name === "ask_help")
-          return { ok: true, message: HELP_MESSAGE, kind: "help" };
-        if (incomingIntent.name === "ask_tips") {
-          const dashboard = useDashboardStore();
-          return {
-            ok: true,
-            message: financeTipFromStats(dashboard.stats),
-            kind: "tip",
-          };
-        }
-        if (incomingIntent.name === "flow_help") return handleFlowHelp(text);
-        if (incomingIntent.name === "set_budget") return handleSetBudget(text);
-        if (incomingIntent.name === "transfer")
-          return handleTransfer(text, sessionId);
-        if (incomingIntent.name === "create_savings_goal")
-          return handleCreateSavingsGoal();
-        return null;
-      })();
+      const result = aiIncomingIntent
+        ? await executeAiAction(aiData, aiProvider, text, sessionId)
+        : await _dispatchIntent(
+            incomingIntentName,
+            text,
+            sessionId,
+            incomingNlu.entities || {},
+          );
 
       if (result) {
         if (intentType === "query") {
           const reminder = getPendingReminder(existingCtx);
+          const reminderText = reminder ? `\n\n${reminder.trim()}` : "";
           return {
             ...result,
-            message: result.message,
+            message: `${result.message}${reminderText}`,
             reminder: reminder ? reminder.trim() : undefined,
             intentType,
           };
@@ -2289,15 +2493,83 @@ export async function processEleFamMessage(
   // Call refactored advancedClassify
   const nluResult = advancedClassify(text);
 
-  // Debug logging
-  // if (import.meta.env.DEV) {
-  //   console.log('[EleFam NLU]', {
-  //     sourceLayer: nluResult.sourceLayer,
-  //     confidence: nluResult.confidence,
-  //     intent: nluResult.intent,
-  //     entities: nluResult.entities
-  //   })
-  // }
+  // Determine if local NLU matched confidently and completely
+  const mappedIntentForType = nluResult.matched ? _mapNluIntent(nluResult.intent, nluResult.entities || {}) : null;
+  const intentType = mappedIntentForType ? getIntentType(mappedIntentForType) : null;
+  const isActionIntent = intentType === "action";
+
+  let isConfidentAndComplete = false;
+  if (nluResult.matched && nluResult.intent !== "unknown" && nluResult.intent !== "ambiguous" && nluResult.intent !== "out_of_scope") {
+    if (intentType === "query" || nluResult.sourceLayer === "knowledge") {
+      if (nluResult.confidence >= 0.85) {
+        isConfidentAndComplete = true;
+      }
+    } else if (isActionIntent) {
+      const orchestratorIntent = mappedIntentForType.startsWith("create_debt") ? "create_debt" : mappedIntentForType;
+      const required = REQUIRED_FIELDS[orchestratorIntent] || [];
+      const missing = required.filter(field => {
+        const val = nluResult.entities?.[field];
+        if (val === null || val === undefined) return true;
+        if (typeof val === "string" && val.trim() === "") return true;
+        if (orchestratorIntent === "log_expense" && field === "category" && val === "expense") return true;
+        return false;
+      });
+
+      if (missing.length === 0 && nluResult.confidence >= 0.95) {
+        isConfidentAndComplete = true;
+      }
+    }
+  }
+
+  // 1. If it is confident and complete, execute it locally!
+  if (isConfidentAndComplete) {
+    if (nluResult.sourceLayer === "knowledge") {
+      return {
+        ok: true,
+        message: getSmallTalkReply(nluResult.intent, getLastBotAction()),
+        kind: "text",
+        intentType: "query",
+      };
+    }
+    return _dispatchIntent(
+      nluResult.intent,
+      text,
+      sessionId,
+      nluResult.entities,
+    );
+  }
+
+  // 2. Otherwise, try AI interpretation first!
+  try {
+    const interpretResponse = await api.post("/chat/interpret", {
+      message: text,
+    });
+
+    if (interpretResponse.data?.success && interpretResponse.data?.data) {
+      const aiData = interpretResponse.data.data;
+
+      // If the AI identified an action, route it through local execution
+      if (aiData.action && aiData.action !== "reply") {
+        const result = await executeAiAction(aiData, interpretResponse.data.provider, text, sessionId);
+        if (result) return result;
+      }
+
+      // If AI returned a reply (not an action), show it as text
+      if (aiData.action === "reply" && aiData.message) {
+        return {
+          ok: true,
+          message: aiData.message,
+          kind: "text",
+          intentType: "query",
+          aiProvider: interpretResponse.data.provider,
+        };
+      }
+    }
+  } catch (err) {
+    console.warn("[EleFam AI] Interpret API error, falling back to local processing:", err);
+  }
+
+  // 3. Fallbacks if AI interpretation failed or returned no actionable intent:
 
   // Handle Ambiguous
   if (nluResult.intent === "ambiguous") {
@@ -2305,6 +2577,20 @@ export async function processEleFamMessage(
     return {
       ok: true,
       message: `Did you mean ${candidates[0].intent.replace(/_/g, " ")} or ${candidates[1].intent.replace(/_/g, " ")}?`,
+      kind: "text",
+      intentType: "query",
+    };
+  }
+
+  // Handle out-of-scope understanding (meaning understood, but outside app scope)
+  if (nluResult.intent === "out_of_scope") {
+    const scopeType = nluResult.entities?.scopeType || "general";
+    return {
+      ok: false,
+      message:
+        scopeType === "technical"
+          ? TECHNICAL_GUARD_REPLY
+          : eleFamProfile.guardReply,
       kind: "text",
       intentType: "query",
     };
@@ -2330,21 +2616,46 @@ export async function processEleFamMessage(
     );
   }
 
-  // Handle Fallback
-  if (nluResult.sourceLayer === "fallback") {
-    const fallbackResponse = nluResult.fallbackResponse;
-    if (fallbackResponse?.context) {
-      setPendingContext(sessionId, {
-        intent: "smart_fallback",
-        ...fallbackResponse.context,
+  // Fall back to conversational AI if it is not a matched action intent
+  if (!isActionIntent) {
+    try {
+      const dashboardStore = useDashboardStore();
+      const customBudget = getMonthlyBudgetLimit();
+      const response = await api.post("/chat/message", {
+        message: text,
+        stats: {
+          monthly_income: parseFloat(dashboardStore.stats.monthly_income || 0),
+          monthly_expenses: parseFloat(dashboardStore.stats.monthly_expenses || 0),
+          remaining_salary: parseFloat(dashboardStore.stats.remaining_salary || 0),
+          custom_budget: customBudget,
+        }
       });
+      if (response.data && response.data.enabled) {
+        return {
+          ok: response.data.ok ?? true,
+          message: response.data.message,
+          kind: nluResult.intent === "ask_tips" ? "tip" : "text",
+          intentType: mappedIntentForType ? getIntentType(mappedIntentForType) : "query",
+        };
+      }
+    } catch (err) {
+      console.warn("[EleFam AI] Chat API error, falling back to local fallback:", err);
     }
-    return {
-      ok: false,
-      message: fallbackResponse.message,
-      kind: isFinanceRelated(normalized) ? "query" : "text",
-    };
   }
+
+  // Fall back to smart fallback
+  const fallbackResponse = nluResult.fallbackResponse || generateSmartFallback(text, null);
+  if (fallbackResponse?.context) {
+    setPendingContext(sessionId, {
+      intent: "smart_fallback",
+      ...fallbackResponse.context,
+    });
+  }
+  return {
+    ok: false,
+    message: fallbackResponse?.message || getSmallTalkReply("unknown"),
+    kind: isFinanceRelated(normalized) ? "query" : "text",
+  };
 
   // Absolute baseline fallback (should rarely be reached)
   return {

@@ -140,8 +140,9 @@ function parseWrittenAmount(text = '') {
 }
 
 export function extractAmount(text = '') {
+  const raw = String(text || '').toLowerCase()
   const normalized = normalizeText(text)
-  const match = normalized.match(/(?:₱|php|peso|pesos)?\s*(\d[\d,]*\.?\d*)\s*(?:([km])(?![a-z]))?/i)
+  const match = raw.match(/(?:₱|php|peso|pesos)?\s*(\d[\d,]*\.?\d*)\s*(?:([km])(?![a-z]))?/i)
   if (match) {
     const base = parseFloat(String(match[1]).replace(/,/g, ''))
     if (!Number.isFinite(base)) return null
@@ -383,9 +384,11 @@ export function extractExpenseReason(text = '', wallets = []) {
 
   // 3. Remove common keywords
   const noise = [
-    'spent', 'logged', 'buy', 'bought', 'expense', 'gastos', 'nagasto', 'bayad', 'payment', 
+    'spent', 'spend', 'spending', 'logged', 'buy', 'bought', 'expense', 'gastos', 'nagasto', 'bayad', 'payment', 
     'for', 'to', 'from', 'sa', 'kay', 'ni', 'via', 'using', 'using my', 'at', 'with', 'the',
-    'a', 'an', 'and', 'or', 'is', 'my', 'me', 'i'
+    'a', 'an', 'and', 'or', 'is', 'my', 'me', 'i',
+    'today', 'yesterday', 'now', 'ngayon', 'karon', 'kanina',
+    'this', 'month', 'week', 'day'
   ]
   
   noise.forEach(n => {
@@ -396,7 +399,7 @@ export function extractExpenseReason(text = '', wallets = []) {
   // 4. Cleanup
   cleaned = cleaned.replace(/\s+/g, ' ').trim()
 
-  if (!cleaned) return 'Expense'
+  if (!cleaned) return null
   
   // Capitalize
   return cleaned.charAt(0).toUpperCase() + cleaned.slice(1)

@@ -1,3 +1,5 @@
+import { ENGLISH_LEMMAS } from '@/lib/knowledge/index.js'
+
 export const INTENTS = {
   query_expenses: {
     minScore: 1,
@@ -29,6 +31,10 @@ export const INTENTS = {
       'unsa akong gigasto', 'listahanan sa gastos', 'pakita gastos', 'tingnan gastos', 'patingin gastos',
       'gastos pls', 'gastos ko pls', 'gastos lahat', 'tan-awa gastos', 'ipakita gastos',
       'how much did i spend last month', 'pila akong gasto today lang', 'how much did i spend kanina', 'check my expenses this week'
+      , 'latest expenses', 'recent expenses', 'show latest expenses', 'show recent expenses',
+      'overspending categories', 'what categories am i overspending on', 'top spending categories',
+      'compare this month spending vs last month', 'compare spending this month and last month',
+      'spending comparison', 'month over month spending'
     ],
   },
   query_debts: {
@@ -226,7 +232,9 @@ export const INTENTS = {
     minScore: 1,
     keywords: [
       'tips', 'advice', 'insight', 'suggest', 'tip', 'recommend', 'hingi payo', 'tambag',
-      'advice me', 'give me tips', 'how to save'
+      'advice me', 'give me tips', 'how to save',
+      'reduce expenses', 'reduce my expenses', 'reduce spending', 'cut my expenses',
+      'how can i reduce my expenses', 'based on my data', 'spending advice'
     ],
   },
   flow_help: {
@@ -318,13 +326,33 @@ function normalizeCommonTypos(text = '') {
   return value
 }
 
+const LEMMA_PROTECTED_TOKENS = new Set([
+  'did', 'does', 'do',
+  'is', 'are', 'was', 'were',
+  'how', 'what', 'where', 'when', 'why',
+  'my', 'your', 'our',
+])
+
+function lemmatizeNormalizedEnglish(text = '') {
+  if (!text) return ''
+  return text
+    .split(/\s+/)
+    .map((token) => {
+      if (LEMMA_PROTECTED_TOKENS.has(token)) return token
+      return ENGLISH_LEMMAS[token] || token
+    })
+    .join(' ')
+}
+
 function normalize(text = '') {
-  return normalizeCommonTypos(String(text))
+  const normalized = normalizeCommonTypos(String(text))
     .toLowerCase()
     .replace(/['’]/g, '') // Remove apostrophes
     .replace(/[!?.,]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
+
+  return lemmatizeNormalizedEnglish(normalized)
 }
 
 function scoreIntent(normalizedText, keywords) {

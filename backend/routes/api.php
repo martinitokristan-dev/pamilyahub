@@ -10,6 +10,7 @@ use App\Http\Controllers\NoteFolderController;
 use App\Http\Controllers\IncomeController;
 use App\Http\Controllers\SalaryDepositController;
 use App\Http\Controllers\WalletController;
+use App\Http\Controllers\ChatController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/ping', fn() => response()->json(['status' => 'ok']));
@@ -50,4 +51,9 @@ Route::middleware(['auth:sanctum', 'track_activity'])->group(function () {
     // Salary Deposits
     Route::get('salary-deposits/current-month', [SalaryDepositController::class, 'currentMonth']);
     Route::post('salary-deposits', [SalaryDepositController::class, 'store']);
+
+    // AI Chat Support (with automatic failover)
+    Route::post('chat/message', [ChatController::class, 'message']);
+    Route::post('chat/interpret', [ChatController::class, 'interpret']);
 });
+

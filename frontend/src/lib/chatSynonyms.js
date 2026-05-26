@@ -1,4 +1,27 @@
 import { normalizeText } from '@/lib/chatIntents.js'
+import { ENGLISH_SYNONYMS } from '@/lib/knowledge/index.js'
+
+const ENGLISH_WORD_TO_INTENT = {
+  spend: 'log_expense',
+  expense: 'log_expense',
+  pay: 'log_expense',
+  purchase: 'log_expense',
+  buy: 'log_expense',
+  wallet: 'create_wallet',
+  account: 'create_wallet',
+  balance: 'query_balance',
+  deposit: 'deposit',
+  transfer: 'transfer',
+  debt: 'query_debts',
+  owe: 'create_debt_i_owe',
+  borrow: 'create_debt_i_owe',
+  lend: 'create_debt_owed_to_me',
+  budget: 'query_budget',
+  save: 'create_savings_goal',
+  savings: 'create_savings_goal',
+  tip: 'ask_tips',
+  advise: 'ask_tips',
+}
 
 // Large phrase mappings covering English, Tagalog, and Bisaya
 const SYNONYM_GROUPS = {
@@ -121,6 +144,7 @@ const CONTEXTUAL_PATTERNS = [
 
 export function matchSynonyms(text) {
   const normalizedText = normalizeText(text)
+  const tokens = normalizedText.split(/\s+/).filter(Boolean)
 
   let bestIntent = null
   let maxScore = 0
@@ -149,6 +173,30 @@ export function matchSynonyms(text) {
       if (score > maxScore) {
         maxScore = score
         bestIntent = ctx.intent
+      }
+    }
+  }
+
+  // 3. Generated English synonym graph fallback
+  // Use lexicon-linked synonyms to infer likely intent even when
+  // user wording is not in static phrase groups.
+  for (const token of tokens) {
+    const directIntent = ENGLISH_WORD_TO_INTENT[token]
+    if (directIntent && 0.7 > maxScore) {
+      maxScore = 0.7
+      bestIntent = directIntent
+    }
+
+    const syns = ENGLISH_SYNONYMS[token]
+    if (!Array.isArray(syns) || syns.length === 0) continue
+
+    for (const syn of syns) {
+      const synIntent = ENGLISH_WORD_TO_INTENT[syn]
+      if (!synIntent) continue
+      const score = synIntent === directIntent ? 0.75 : 0.65
+      if (score > maxScore) {
+        maxScore = score
+        bestIntent = synIntent
       }
     }
   }

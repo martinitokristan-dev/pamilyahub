@@ -5,6 +5,7 @@
   "private": true,
   "scripts": {
     "dev": "vite",
+    "build:brain": "node ../tools/english-brain/build.mjs",
     "build": "vite build",
     "preview": "vite preview"
   },

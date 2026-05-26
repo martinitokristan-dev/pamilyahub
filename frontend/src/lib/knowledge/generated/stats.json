@@ -1,0 +1,18 @@
+{
+  "generatedAt": "2026-05-24T14:41:17.166Z",
+  "sourceFiles": {
+    "oxford3000": "oxford3000.txt",
+    "oxford5000": "oxford5000.json",
+    "irregular": "irregular.verbs.build.json",
+    "phrasals": "phrasal.verbs.build.json",
+    "wordset": "aacompletewordset.json"
+  },
+  "counts": {
+    "lexicon": 5695,
+    "singleWordLexicon": 5287,
+    "phraseLexicon": 408,
+    "lemmas": 22731,
+    "phrasals": 3332,
+    "synonymWords": 3310
+  }
+}

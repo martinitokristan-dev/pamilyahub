@@ -64,11 +64,11 @@ const TEMPLATES = [
   },
   {
     intent: 'pay_debt',
-    pattern: /^(i|ako|ni)?\s*(paid|pay|bayad|paide)\s+(?<person>[a-z0-9 ]+)$/i
+    pattern: /^(i|ako|ni)?\s*(paid|pay|bayad|paide)\s+(?!for\b|on\b|at\b)(?<person>[a-z0-9 ]+)$/i
   },
   {
     intent: 'pay_debt',
-    pattern: /^(?<person>[a-z0-9 ]+?)\s+(paid|paid me|paid me back|pay|pay me|pay me back|paide|paide me back|bayad)$/i
+    pattern: /^(?!for\b|on\b|at\b)(?<person>[a-z0-9 ]+?)\s+(paid|paid me|paid me back|pay|pay me|pay me back|paide|paide me back|bayad)$/i
   },
   // Set Budget
   {
