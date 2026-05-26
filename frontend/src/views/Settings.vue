@@ -503,7 +503,7 @@ async function handleSignOut() {
         </UiCardContent>
       </UiCard>
 
-      <p class="text-center text-xs text-muted-foreground mt-6">EleFam v1.8.6</p>
+      <p class="text-center text-xs text-muted-foreground mt-6">EleFam v1.8.7</p>
     </div>
 
     <!-- Tab 2: Privacy & Security Sub-view -->
