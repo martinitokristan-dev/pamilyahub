@@ -67,7 +67,12 @@ export const useWalletsStore = defineStore("wallets", () => {
     if (wallets.value.length === 0) {
       try {
         const cached = await cacheGet("wallets");
-        if (cached.length > 0) wallets.value = cached;
+        if (cached.length > 0) {
+          wallets.value = cached;
+          // Set cacheTime so isCacheValid() returns true and prevents
+          // unnecessary network attempts that could overwrite optimistic balances
+          if (!cacheTime.value) cacheTime.value = Date.now();
+        }
       } catch { /* ignore */ }
     }
 
@@ -85,6 +90,8 @@ export const useWalletsStore = defineStore("wallets", () => {
     } catch (e) {
       if (isNetworkError(e) && wallets.value.length > 0) {
         fetched.value = true;
+        // Prevent repeated network attempts while offline
+        if (!cacheTime.value) cacheTime.value = Date.now();
       } else {
         error.value = e.response?.data?.message ?? "Failed to load wallets";
       }
@@ -242,8 +249,12 @@ export const useWalletsStore = defineStore("wallets", () => {
     const w = wallets.value.find((w) => String(w.id) === String(walletId));
     if (w) {
       w.balance = (parseFloat(w.balance || 0) + delta).toFixed(2);
+      // Refresh cacheTime so fetchAll won't re-trigger a network call that could
+      // overwrite the optimistic balance we just set
+      cacheTime.value = Date.now();
       try {
-        await cacheSet("wallets", wallets.value);
+        // Deep-clone to strip Vue reactive proxy before persisting to IndexedDB
+        await cacheSet("wallets", JSON.parse(JSON.stringify(wallets.value)));
       } catch (e) {
         console.error("Failed to save wallets cache in adjustBalance", e);
       }

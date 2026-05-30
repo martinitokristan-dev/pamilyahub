@@ -3,7 +3,7 @@ self.__WB_DISABLE_DEV_LOGS = true
 
 import { cleanupOutdatedCaches, precacheAndRoute } from 'workbox-precaching'
 import { registerRoute } from 'workbox-routing'
-import { StaleWhileRevalidate, CacheFirst, NetworkFirst } from 'workbox-strategies'
+import { StaleWhileRevalidate, CacheFirst, NetworkFirst, NetworkOnly } from 'workbox-strategies'
 import { ExpirationPlugin } from 'workbox-expiration'
 import { CacheableResponsePlugin } from 'workbox-cacheable-response'
 
@@ -48,6 +48,12 @@ registerRoute(
       }),
     ],
   })
+)
+
+// Dashboard stats use IndexedDB + adjustStat offline — never serve stale SW cache for totals
+registerRoute(
+  ({ url }) => url.pathname.includes('/dashboard/stats'),
+  new NetworkOnly()
 )
 
 // Cache API calls (NetworkFirst)

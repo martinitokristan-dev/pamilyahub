@@ -26,6 +26,7 @@ import { useWalletsStore } from "@/stores/wallets.js";
 import { useDebtsStore } from "@/stores/debts.js";
 import { useSalaryStore } from "@/stores/salary.js";
 import { useDashboardStore } from "@/stores/dashboard.js";
+import { shouldFetchFromServer } from "@/lib/syncEngine.js";
 import {
   detectSmallTalk,
   getFlowKnowledgeMatch,
@@ -401,6 +402,16 @@ const REQUIRED_FIELDS = {
   set_budget: ["amount"],
 };
 
+function getRequiredFields(intent, entities = {}) {
+  const required = [...(REQUIRED_FIELDS[intent] || [])];
+  if (intent === "create_debt" && (entities?.type === "owed_to_me" || entities?.type === "owes_me")) {
+    if (!required.includes("walletId")) {
+      required.push("walletId");
+    }
+  }
+  return required;
+}
+
 // ================================================================
 // DELIBERATIVE ACTION ORCHESTRATOR
 // Centralizes UNDERSTAND → VALIDATE → PLAN → RESPOND for actions
@@ -421,7 +432,7 @@ async function planAction(intent, entities, sessionId, rawText = "") {
   const normalized = normalizeText(rawText);
 
   // ── STAGE 1: VALIDATE REQUIRED FIELDS ───────────────────────────────
-  const required = REQUIRED_FIELDS[intent] || [];
+  const required = getRequiredFields(intent, entities);
   const missing = required.filter((field) => {
     const val = entities[field];
     if (val === null || val === undefined) return true;
@@ -730,12 +741,7 @@ export async function resolvePendingContext(
   // Extract new entities from text
   const newEntities = {};
 
-  let required = [...(REQUIRED_FIELDS[pendingCtx.intent] || [])];
-  if (pendingCtx.intent === "create_debt" && pendingCtx.entities.type === "owed_to_me") {
-    if (!required.includes("walletId")) {
-      required.push("walletId");
-    }
-  }
+  let required = getRequiredFields(pendingCtx.intent, pendingCtx.entities);
   const missingBefore = required.filter((field) => !pendingCtx.entities[field]);
 
   const inferredFromContext = inferFollowupEntitiesFromContext(
@@ -1250,7 +1256,9 @@ async function _executeLogExpense(payload, expensesStore, dashboardStore) {
     date: new Date().toISOString().slice(0, 10),
     wallet_id: payload.wallet.id,
   });
-  dashboardStore.fetchStats().catch(() => { });
+  if (shouldFetchFromServer()) {
+    dashboardStore.fetchStats().catch(() => { });
+  }
 
   const wittyDone = [
     `Successfully logged ${title} ${formatMoney(payload.amount)}. `,
@@ -2649,7 +2657,7 @@ export async function processEleFamMessage(
       }
     } else if (isActionIntent) {
       const orchestratorIntent = mappedIntentForType.startsWith("create_debt") ? "create_debt" : mappedIntentForType;
-      const required = REQUIRED_FIELDS[orchestratorIntent] || [];
+      const required = getRequiredFields(orchestratorIntent, nluResult.entities);
       const missing = required.filter(field => {
         const val = nluResult.entities?.[field];
         if (val === null || val === undefined) return true;

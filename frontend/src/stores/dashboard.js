@@ -4,6 +4,7 @@ import dashboardService from '@/services/dashboardService.js'
 
 import { performSilentFetch } from '@/utils/storeHelper.js'
 import { cacheSingleSet, cacheSingleGet, cacheSingleRemove, isNetworkError } from '@/lib/offlineDb.js'
+import { pendingCount } from '@/lib/syncEngine.js'
 
 export const useDashboardStore = defineStore('dashboard', () => {
   const createDefaultStats = () => ({
@@ -32,14 +33,17 @@ export const useDashboardStore = defineStore('dashboard', () => {
     if (isNewRequest) {
       fetched.value = false
       lastCacheKey.value = cacheKey
-      stats.value = createDefaultStats()
 
-      // Hydrate from IndexedDB if cached for this key (offline cold start / cached month)
+      // Hydrate from IndexedDB first — avoid wiping in-memory optimistic stats with zeros
       try {
         const cached = await cacheSingleGet('dashboard', cacheKey)
-        if (cached) stats.value = cached
-      } catch { /* ignore */ }
+        stats.value = cached ?? createDefaultStats()
+      } catch {
+        stats.value = createDefaultStats()
+      }
     }
+
+    const useLocalStatsOnly = !navigator.onLine || pendingCount.value > 0
 
     await performSilentFetch({
       loading,
@@ -47,8 +51,10 @@ export const useDashboardStore = defineStore('dashboard', () => {
       cacheTime,
       currentData: stats.value,
       cacheKey,
-      force,
+      force: force && !useLocalStatsOnly,
       fetchFn: async () => {
+        if (useLocalStatsOnly) return
+
         try {
           const res = await dashboardService.getStats(filters)
           stats.value = res.data.data

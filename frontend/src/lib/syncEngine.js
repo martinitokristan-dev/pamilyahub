@@ -17,6 +17,10 @@ export const isSyncing = ref(false)
 
 let _lock = false
 
+export function shouldFetchFromServer() {
+  return typeof navigator !== 'undefined' && navigator.onLine && pendingCount.value === 0
+}
+
 export async function refreshPendingCount() {
   const db = await getDb()
   const pending = await db.getAllFromIndex('outbox', 'by_status', 'pending')

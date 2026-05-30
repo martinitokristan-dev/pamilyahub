@@ -9,6 +9,7 @@ import { processEleFamMessage, eleFamProfile, clearPendingContext } from '@/lib/
 import { detectIntent, getIntentType } from '@/lib/chatIntents.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useDarkMode } from '@/composables/useDarkMode.js'
+import { chatOpen } from '@/composables/useToast.js'
 
 const isOpen = ref(false)
 const input = ref('')
@@ -201,11 +202,13 @@ function openChat() {
   }
   handleUserActivity()
   isOpen.value = true
+  chatOpen.value = true
   scrollToBottom()
 }
 
 function closeChat() {
   isOpen.value = false
+  chatOpen.value = false
   handleUserActivity()
   clearPendingContext()
 }

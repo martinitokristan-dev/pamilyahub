@@ -40,10 +40,10 @@ export const INTENTS = {
   query_debts: {
     minScore: 1,
     keywords: [
-      'who owes me', 'who owe me', 'who owe', 'what i owe', 'who i owe', 'debt list', 'debts', 'utang list',
+      'who owes me', 'who owe me', 'who owe', 'what i owe', 'who i owe', 'debt list', 'debts', 'debt', 'utang list',
       'sino may utang', 'kinsa nay utang', 'kanino ako may utang', 'kanino may utang',
       'kang kinsa ko naay utang', 'kinsay naay utang nako', 'kinsay utangan nako',
-      'list of utang', 'all my debts', 'show debts', 'show my debts', 'tell me about my debts', 
+      'list of utang', 'all my debts', 'show debts', 'show debt', 'show my debts', 'my debt', 'tell me about my debts', 
       'utang ko', 'utang nila', 'patingin ng utang', 'tignan utang', 'pakita utang', 
       'tan-awa akong utang', 'ipakita utang', 'gusto ko makita utang', 'debt pls'
     ],

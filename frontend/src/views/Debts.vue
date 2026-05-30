@@ -18,6 +18,7 @@ import UiBadge from '@/components/ui/Badge.vue'
 import DatePicker from '@/components/ui/DatePicker.vue'
 import { SkeletonListItem } from '@/components/skeletons'
 import { formatCurrency, parseCurrency } from '@/utils/format'
+import { shouldFetchFromServer } from '@/lib/syncEngine.js'
 
 const store = useDebtsStore()
 const walletsStore = useWalletsStore()
@@ -115,7 +116,9 @@ async function submit() {
     await store.create(data)
   }
   showForm.value = false
-  dashboardStore.fetchStats()
+  if (shouldFetchFromServer()) {
+    dashboardStore.fetchStats()
+  }
 }
 
 function openPayModal(debt) {
@@ -171,12 +174,13 @@ async function confirmPay() {
   showPayModal.value = false
   payingDebt.value = null
   
-  // Refetch data in background
-  Promise.all([
-    dashboardStore.fetchStats(),
-    expensesStore.fetchAll(),
-    salaryStore.fetchCurrentMonth()
-  ])
+  if (shouldFetchFromServer()) {
+    Promise.all([
+      dashboardStore.fetchStats(),
+      expensesStore.fetchAll(),
+      salaryStore.fetchCurrentMonth()
+    ])
+  }
 }
 
 function formatDueDate(str) {

@@ -2,8 +2,15 @@ import { ref } from 'vue'
 
 const toasts = ref([])
 
+// Shared flag — toggled by AiChat.vue so toasts are suppressed while chatbot is open
+export const chatOpen = ref(false)
+
 export function useToast() {
   function addToast(title, subtitle = '', type = 'success') {
+    // Don't show toasts when the chatbot is active; the chatbot already
+    // displays its own inline success messages for every action.
+    if (chatOpen.value) return
+
     const id = Date.now() + Math.random().toString()
     toasts.value.push({ id, title, subtitle, type })
     setTimeout(() => removeToast(id), 3000)

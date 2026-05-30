@@ -213,7 +213,7 @@ export const useExpensesStore = defineStore("expenses", () => {
         await walletsStore.adjustBalance(data.wallet_id, -parseFloat(data.amount || 0));
         await cacheSet("wallets", JSON.parse(JSON.stringify(walletsStore.wallets)));
       }
-      useDashboardStore().adjustStat('monthly_expenses', parseFloat(data.amount || 0));
+      await useDashboardStore().adjustStat('monthly_expenses', parseFloat(data.amount || 0));
       useToast().offline('Saved offline', 'Expense logging queued');
       return { data: { data: optimistic } };
     } finally {
@@ -251,7 +251,7 @@ export const useExpensesStore = defineStore("expenses", () => {
       }
 
       const amtDelta = parseFloat(data.amount ?? existing?.amount ?? 0) - parseFloat(existing?.amount || 0);
-      if (amtDelta !== 0) useDashboardStore().adjustStat('monthly_expenses', amtDelta);
+      if (amtDelta !== 0) await useDashboardStore().adjustStat('monthly_expenses', amtDelta);
       useToast().expense('Expense updated', data.title);
       return res.data.data;
     } catch (e) {
@@ -316,7 +316,7 @@ export const useExpensesStore = defineStore("expenses", () => {
         await cacheSet("wallets", JSON.parse(JSON.stringify(walletsStore.wallets)));
       }
 
-      if (amtDelta !== 0) useDashboardStore().adjustStat('monthly_expenses', amtDelta);
+      if (amtDelta !== 0) await useDashboardStore().adjustStat('monthly_expenses', amtDelta);
       useToast().offline('Saved offline', 'Expense update queued');
       return { data: { data: updated } };
     } finally {
@@ -349,7 +349,7 @@ export const useExpensesStore = defineStore("expenses", () => {
       }
 
       if (existing?.amount) {
-        useDashboardStore().adjustStat('monthly_expenses', -parseFloat(existing.amount));
+        await useDashboardStore().adjustStat('monthly_expenses', -parseFloat(existing.amount));
       }
       useToast().delete('Expense deleted', 'Removed successfully');
     } catch (e) {
@@ -390,7 +390,7 @@ export const useExpensesStore = defineStore("expenses", () => {
       }
 
       if (toRemove?.amount) {
-        useDashboardStore().adjustStat('monthly_expenses', -parseFloat(toRemove.amount));
+        await useDashboardStore().adjustStat('monthly_expenses', -parseFloat(toRemove.amount));
       }
       useToast().offline('Saved offline', 'Expense deletion queued');
     } finally {

@@ -177,7 +177,7 @@ export const useDebtsStore = defineStore("debts", () => {
       await outboxAdd({ method: "post", url: "/debts", data, entity: "debts", tempId });
       await refreshPendingCount();
       const statKey = data.type === 'owed_to_me' ? 'debts_owed_to_me' : 'debts_i_owe';
-      useDashboardStore().adjustStat(statKey, parseFloat(data.amount || 0));
+      await useDashboardStore().adjustStat(statKey, parseFloat(data.amount || 0));
       // When someone owes me (owed_to_me), I lent them money — log as an optimistic expense
       if (data.type === 'owed_to_me') {
         const { useExpensesStore } = await import("./expenses.js");
@@ -218,7 +218,7 @@ export const useDebtsStore = defineStore("debts", () => {
         if (data.wallet_id) {
           await walletsStore.adjustBalance(data.wallet_id, -amount);
         }
-        useDashboardStore().adjustStat('monthly_expenses', amount);
+        await useDashboardStore().adjustStat('monthly_expenses', amount);
       }
       useToast().offline('Saved offline', 'Debt creation queued');
       return { data: { data: optimistic } };
@@ -269,10 +269,10 @@ export const useDebtsStore = defineStore("debts", () => {
     const oldKey = existing.type === 'owed_to_me' ? 'debts_owed_to_me' : 'debts_i_owe';
     const newKey = (data.type ?? existing.type) === 'owed_to_me' ? 'debts_owed_to_me' : 'debts_i_owe';
     if (oldKey === newKey) {
-      if (newAmt !== oldAmt) useDashboardStore().adjustStat(oldKey, newAmt - oldAmt);
+      if (newAmt !== oldAmt) await useDashboardStore().adjustStat(oldKey, newAmt - oldAmt);
     } else {
-      useDashboardStore().adjustStat(oldKey, -oldAmt);
-      useDashboardStore().adjustStat(newKey, +newAmt);
+      await useDashboardStore().adjustStat(oldKey, -oldAmt);
+      await useDashboardStore().adjustStat(newKey, +newAmt);
     }
     useToast().offline('Saved offline', 'Debt update queued');
     return { data: { data: updated } };
@@ -374,7 +374,7 @@ export const useDebtsStore = defineStore("debts", () => {
     await refreshPendingCount();
     if (debt) {
       const statKey = debt.type === 'owed_to_me' ? 'debts_owed_to_me' : 'debts_i_owe';
-      useDashboardStore().adjustStat(statKey, -amount);
+      await useDashboardStore().adjustStat(statKey, -amount);
 
       const { useExpensesStore } = await import("./expenses.js");
       const expStore = useExpensesStore();
@@ -410,7 +410,7 @@ export const useDebtsStore = defineStore("debts", () => {
         };
         expStore.expenses.unshift(optimisticExpense);
         await cacheUpsert("expenses", optimisticExpense);
-        useDashboardStore().adjustStat('monthly_expenses', amount);
+        await useDashboardStore().adjustStat('monthly_expenses', amount);
       } else if (debt.type === 'owed_to_me') {
         expStore.expenses.forEach(async (ex) => {
           if (
@@ -422,7 +422,7 @@ export const useDebtsStore = defineStore("debts", () => {
             await cacheUpsert("expenses", ex);
           }
         });
-        useDashboardStore().adjustStat('monthly_expenses', -amount);
+        await useDashboardStore().adjustStat('monthly_expenses', -amount);
       }
     }
     useToast().offline('Saved offline', 'Payment status queued');
@@ -540,7 +540,7 @@ export const useDebtsStore = defineStore("debts", () => {
     if (debt) {
       const paidAmount = Math.abs(parseFloat(amount || 0));
       const statKey = debt.type === 'owed_to_me' ? 'debts_owed_to_me' : 'debts_i_owe';
-      useDashboardStore().adjustStat(statKey, -paidAmount);
+      await useDashboardStore().adjustStat(statKey, -paidAmount);
 
       const { useExpensesStore } = await import("./expenses.js");
       const expStore = useExpensesStore();
@@ -576,7 +576,7 @@ export const useDebtsStore = defineStore("debts", () => {
         };
         expStore.expenses.unshift(optimisticExpense);
         await cacheUpsert("expenses", optimisticExpense);
-        useDashboardStore().adjustStat('monthly_expenses', paidAmount);
+        await useDashboardStore().adjustStat('monthly_expenses', paidAmount);
       } else if (debt.type === 'owed_to_me') {
         const repaymentExpense = {
           id: `tmp_debt_repayment_${crypto.randomUUID()}`,
@@ -595,7 +595,7 @@ export const useDebtsStore = defineStore("debts", () => {
         };
         expStore.expenses.unshift(repaymentExpense);
         await cacheUpsert("expenses", repaymentExpense);
-        useDashboardStore().adjustStat('monthly_expenses', -paidAmount);
+        await useDashboardStore().adjustStat('monthly_expenses', -paidAmount);
       }
     }
     useToast().offline('Saved offline', 'Payment queued');
@@ -635,7 +635,7 @@ export const useDebtsStore = defineStore("debts", () => {
     await refreshPendingCount();
     if (toRemove) {
       const statKey = toRemove.type === 'owed_to_me' ? 'debts_owed_to_me' : 'debts_i_owe';
-      useDashboardStore().adjustStat(statKey, -Math.abs(parseFloat(toRemove.amount || 0)));
+      await useDashboardStore().adjustStat(statKey, -Math.abs(parseFloat(toRemove.amount || 0)));
     }
     useToast().offline('Saved offline', 'Debt deletion queued');
   }

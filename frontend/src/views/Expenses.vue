@@ -17,6 +17,7 @@ import UiBadge from '@/components/ui/Badge.vue'
 import DatePicker from '@/components/ui/DatePicker.vue'
 import { SkeletonListItem, SkeletonTable } from '@/components/skeletons'
 import { formatCurrency, parseCurrency } from '@/utils/format'
+import { shouldFetchFromServer } from '@/lib/syncEngine.js'
 
 const store = useExpensesStore()
 const walletsStore = useWalletsStore()
@@ -187,12 +188,16 @@ async function submit() {
     await store.create(data)
   }
   showForm.value = false
-  dashboard.fetchStats({ month: selectedMonth.value, year: selectedYear.value })
+  if (shouldFetchFromServer()) {
+    dashboard.fetchStats({ month: selectedMonth.value, year: selectedYear.value })
+  }
 }
 
 async function remove(expense) {
   await store.remove(expense.id)
-  dashboard.fetchStats({ month: selectedMonth.value, year: selectedYear.value })
+  if (shouldFetchFromServer()) {
+    dashboard.fetchStats({ month: selectedMonth.value, year: selectedYear.value })
+  }
 }
 </script>
 
