@@ -5,6 +5,9 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig(({ mode }) => {
   return {
+    build: {
+      chunkSizeWarningLimit: 1500,
+    },
     plugins: [
       vue(),
       VitePWA({
