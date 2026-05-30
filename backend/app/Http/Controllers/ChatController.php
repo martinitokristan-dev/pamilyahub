@@ -265,9 +265,14 @@ class ChatController extends Controller
             . "- pay_debt: User is paying or receiving payment for a debt. Extract: amount (number), person (name).\n"
             . "- set_budget: User wants to set a monthly budget. Extract: amount (number).\n"
             . "- create_wallet: User wants to create a new wallet. Extract: wallet_name (string), balance (number, default 0).\n"
-            . "- reply: The message is NOT an action. It is a question, greeting, or conversation. Extract: message (your helpful response about Elefam/finance).\n\n"
+            . "- query_balance: User wants to see/check the balance or show list of wallets. (e.g. 'show my wallets', 'check balance', 'gcash balance')\n"
+            . "- query_expenses: User wants to view/check their expenses or how much they spent. (e.g. 'how much did i spend', 'show expenses')\n"
+            . "- query_debts: User wants to view/check outstanding debts or payables/receivables. (e.g. 'who owes me', 'my debts')\n"
+            . "- query_budget: User wants to view/check their budget or remaining salary. (e.g. 'budget left', 'how much budget remaining')\n"
+            . "- query_missing_wallets: User wants to see what wallets they don't have yet. (e.g. 'what wallets can i add', 'missing wallets')\n"
+            . "- reply: The message is NOT an action or query. It is a question, greeting, or conversation. Extract: message (your helpful response about Elefam/finance).\n\n"
             . "RULES:\n"
-            . "1. If the message clearly describes a financial action, return the appropriate action with extracted fields.\n"
+            . "1. If the message clearly describes a financial action or query, return the appropriate action with extracted fields.\n"
             . "2. If the message is a question or conversation, return action \"reply\" with a helpful response.\n"
             . "3. For wallet_name, match to the closest wallet from the user's list. If no match, use the name as-is.\n"
             . "4. Amount must always be a number (not a string).\n"
@@ -280,7 +285,21 @@ class ChatController extends Controller
             'properties' => [
                 'action' => [
                     'type' => 'string',
-                    'enum' => ['log_expense', 'deposit', 'transfer', 'create_debt', 'pay_debt', 'set_budget', 'create_wallet', 'reply'],
+                    'enum' => [
+                        'log_expense', 
+                        'deposit', 
+                        'transfer', 
+                        'create_debt', 
+                        'pay_debt', 
+                        'set_budget', 
+                        'create_wallet', 
+                        'query_balance',
+                        'query_expenses',
+                        'query_debts',
+                        'query_budget',
+                        'query_missing_wallets',
+                        'reply'
+                    ],
                 ],
                 'amount' => ['type' => 'number'],
                 'category' => ['type' => 'string'],

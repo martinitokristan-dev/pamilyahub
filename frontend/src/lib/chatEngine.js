@@ -89,6 +89,40 @@ function pickAlternativeWallet(wallets = [], ...excludeCandidates) {
 
   if (!excludedIds.size) return wallets[0] || null;
   return wallets.find((w) => !excludedIds.has(String(w.id))) || null;
+}const ACTION_TRIGGER_WORDS = {
+  log_expense: [
+    "spend", "spent", "buy", "bought", "cost", "log", "bili", "bumili", "gastos", "nagastos", "expense"
+  ],
+  deposit: [
+    "deposit", "add", "dagdag", "lagay", "nagdeposito", "ipasok"
+  ],
+  transfer: [
+    "transfer", "move", "send", "pass", "lipat", "ipasa", "pasa", "padala"
+  ],
+  create_debt: [
+    "owe", "owes", "utang", "hiram", "debt", "lending", "lent"
+  ],
+  pay_debt: [
+    "pay", "paid", "bayad", "nagbayad", "singil", "siningil"
+  ],
+  set_budget: [
+    "budget", "limit"
+  ],
+  create_wallet: [
+    "wallet", "create", "gawa"
+  ],
+};
+
+function hasExplicitActionTrigger(text, intent) {
+  if (!text || !intent) return false;
+  const normalized = normalizeText(text);
+  const baseIntent = intent.startsWith("create_debt") ? "create_debt" : intent;
+  const triggers = ACTION_TRIGGER_WORDS[baseIntent];
+  if (!triggers) return false;
+  return triggers.some((word) => {
+    const regex = new RegExp(`\\b${word}`, "i");
+    return regex.test(normalized);
+  });
 }
 
 function inferFollowupEntitiesFromContext(
@@ -402,8 +436,26 @@ async function planAction(intent, entities, sessionId, rawText = "") {
   if (missing.length > 0) {
     // Missing fields → ask follow-up
     const nextField = missing[0];
-    setPendingContext(sessionId, { intent, entities });
-    const question = askForMissingField(nextField, { intent, entities });
+
+    // Check for ambiguous debt matches when debtId is missing in pay_debt
+    let ambiguousDebts = undefined;
+    if (intent === "pay_debt" && nextField === "debtId") {
+      const debtsStore = useDebtsStore();
+      if (debtsStore.debts.length === 0) await debtsStore.fetchAll();
+      const debtsResult = findDebtByName(rawText, debtsStore.debts);
+      if (debtsResult.ambiguous) {
+        ambiguousDebts = debtsResult.ambiguous;
+      }
+    }
+
+    const nextCtx = {
+      intent,
+      entities,
+      ...(ambiguousDebts ? { ambiguousDebts } : {})
+    };
+
+    setPendingContext(sessionId, nextCtx);
+    const question = askForMissingField(nextField, nextCtx);
     return {
       ok: false,
       message: question,
@@ -425,11 +477,16 @@ async function planAction(intent, entities, sessionId, rawText = "") {
 function getPendingReminder(ctx) {
   if (!ctx) return "";
   const entities = ctx.entities || {};
+  const intentName = (ctx.intent || "").startsWith("create_debt") ? "create_debt" : ctx.intent;
 
-  if (ctx.intent === "create_wallet") {
+  if (intentName === "create_wallet") {
     return `I'm still waiting for the starting balance of your ${ctx.walletName} wallet. Reply with an amount whenever you're ready!`;
   }
-  if (ctx.intent === "deposit") {
+  if (intentName === "confirm_interruption") {
+    const prevDisp = getIntentDisplayName(ctx.previousCtx.intent);
+    return `I'm still waiting for your response on whether you want to continue with your ${prevDisp}. Please reply with yes/continue or no/cancel.`;
+  }
+  if (intentName === "deposit") {
     if (!entities.wallet) {
       return `I'm still waiting for which wallet you want to deposit to. Just tell me the wallet name!`;
     }
@@ -438,7 +495,7 @@ function getPendingReminder(ctx) {
     }
     return `I'm still processing your deposit to ${entities.wallet.name}.`;
   }
-  if (ctx.intent === "log_expense") {
+  if (intentName === "log_expense") {
     if (entities.amount === null || entities.amount === undefined) {
       return `I'm still waiting for the expense amount.`;
     }
@@ -449,7 +506,7 @@ function getPendingReminder(ctx) {
       return `I'm still waiting for what this expense was for.`;
     }
   }
-  if (ctx.intent === "create_debt") {
+  if (intentName === "create_debt") {
     const side = entities.type === "i_owe" ? "who you owe" : "who owes you";
     if (!entities.person) {
       return `I'm still waiting for ${side}.`;
@@ -465,7 +522,7 @@ function getPendingReminder(ctx) {
       return `I'm still waiting for which wallet you used to lend money to ${normalizeName(entities.person)}.`;
     }
   }
-  if (ctx.intent === "pay_debt") {
+  if (intentName === "pay_debt") {
     if (!entities.debtId) {
       return `I'm still waiting for which debt you're paying.`;
     }
@@ -481,7 +538,7 @@ function getPendingReminder(ctx) {
       return `I'm still waiting for which wallet to use for this payment.`;
     }
   }
-  if (ctx.intent === "transfer") {
+  if (intentName === "transfer") {
     if (!entities.fromWallet && !entities.toWallet)
       return `I'm still waiting for which wallets to transfer between.`;
     if (!entities.fromWallet)
@@ -490,7 +547,7 @@ function getPendingReminder(ctx) {
       return `I'm still waiting for which wallet to transfer TO.`;
     if (!entities.amount) return `I'm still waiting for how much to transfer.`;
   }
-  if (ctx.intent === "set_budget") {
+  if (intentName === "set_budget") {
     if (!entities.amount) {
       return `I'm still waiting for how much you want to set your budget to.`;
     }
@@ -550,6 +607,11 @@ function askForMissingField(field, pendingCtx) {
     return "Is this money you owe, or money owed to you?";
   }
   if (field === "debtId") {
+    if (pendingCtx.ambiguousDebts && pendingCtx.ambiguousDebts.length > 0) {
+      const names = pendingCtx.ambiguousDebts.map((d) => d.name).join(" or ");
+      const firstName = pendingCtx.ambiguousDebts[0].name.split(" ")[0];
+      return `Which ${firstName} do you mean? ${names}?`;
+    }
     return "Which debt are you paying? (Please provide the name or reference)";
   }
   if (field === "walletId") {
@@ -725,8 +787,13 @@ export async function resolvePendingContext(
     if (debtsStore.debts.length === 0) {
       await debtsStore.fetchAll();
     }
-    const debt = findDebtByName(text, debtsStore.debts);
-    if (debt) newEntities.debtId = debt.id;
+    const debtsResult = findDebtByName(text, debtsStore.debts, pendingCtx.ambiguousDebts);
+    if (debtsResult.match) {
+      newEntities.debtId = debtsResult.match.id;
+      delete pendingCtx.ambiguousDebts;
+    } else if (debtsResult.ambiguous) {
+      pendingCtx.ambiguousDebts = debtsResult.ambiguous;
+    }
 
     // We should also allow the user to provide an amount when paying debt in the follow-up
     if (extractedAmount && extractedAmount > 0)
@@ -990,20 +1057,66 @@ async function ensureLoaded() {
   }
 }
 
-function findDebtByName(inputText, debts = []) {
-  const normalized = normalizeText(inputText);
-  const openDebts = debts.filter(
-    (d) => !(d.is_paid || String(d.status || "").toLowerCase() === "paid"),
-  );
-  return (
-    openDebts.find((d) => {
-      const name = normalizeText(d.name);
-      if (!name) return false;
-      return new RegExp(
-        `\\b${name.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&")}\\b`,
-      ).test(normalized);
-    }) || null
-  );
+function findDebtByName(inputText, debts = [], candidates = null) {
+  const normalizedInput = normalizeText(inputText);
+  if (!normalizedInput) return { match: null };
+
+  // Use candidates if provided (e.g. during ambiguity resolution), otherwise open debts
+  const searchPool = candidates && candidates.length > 0
+    ? candidates
+    : debts.filter((d) => !(d.is_paid || String(d.status || "").toLowerCase() === "paid"));
+
+  if (searchPool.length === 0) return { match: null };
+
+  // 1. Exact match or full name containment check (highest priority)
+  // E.g. "pay jane smith" contains "jane smith"
+  const fullMatches = searchPool.filter((d) => {
+    const name = normalizeText(d.name);
+    return name && normalizedInput.includes(name);
+  });
+  if (fullMatches.length === 1) return { match: fullMatches[0] };
+  if (fullMatches.length > 1) return { ambiguous: fullMatches };
+
+  // 2. Partial name match (first name or last name check)
+  const excludeWords = new Set([
+    "pay", "paid", "bayad", "nagbayad", "singil", "siningil",
+    "debt", "utang", "hiram", "owe", "owes", "lent", "lend",
+    "on", "in", "at", "for", "with", "from", "to", "the", "a",
+    "i", "me", "my", "hello", "hi", "please", "can", "you",
+    "cash", "wallet", "gcash", "maya", "bpi", "bdo", "coins"
+  ]);
+
+  const inputWords = normalizedInput
+    .split(/\s+/)
+    .map(w => w.replace(/[^a-z0-9]/g, ""))
+    .filter(w => w && !excludeWords.has(w));
+
+  const partialMatches = searchPool.filter((d) => {
+    const name = normalizeText(d.name);
+    if (!name) return false;
+    const nameParts = name.split(/\s+/);
+    const firstName = nameParts[0];
+    const lastName = nameParts[nameParts.length - 1];
+    return inputWords.some(word => word === firstName || (nameParts.length > 1 && word === lastName));
+  });
+
+  if (partialMatches.length === 1) return { match: partialMatches[0] };
+  if (partialMatches.length > 1) return { ambiguous: partialMatches };
+
+  // 3. Ordinal matches (e.g. "first one", "second", "1st") if a candidate list is active
+  if (candidates && candidates.length > 0) {
+    const ordinalWords = ["first", "1st", "one", "unang", "uno", "second", "2nd", "pangalawang", "dos"];
+    const matchedOrdinal = inputWords.find(w => ordinalWords.includes(w));
+    if (matchedOrdinal) {
+      const isFirst = ["first", "1st", "one", "unang", "uno"].includes(matchedOrdinal);
+      const index = isFirst ? 0 : 1;
+      if (searchPool[index]) {
+        return { match: searchPool[index] };
+      }
+    }
+  }
+
+  return { match: null };
 }
 
 function financeTipFromStats(stats = {}) {
@@ -1283,13 +1396,13 @@ async function handlePayDebt(text, sessionId = "default") {
     await debtsStore.fetchAll();
   }
   const walletsStore = useWalletsStore();
-  const debt = findDebtByName(text, debtsStore.debts);
+  const debtsResult = findDebtByName(text, debtsStore.debts);
   const amount = extractAmount(text);
   const wallet = matchWallet(text, walletsStore.wallets);
   const walletId = wallet?.id ?? null;
   return planAction(
     "pay_debt",
-    { debtId: debt?.id, amount, walletId },
+    { debtId: debtsResult.match?.id || null, amount, walletId },
     sessionId,
     text,
   );
@@ -1427,10 +1540,10 @@ async function resolveCreateWallet(text, ctx, sessionId = "default") {
   };
 }
 
-async function handleCreateWallet(text, sessionId = "default") {
+async function handleCreateWallet(text, sessionId = "default", entities = {}) {
   const walletsStore = useWalletsStore();
-  const detectedType = extractWalletTypeFromText(text);
-  const walletNameRaw = extractWalletNameForCreate(text);
+  const detectedType = entities.walletType || extractWalletTypeFromText(text);
+  const walletNameRaw = entities.walletName || extractWalletNameForCreate(text);
   const canonicalName = canonicalWalletNameFromType(detectedType);
 
   if (!walletNameRaw && !canonicalName) {
@@ -1453,7 +1566,7 @@ async function handleCreateWallet(text, sessionId = "default") {
   }
 
   const walletType = detectedType || inferWalletType(walletName);
-  const rawAmount = extractAmount(text);
+  const rawAmount = entities.balance !== undefined ? entities.balance : extractAmount(text);
 
   if (rawAmount === null) {
     // FIXED: session-scoped pending context with TTL
@@ -2133,8 +2246,8 @@ async function _dispatchIntent(intentName, text, sessionId, entities = {}) {
 
     if (mappedIntent === "pay_debt") {
       if (debtsStore.debts.length === 0) await debtsStore.fetchAll();
-      const debt = findDebtByName(text, debtsStore.debts);
-      if (!entities.debtId && debt) entities.debtId = debt.id;
+      const debtsResult = findDebtByName(text, debtsStore.debts);
+      if (!entities.debtId && debtsResult.match) entities.debtId = debtsResult.match.id;
     }
 
     // Normalize debt type for orchestrator
@@ -2175,6 +2288,9 @@ async function _dispatchIntent(intentName, text, sessionId, entities = {}) {
   } else if (mappedIntent === "flow_help") result = handleFlowHelp(text, entities || {});
   else if (mappedIntent === "create_savings_goal")
     result = handleCreateSavingsGoal();
+  else if (mappedIntent === "create_wallet") {
+    result = await handleCreateWallet(text, sessionId, entities);
+  }
 
   if (result) {
     return { ...result, intentType };
@@ -2220,6 +2336,10 @@ async function executeAiAction(aiData, aiProvider, text, sessionId) {
   // Match wallet names to actual wallet objects
   if (aiData.wallet_name) {
     aiEntities.wallet = matchWallet(aiData.wallet_name, walletsStore.wallets);
+    aiEntities.walletName = aiData.wallet_name;
+  }
+  if (aiData.wallet_type) {
+    aiEntities.walletType = aiData.wallet_type;
   }
   if (aiData.from_wallet) {
     aiEntities.fromWallet = matchWallet(aiData.from_wallet, walletsStore.wallets);
@@ -2321,15 +2441,20 @@ export async function processEleFamMessage(
           intentType: "action"
         };
       } else if (isNegative) {
-        // Discard the previous context and execute the new command directly!
+        // Discard the previous context and stop!
         deletePendingContext(sessionId);
-        return processEleFamMessage(existingCtx.newText, sessionId);
-      } else {
         const prevDisp = getIntentDisplayName(existingCtx.previousCtx.intent);
-        const newVerb = getIntentVerbPhrase(existingCtx.newIntent);
         return {
           ok: true,
-          message: `You still have an unfinished ${prevDisp}. Do you want to continue it, or cancel it to ${newVerb}? (Please reply with yes/continue or no/cancel)`,
+          message: `Okay, the ${prevDisp} has been cancelled.`,
+          kind: "action",
+          intentType: "action"
+        };
+      } else {
+        const prevDisp = getIntentDisplayName(existingCtx.previousCtx.intent);
+        return {
+          ok: true,
+          message: `You still have an unfinished ${prevDisp}. Do you want to continue it? (Please reply with yes/continue or no/cancel)`,
           kind: "question",
           intentType: "action"
         };
@@ -2421,7 +2546,26 @@ export async function processEleFamMessage(
     const resolvedIntentName = incomingIntentName || aiIncomingIntent;
     const isNewIntent = isLocalNewIntent || !!aiIncomingIntent;
 
-    if (isNewIntent && resolvedIntentName !== existingCtx.intent) {
+    // Verify trigger words before prompting interruption to avoid false positives on slot-filling answers (e.g. "800 on cash")
+    let isRealInterruption = isNewIntent && resolvedIntentName !== existingCtx.intent;
+    if (isRealInterruption) {
+      const mappedIncomingIntent = _mapNluIntent(
+        resolvedIntentName,
+        incomingNlu.entities || aiData || {},
+      );
+      const incomingIntentType = getIntentType(mappedIncomingIntent);
+      if (incomingIntentType === "action") {
+        // 1. If text contains trigger words for the pending intent (existingCtx.intent), it's a continuation, not an interruption.
+        const hasPendingTrigger = hasExplicitActionTrigger(text, existingCtx.intent);
+        // 2. If the text does NOT contain trigger words for the new intent, it's not a real new intent command.
+        const hasNewTrigger = hasExplicitActionTrigger(text, resolvedIntentName);
+        if (hasPendingTrigger || !hasNewTrigger) {
+          isRealInterruption = false;
+        }
+      }
+    }
+
+    if (isRealInterruption) {
       const mappedIncomingIntent = _mapNluIntent(
         resolvedIntentName,
         incomingNlu.entities || aiData || {},
@@ -2435,10 +2579,9 @@ export async function processEleFamMessage(
           newIntent: resolvedIntentName,
         });
         const prevDisp = getIntentDisplayName(existingCtx.intent);
-        const newVerb = getIntentVerbPhrase(resolvedIntentName);
         return {
           ok: true,
-          message: `You still have an unfinished ${prevDisp}. Do you want to continue it, or cancel it to ${newVerb}?`,
+          message: `You still have an unfinished ${prevDisp}. Do you want to continue it? (Please reply with yes/continue or no/cancel)`,
           kind: "question",
           intentType: "action",
         };
