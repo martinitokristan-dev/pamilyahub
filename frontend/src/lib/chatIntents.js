@@ -389,6 +389,19 @@ export function normalizeText(text = '') {
 }
 
 export function getIntentType(intentName) {
-  const queryIntents = ['query_expenses', 'query_debts', 'query_budget', 'query_missing_wallets', 'query_balance', 'ask_help', 'ask_tips', 'flow_help']
-  return queryIntents.includes(intentName) ? 'query' : 'action'
+  const actionIntents = [
+    'create_wallet', 'deposit', 'transfer', 'log_expense', 
+    'create_debt', 'pay_debt', 'set_budget', 'undo', 'cancel'
+  ]
+  if (actionIntents.includes(intentName) || intentName.startsWith('create_debt_')) {
+    return 'action'
+  }
+  const queryIntents = [
+    'query_expenses', 'query_debts', 'query_budget', 'query_missing_wallets', 
+    'query_balance', 'ask_help', 'ask_tips', 'flow_help'
+  ]
+  if (queryIntents.includes(intentName)) {
+    return 'query'
+  }
+  return 'conversational'
 }

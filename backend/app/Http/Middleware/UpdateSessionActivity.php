@@ -20,21 +20,24 @@ class UpdateSessionActivity
         $user = $request->user();
         if ($user && $user->currentAccessToken()) {
             $token = $user->currentAccessToken();
-            $ip = $request->ip();
-            $ua = $request->userAgent();
-            $now = now();
+            
+            if ($token instanceof \Illuminate\Database\Eloquent\Model) {
+                $ip = $request->ip();
+                $ua = $request->userAgent();
+                $now = now();
 
-            // Only update DB if last_active_at is older than 1 minute or IP/UA changed to reduce database write operations.
-            if (!$token->last_active_at || 
-                $token->last_active_at->diffInMinutes($now) >= 1 || 
-                $token->ip_address !== $ip || 
-                $token->user_agent !== $ua) {
-                
-                $token->forceFill([
-                    'ip_address' => $ip,
-                    'user_agent' => $ua,
-                    'last_active_at' => $now,
-                ])->save();
+                // Only update DB if last_active_at is older than 1 minute or IP/UA changed to reduce database write operations.
+                if (!$token->last_active_at || 
+                    $token->last_active_at->diffInMinutes($now) >= 1 || 
+                    $token->ip_address !== $ip || 
+                    $token->user_agent !== $ua) {
+                    
+                    $token->forceFill([
+                        'ip_address' => $ip,
+                        'user_agent' => $ua,
+                        'last_active_at' => $now,
+                    ])->save();
+                }
             }
         }
 

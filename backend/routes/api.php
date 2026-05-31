@@ -11,6 +11,8 @@ use App\Http\Controllers\IncomeController;
 use App\Http\Controllers\SalaryDepositController;
 use App\Http\Controllers\WalletController;
 use App\Http\Controllers\ChatController;
+use App\Http\Controllers\AdminController;
+use App\Http\Controllers\AiTrainingLogController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/ping', fn() => response()->json(['status' => 'ok']));
@@ -55,5 +57,17 @@ Route::middleware(['auth:sanctum', 'track_activity'])->group(function () {
     // AI Chat Support (with automatic failover)
     Route::post('chat/message', [ChatController::class, 'message']);
     Route::post('chat/interpret', [ChatController::class, 'interpret']);
+    Route::get('chat/rules', [ChatController::class, 'getRules']);
+
+
+    // Admin Dashboard
+    Route::middleware(['is_admin'])->group(function () {
+        Route::get('admin/api-usage', [AdminController::class, 'getApiUsage']);
+
+        // AI Training Logs (restricted to martinitokristan@gmail.com only via is_admin middleware)
+        Route::get('admin/ai-logs', [AiTrainingLogController::class, 'index']);
+        Route::post('admin/ai-logs/mark-reviewed', [AiTrainingLogController::class, 'markReviewed']);
+        Route::delete('admin/ai-logs/clear-reviewed', [AiTrainingLogController::class, 'clearReviewed']);
+    });
 });
 

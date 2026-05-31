@@ -113,9 +113,11 @@ class DebtService
                 $expensesToSettle = \App\Models\Expense::where('user_id', $userId)
                     ->get()
                     ->filter(function ($e) use ($debt) {
-                        return $e->title === 'Lent money to: ' . $debt->name ||
-                               $e->title === 'Lent to ' . $debt->name ||
-                               $e->title === 'Debt Repayment: ' . $debt->name;
+                        $title = trim(strtolower($e->title));
+                        $debtName = trim(strtolower($debt->name));
+                        return $title === 'lent money to: ' . $debtName ||
+                               $title === 'lent to ' . $debtName ||
+                               $title === 'debt repayment: ' . $debtName;
                     });
 
                 foreach ($expensesToSettle as $exp) {

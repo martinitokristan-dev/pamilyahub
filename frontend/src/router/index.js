@@ -64,6 +64,16 @@ const routes = [
         name: 'guide',
         component: () => import('@/views/Guide.vue'),
       },
+      {
+        path: 'admin/api-usage',
+        name: 'api-dashboard',
+        component: () => import('@/views/ApiDashboard.vue'),
+      },
+      {
+        path: 'admin/ai-logs',
+        name: 'ai-logs',
+        component: () => import('@/views/AiLogsPanel.vue'),
+      },
     ],
   },
 ]
@@ -90,6 +100,18 @@ router.beforeEach(async (to) => {
   }
 
   if (to.name === 'files') {
+    if (auth.user && auth.user.email !== 'martinitokristan@gmail.com') {
+      return { name: 'dashboard' }
+    }
+  }
+
+  if (to.name === 'api-dashboard') {
+    if (auth.user && auth.user.email !== 'martinitokristan@gmail.com') {
+      return { name: 'dashboard' }
+    }
+  }
+
+  if (to.name === 'ai-logs') {
     if (auth.user && auth.user.email !== 'martinitokristan@gmail.com') {
       return { name: 'dashboard' }
     }

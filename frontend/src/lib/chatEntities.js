@@ -171,50 +171,66 @@ export function getCategoryLabel(key = '') {
   return CATEGORY_LABELS[String(key).toLowerCase()] || 'Expense'
 }
 
-function compactWalletToken(text = '') {
-  return String(text || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+export function standardizeWalletNamesInText(text) {
+  let t = ' ' + String(text || '').toLowerCase().trim() + ' '
+  // GCash variations
+  t = t.replace(/\bg\s*cash\b/g, ' gcash ')
+  t = t.replace(/\bg-cash\b/g, ' gcash ')
+  t = t.replace(/\bg\.cash\b/g, ' gcash ')
+  // Maya variations
+  t = t.replace(/\bpay\s*maya\b/g, ' maya ')
+  t = t.replace(/\bpay-maya\b/g, ' maya ')
+  // Coins.ph variations
+  t = t.replace(/\bcoins\s*ph\b/g, ' coins_ph ')
+  t = t.replace(/\bcoins\.ph\b/g, ' coins_ph ')
+  t = t.replace(/\bcoins-ph\b/g, ' coins_ph ')
+  t = t.replace(/\bcoins\b/g, ' coins_ph ')
+  // GoTyme variations
+  t = t.replace(/\bgo\s*tyme\b/g, ' gotyme ')
+  t = t.replace(/\bgo-tyme\b/g, ' gotyme ')
+  t = t.replace(/\bgo\s*time\b/g, ' gotyme ')
+  t = t.replace(/\bgo-time\b/g, ' gotyme ')
+  t = t.replace(/\bgotime\b/g, ' gotyme ')
+  // ShopeePay variations
+  t = t.replace(/\bshopee\s*pay\b/g, ' shopeepay ')
+  t = t.replace(/\bshopee-pay\b/g, ' shopeepay ')
+  t = t.replace(/\bshopee\b/g, ' shopeepay ')
+  // Credit/Debit Card variations
+  t = t.replace(/\bcredit\s*card\b/g, ' credit_card ')
+  t = t.replace(/\bdebit\s*card\b/g, ' debit_card ')
+  return t.replace(/\s+/g, ' ').trim()
 }
 
 function byNameMatch(wallets = [], normalizedText = '') {
-  const compactText = compactWalletToken(normalizedText)
+  const prepText = standardizeWalletNamesInText(normalizedText)
   const sorted = [...wallets].sort((a, b) => (b.name || '').length - (a.name || '').length)
-  return sorted.find((w) => {
+  for (const w of sorted) {
     const name = String(w.name || '').toLowerCase().trim()
-    if (!name) return false
-    if (normalizedText.includes(name)) return true
-    const normalizedName = normalizeText(name)
-    if (normalizedName && normalizedText.includes(normalizedName)) return true
-    const compactName = compactWalletToken(name)
-    return compactName ? compactText.includes(compactName) : false
-  })
+    if (!name) continue
+    const stdName = standardizeWalletNamesInText(name)
+    const escaped = stdName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const regex = new RegExp(`\\b${escaped}\\b`, 'i')
+    if (regex.test(prepText)) {
+      return w
+    }
+  }
+  return null
 }
 
 function byTypeMatch(wallets = [], normalizedText = '') {
-  const compactText = compactWalletToken(normalizedText)
-
-  const aliases = Object.entries(WALLET_TYPE_ALIASES)
-    .sort((a, b) => b[0].length - a[0].length)
-
-  let matchedType = null
-  for (const [alias, canonical] of aliases) {
-    const compactAlias = compactWalletToken(alias)
-    if (compactAlias && compactText.includes(compactAlias)) {
-      matchedType = canonical
-      break
+  const prepText = standardizeWalletNamesInText(normalizedText)
+  const sortedTypes = [...KNOWN_WALLET_TYPES].sort((a, b) => b.length - a.length)
+  for (const type of sortedTypes) {
+    const typeWithSpace = type.replace('_', ' ')
+    const stdType = standardizeWalletNamesInText(typeWithSpace)
+    const escaped = stdType.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const regex = new RegExp(`\\b${escaped}\\b`, 'i')
+    if (regex.test(prepText)) {
+      const matched = wallets.find((w) => String(w.type || '').toLowerCase() === type)
+      if (matched) return matched
     }
   }
-
-  if (!matchedType) {
-    const sorted = [...KNOWN_WALLET_TYPES].sort((a, b) => b.length - a.length)
-    matchedType = sorted.find((type) => {
-      const typeWithSpace = type.replace('_', ' ')
-      if (normalizedText.includes(typeWithSpace)) return true
-      return compactText.includes(compactWalletToken(typeWithSpace))
-    })
-  }
-
-  if (!matchedType) return null
-  return wallets.find((w) => String(w.type || '').toLowerCase() === matchedType) || null
+  return null
 }
 
 export function matchWallet(text = '', wallets = []) {
@@ -367,15 +383,25 @@ export function extractExpenseReason(text = '', wallets = []) {
   // 1. Remove amount
   let cleaned = normalized.replace(/(?:₱|php|peso|pesos)?\s*\d[\d,]*\.?\d*\s*(?:k|m)?/i, ' ')
   
-  // 2. Remove wallet name
-  const wallet = matchWallet(text, wallets)
-  if (wallet) {
-    const walletTokens = [
-      String(wallet.name || '').toLowerCase(),
-      normalizeText(String(wallet.name || '')),
-      String(wallet.type || '').toLowerCase().replace(/_/g, ' '),
-    ].filter(Boolean)
+  // 2. Remove wallet name/type keywords
+  // Always strip all known wallet-type keywords so words like "cash", "gcash",
+  // "maya" etc. never leak into the reason string.
+  const allWalletKeywords = [
+    ...KNOWN_WALLET_TYPES.map(t => t.replace(/_/g, ' ')), // e.g. "cash", "gcash", "credit card"
+    ...Object.keys(WALLET_TYPE_ALIASES),                   // e.g. "coins", "shopee", "coins.ph"
+  ]
+  allWalletKeywords.forEach((kw) => {
+    const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    cleaned = cleaned.replace(new RegExp(`\\b${escaped}\\b`, 'gi'), ' ')
+  })
 
+  // Also remove the matched wallet's stored name (handles custom wallet names)
+  const wallet = matchWallet(text, wallets)
+  if (wallet && wallet.name) {
+    const walletTokens = [
+      String(wallet.name).toLowerCase(),
+      normalizeText(String(wallet.name)),
+    ].filter(Boolean)
     walletTokens.forEach((token) => {
       const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
       cleaned = cleaned.replace(new RegExp(`\\b${escaped}\\b`, 'gi'), ' ')
@@ -384,11 +410,11 @@ export function extractExpenseReason(text = '', wallets = []) {
 
   // 3. Remove common keywords
   const noise = [
-    'spent', 'spend', 'spending', 'logged', 'buy', 'bought', 'expense', 'gastos', 'nagasto', 'bayad', 'payment', 
+    'spent', 'spend', 'spending', 'log', 'logged', 'buy', 'bought', 'expense', 'gastos', 'nagasto', 'bayad', 'payment', 
     'for', 'to', 'from', 'sa', 'kay', 'ni', 'via', 'using', 'using my', 'at', 'with', 'the',
     'a', 'an', 'and', 'or', 'is', 'my', 'me', 'i',
     'today', 'yesterday', 'now', 'ngayon', 'karon', 'kanina',
-    'this', 'month', 'week', 'day'
+    'this', 'month', 'week', 'day', 'po', 'opo', 'pls', 'please'
   ]
   
   noise.forEach(n => {

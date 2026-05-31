@@ -23,6 +23,8 @@ import {
   Settings,
   Plus,
   Wallet,
+  Activity,
+  BrainCircuit,
 } from 'lucide-vue-next'
 
 import { useDashboardStore } from '@/stores/dashboard.js'
@@ -49,16 +51,20 @@ watch(() => route.fullPath, async () => {
   }
 })
 
-// Redirect if accessing files unauthorized
+// Redirect if accessing files or admin routes unauthorized
 watch(() => auth.user, (user) => {
-  if (user && user.email !== 'martinitokristan@gmail.com' && route.path.startsWith('/files')) {
-    router.push('/')
+  if (user && user.email !== 'martinitokristan@gmail.com') {
+    if (route.path.startsWith('/files') || route.path.startsWith('/admin/api-usage')) {
+      router.push('/')
+    }
   }
 }, { immediate: true })
 
 watch(() => route.path, (path) => {
-  if (auth.user && auth.user.email !== 'martinitokristan@gmail.com' && path.startsWith('/files')) {
-    router.push('/')
+  if (auth.user && auth.user.email !== 'martinitokristan@gmail.com') {
+    if (path.startsWith('/files') || path.startsWith('/admin/api-usage')) {
+      router.push('/')
+    }
   }
 })
 
@@ -151,6 +157,8 @@ onMounted(async () => {
 const showMoreMenu = ref(false)
 const nav = [
   { name: 'Dashboard', to: '/', icon: LayoutDashboard },
+  { name: 'API Usage', to: '/admin/api-usage', icon: Activity },
+  { name: 'AI Logs',  to: '/admin/ai-logs', icon: BrainCircuit },
   { name: 'Notes', to: '/notes', icon: NotebookPen },
   { name: 'Expenses', to: '/expenses', icon: Receipt },
   { name: 'Wallets', to: '/wallets', icon: Wallet },
@@ -160,7 +168,12 @@ const nav = [
 ]
 
 const filteredNav = computed(() => {
-  return nav.filter(item => item.name !== 'Files' || auth.user?.email === 'martinitokristan@gmail.com')
+  return nav.filter(item => {
+    if (item.name === 'Files' && auth.user?.email !== 'martinitokristan@gmail.com') return false;
+    if (item.name === 'API Usage' && auth.user?.email !== 'martinitokristan@gmail.com') return false;
+    if (item.name === 'AI Logs' && auth.user?.email !== 'martinitokristan@gmail.com') return false;
+    return true;
+  })
 })
 
 // Main tabs for the bottom dock (2 on each side of the center button)
@@ -175,11 +188,18 @@ const moreNav = [
   { name: 'Wallets',  to: '/wallets',  icon: Wallet },
   { name: 'Notes',    to: '/notes',    icon: NotebookPen },
   { name: 'Files',    to: '/files',    icon: FolderOpen },
+  { name: 'API Usage',to: '/admin/api-usage', icon: Activity },
+  { name: 'AI Logs',  to: '/admin/ai-logs', icon: BrainCircuit },
   { name: 'Settings', to: '/settings', icon: Settings },
 ]
 
 const filteredMoreNav = computed(() => {
-  return moreNav.filter(item => item.name !== 'Files' || auth.user?.email === 'martinitokristan@gmail.com')
+  return moreNav.filter(item => {
+    if (item.name === 'Files' && auth.user?.email !== 'martinitokristan@gmail.com') return false;
+    if (item.name === 'API Usage' && auth.user?.email !== 'martinitokristan@gmail.com') return false;
+    if (item.name === 'AI Logs' && auth.user?.email !== 'martinitokristan@gmail.com') return false;
+    return true;
+  })
 })
 
 const initials = computed(() => {
@@ -193,6 +213,8 @@ const isSubSettings = computed(() => {
 })
 const hideNavigationAndAi = computed(() => {
   return isGuidePage.value || isSubSettings.value
+    || route.path === '/admin/api-usage'
+    || route.path === '/admin/ai-logs'
 })
 
 function isActive(path) {

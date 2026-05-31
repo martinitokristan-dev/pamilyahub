@@ -1,0 +1,254 @@
+ID: 1 | Created: 2026-05-30 08:31:28 | Input: I spent another today for food only 500 from gcash
+ID: 2 | Created: 2026-05-30 08:32:23 | Input: show my purse/wallet
+ID: 3 | Created: 2026-05-30 08:33:21 | Input: si anna nag utang sa akin ng 500 mula sa aking gcash
+ID: 4 | Created: 2026-05-30 08:35:36 | Input: nagbayad si anna og 500 sa akoa sa gcash
+ID: 5 | Created: 2026-05-30 08:48:20 | Input: anna paid me 500
+ID: 6 | Created: 2026-05-30 08:51:57 | Input: kristan owe me 500
+ID: 7 | Created: 2026-05-30 09:26:19 | Input: denise owes me 100
+ID: 8 | Created: 2026-05-30 09:32:11 | Input: lend kristan 500
+ID: 9 | Created: 2026-05-30 09:44:39 | Input: krisha owes me 500
+ID: 10 | Created: 2026-05-30 09:44:51 | Input: lend kyla 500
+ID: 11 | Created: 2026-05-30 09:46:11 | Input: show wallet
+ID: 12 | Created: 2026-05-30 09:46:22 | Input: deposit 500
+ID: 13 | Created: 2026-05-30 09:50:00 | Input: show wallet
+ID: 14 | Created: 2026-05-30 09:52:33 | Input: how much i expense on food this week?
+ID: 15 | Created: 2026-05-30 20:48:14 | Input: splurged 450 pesos on a fancy watch from cash
+ID: 16 | Created: 2026-05-30 20:48:44 | Input: splurged 450 pesos on a fancy watch from cash
+ID: 17 | Created: 2026-05-30 20:52:08 | Input: splurged 450 pesos on a fancy watch from cash
+ID: 18 | Created: 2026-05-30 20:53:07 | Input: dropped 800 bucks on gaming gear from gcash
+ID: 19 | Created: 2026-05-30 20:54:21 | Input: dropped 800 bucks on gaming gear from gcash
+ID: 20 | Created: 2026-05-30 20:54:41 | Input: dropped 800 bucks on gaming gear from gcash
+ID: 21 | Created: 2026-05-30 20:55:26 | Input: dropped 800 bucks on gaming gear from gcash
+ID: 22 | Created: 2026-05-30 21:46:56 | Input: splurged 450 pesos on a fancy watch from cash
+ID: 23 | Created: 2026-05-30 22:25:44 | Input: bumili ako ng kape sa starbucks kanina 180 pesos gamit gcash
+ID: 24 | Created: 2026-05-30 22:58:26 | Input: bought coffee for 150 pesos using Maya
+ID: 25 | Created: 2026-05-30 22:58:49 | Input: bought coffee for 150 pesos using Maya
+ID: 26 | Created: 2026-05-30 22:58:53 | Input: dropped 1000 on shopping from BPI
+ID: 27 | Created: 2026-05-30 22:58:59 | Input: wasted 300 on junk food using GCash
+ID: 28 | Created: 2026-05-30 22:59:03 | Input: splurged 2000 on clothes from Maya
+ID: 29 | Created: 2026-05-30 22:59:07 | Input: shelled out 500 for electricity bill using BPI
+ID: 30 | Created: 2026-05-30 22:59:25 | Input: purchased medicine worth 450 using Maya
+ID: 31 | Created: 2026-05-30 22:59:29 | Input: grabbed milk tea for 180 pesos from GCash
+ID: 32 | Created: 2026-05-30 22:59:33 | Input: swiped 1500 for shoes at the mall using BPI card
+ID: 33 | Created: 2026-05-30 22:59:38 | Input: used 600 for internet bill from Maya
+ID: 34 | Created: 2026-05-30 22:59:48 | Input: charged 2500 to my BDO card for new clothes
+ID: 35 | Created: 2026-05-30 23:00:03 | Input: bought snacks worth 120 pesos from cash
+ID: 36 | Created: 2026-05-30 23:00:21 | Input: dropped 5000 on appliance repair from BPI
+ID: 37 | Created: 2026-05-30 23:00:24 | Input: wasted 200 on cigarettes from cash
+ID: 38 | Created: 2026-05-30 23:00:28 | Input: bought school supplies for 750 pesos using GCash
+ID: 39 | Created: 2026-05-30 23:01:02 | Input: bought vitamins for 550 pesos using Maya
+ID: 40 | Created: 2026-05-30 23:01:22 | Input: yolo'd 500 on pizza using GCash
+ID: 41 | Created: 2026-05-30 23:01:31 | Input: copped new kicks for 3000 from BPI
+ID: 42 | Created: 2026-05-30 23:01:35 | Input: flexed 1500 on drinks last night from cash
+ID: 43 | Created: 2026-05-30 23:01:44 | Input: burned 400 on boba using Maya
+ID: 44 | Created: 2026-05-30 23:01:52 | Input: treated myself 800 worth of sushi from GCash
+ID: 45 | Created: 2026-05-30 23:01:58 | Input: bought coffee for 150 pesos using Maya
+ID: 46 | Created: 2026-05-30 23:02:01 | Input: splurged hard on 2000 worth of clothes using BPI
+ID: 47 | Created: 2026-05-30 23:02:06 | Input: dropped 1000 on shopping from BPI
+ID: 48 | Created: 2026-05-30 23:02:09 | Input: drained 600 from my GCash for street food
+ID: 49 | Created: 2026-05-30 23:02:14 | Input: wasted 300 on junk food using GCash
+ID: 50 | Created: 2026-05-30 23:02:18 | Input: impulse bought 900 worth of stuff from Lazada via BDO
+ID: 51 | Created: 2026-05-30 23:02:22 | Input: splurged 2000 on clothes from Maya
+ID: 52 | Created: 2026-05-30 23:02:26 | Input: burned cash on 350 worth of snacks from GCash
+ID: 53 | Created: 2026-05-30 23:02:29 | Input: shelled out 500 for electricity bill using BPI
+ID: 54 | Created: 2026-05-30 23:02:36 | Input: nagbayad ako ng 500 para sa groceries gamit GCash
+ID: 55 | Created: 2026-05-30 23:02:40 | Input: bumili ako ng pagkain worth 200 mula sa cash
+ID: 56 | Created: 2026-05-30 23:02:46 | Input: nag-spend ako ng 1000 sa shopping using Maya
+ID: 57 | Created: 2026-05-30 23:02:54 | Input: nagastos ako ng 300 sa sine mula sa cash
+ID: 58 | Created: 2026-05-30 23:02:56 | Input: purchased medicine worth 450 using Maya
+ID: 59 | Created: 2026-05-30 23:02:58 | Input: binayaran ko ang kuryente na 1500 gamit BPI
+ID: 60 | Created: 2026-05-30 23:03:02 | Input: nagbili ng gamot na 450 pesos galing GCash
+ID: 61 | Created: 2026-05-30 23:03:07 | Input: grabbed milk tea for 180 pesos from GCash
+ID: 62 | Created: 2026-05-30 23:03:09 | Input: nag-order ako ng food worth 350 using Maya
+ID: 63 | Created: 2026-05-30 23:03:15 | Input: swiped 1500 for shoes at the mall using BPI card
+ID: 64 | Created: 2026-05-30 23:03:17 | Input: bumayad ng internet bill na 600 mula BDO
+ID: 65 | Created: 2026-05-30 23:03:23 | Input: used 600 for internet bill from Maya
+ID: 66 | Created: 2026-05-30 23:03:25 | Input: nag-shopping ako ng damit na 2000 sa BPI card
+ID: 67 | Created: 2026-05-30 23:03:36 | Input: charged 2500 to my BDO card for new clothes
+ID: 68 | Created: 2026-05-30 23:03:39 | Input: nagkagastos ako ng 800 sa barkada galing GCash
+ID: 69 | Created: 2026-05-30 23:03:46 | Input: binili ko ang load worth 100 using Maya
+ID: 70 | Created: 2026-05-30 23:03:58 | Input: nagbayad ng tubig bill na 250 gamit GCash
+ID: 71 | Created: 2026-05-30 23:04:02 | Input: bought snacks worth 120 pesos from cash
+ID: 72 | Created: 2026-05-30 23:04:08 | Input: nag-spend ng 1500 sa Shopee using BDO
+ID: 73 | Created: 2026-05-30 23:04:14 | Input: bumili ng merienda worth 150 mula cash
+ID: 74 | Created: 2026-05-30 23:04:19 | Input: nagpa-repair ng cellphone na 2500 gamit BPI
+ID: 75 | Created: 2026-05-30 23:04:26 | Input: dropped 5000 on appliance repair from BPI
+ID: 76 | Created: 2026-05-30 23:04:32 | Input: nag-grab food ako worth 400 using GCash
+ID: 77 | Created: 2026-05-30 23:04:39 | Input: wasted 200 on cigarettes from cash
+ID: 78 | Created: 2026-05-30 23:04:43 | Input: nagbayad ng 700 para sa jeep fare mula cash
+ID: 79 | Created: 2026-05-30 23:04:45 | Input: bought school supplies for 750 pesos using GCash
+ID: 80 | Created: 2026-05-30 23:04:48 | Input: bumili ng regalo na 1200 using Maya
+ID: 81 | Created: 2026-05-30 23:04:55 | Input: nag-withdraw at gastos ng 3000 sa mall gamit BDO
+ID: 82 | Created: 2026-05-30 23:05:05 | Input: nagbayad ng kuryente na 1800 gamit BPI
+ID: 83 | Created: 2026-05-30 23:05:08 | Input: bumili ng bigas na 600 mula sa cash
+ID: 84 | Created: 2026-05-30 23:05:11 | Input: nagbayad ng upa na 5000 sa GCash
+ID: 85 | Created: 2026-05-30 23:05:14 | Input: binayaran ang tubig na 250 gamit Maya
+ID: 86 | Created: 2026-05-30 23:05:18 | Input: bumili ng gamot na 350 mula cash
+ID: 87 | Created: 2026-05-30 23:05:22 | Input: nagbayad ng internet na 999 gamit GCash
+ID: 88 | Created: 2026-05-30 23:05:28 | Input: nagastos ng 2000 sa pamilya gamit BDO
+ID: 89 | Created: 2026-05-30 23:05:31 | Input: bumili ng damit na 1500 sa BPI card
+ID: 90 | Created: 2026-05-30 23:05:33 | Input: nagbayad ng telepono na 500 gamit Maya
+ID: 91 | Created: 2026-05-30 23:05:36 | Input: nagastos ng 800 sa pagkain mula GCash
+ID: 92 | Created: 2026-05-30 23:05:38 | Input: nigasto ko og 500 para sa pagkaon gikan GCash
+ID: 93 | Created: 2026-05-30 23:05:43 | Input: gibayad nako ang kuryente nga 1500 pinaagi sa BPI
+ID: 94 | Created: 2026-05-30 23:05:45 | Input: nipalit ko og gamot nga 450 pesos gikan cash
+ID: 95 | Created: 2026-05-30 23:05:49 | Input: nigasto ko og 300 sa barkada gikan GCash
+ID: 96 | Created: 2026-05-30 23:05:52 | Input: gibayad nako ang tubig nga 250 gamit Maya
+ID: 97 | Created: 2026-05-30 23:05:56 | Input: nipalit ko og bag nga 2000 gikan BPI card
+ID: 98 | Created: 2026-05-30 23:05:59 | Input: nagbayad ko sa internet nga 600 pinaagi sa GCash
+ID: 99 | Created: 2026-05-30 23:06:06 | Input: nilabay ko og 800 sa pagkaon gikan cash
+ID: 100 | Created: 2026-05-30 23:06:09 | Input: gipalit ko ang load nga 100 pesos gamit Maya
+ID: 101 | Created: 2026-05-30 23:06:11 | Input: nigasto og 1200 sa shopping gikan BDO
+ID: 102 | Created: 2026-05-30 23:06:15 | Input: gibayad nako ang upa nga 5000 pinaagi sa GCash
+ID: 103 | Created: 2026-05-30 23:06:22 | Input: nipalit ko og isda nga 350 gikan cash
+ID: 104 | Created: 2026-05-30 23:06:25 | Input: nagasto ko og 600 sa barkada gikan Maya
+ID: 105 | Created: 2026-05-30 23:06:32 | Input: gibayad ang LPG nga 700 pinaagi sa cash
+ID: 106 | Created: 2026-05-30 23:06:35 | Input: nipalit og regalo nga 1500 gikan BPI
+ID: 107 | Created: 2026-05-30 23:06:42 | Input: nigasto ko og 250 sa sinehan gikan GCash
+ID: 108 | Created: 2026-05-30 23:06:44 | Input: gibayad nako ang utang sa tindahan nga 400
+ID: 109 | Created: 2026-05-30 23:07:02 | Input: nagasto ko og 900 sa gamit gikan Shopee via BDO
+ID: 110 | Created: 2026-05-30 23:07:20 | Input: bought coffee for 150 pesos using Maya
+ID: 111 | Created: 2026-05-30 23:07:31 | Input: dropped 1000 on shopping from BPI
+ID: 112 | Created: 2026-05-30 23:07:36 | Input: wasted 300 on junk food using GCash
+ID: 113 | Created: 2026-05-30 23:07:40 | Input: splurged 2000 on clothes from Maya
+ID: 114 | Created: 2026-05-30 23:07:50 | Input: shelled out 500 for electricity bill using BPI
+ID: 115 | Created: 2026-05-30 23:08:16 | Input: purchased medicine worth 450 using Maya
+ID: 116 | Created: 2026-05-30 23:08:21 | Input: grabbed milk tea for 180 pesos from GCash
+ID: 117 | Created: 2026-05-30 23:08:25 | Input: swiped 1500 for shoes at the mall using BPI card
+ID: 118 | Created: 2026-05-30 23:08:32 | Input: used 600 for internet bill from Maya
+ID: 119 | Created: 2026-05-30 23:08:36 | Input: charged 2500 to my BDO card for new clothes
+ID: 120 | Created: 2026-05-30 23:08:50 | Input: bought snacks worth 120 pesos from cash
+ID: 121 | Created: 2026-05-30 23:09:06 | Input: dropped 5000 on appliance repair from BPI
+ID: 122 | Created: 2026-05-30 23:09:09 | Input: wasted 200 on cigarettes from cash
+ID: 123 | Created: 2026-05-30 23:09:14 | Input: bought school supplies for 750 pesos using GCash
+ID: 124 | Created: 2026-05-30 23:09:51 | Input: bought vitamins for 550 pesos using Maya
+ID: 125 | Created: 2026-05-30 23:10:05 | Input: yolo'd 500 on pizza using GCash
+ID: 126 | Created: 2026-05-30 23:10:09 | Input: copped new kicks for 3000 from BPI
+ID: 127 | Created: 2026-05-30 23:10:13 | Input: flexed 1500 on drinks last night from cash
+ID: 128 | Created: 2026-05-30 23:10:19 | Input: burned 400 on boba using Maya
+ID: 129 | Created: 2026-05-30 23:10:29 | Input: treated myself 800 worth of sushi from GCash
+ID: 130 | Created: 2026-05-30 23:10:33 | Input: splurged hard on 2000 worth of clothes using BPI
+ID: 131 | Created: 2026-05-30 23:10:37 | Input: drained 600 from my GCash for street food
+ID: 132 | Created: 2026-05-30 23:10:45 | Input: impulse bought 900 worth of stuff from Lazada via BDO
+ID: 133 | Created: 2026-05-30 23:11:01 | Input: burned cash on 350 worth of snacks from GCash
+ID: 134 | Created: 2026-05-30 23:11:06 | Input: nagbayad ako ng 500 para sa groceries gamit GCash
+ID: 135 | Created: 2026-05-30 23:11:10 | Input: bumili ako ng pagkain worth 200 mula sa cash
+ID: 136 | Created: 2026-05-30 23:11:18 | Input: nag-spend ako ng 1000 sa shopping using Maya
+ID: 137 | Created: 2026-05-30 23:11:24 | Input: nagastos ako ng 300 sa sine mula sa cash
+ID: 138 | Created: 2026-05-30 23:11:28 | Input: binayaran ko ang kuryente na 1500 gamit BPI
+ID: 139 | Created: 2026-05-30 23:11:35 | Input: nagbili ng gamot na 450 pesos galing GCash
+ID: 140 | Created: 2026-05-30 23:11:43 | Input: nag-order ako ng food worth 350 using Maya
+ID: 141 | Created: 2026-05-30 23:11:49 | Input: bumayad ng internet bill na 600 mula BDO
+ID: 142 | Created: 2026-05-30 23:11:54 | Input: nag-shopping ako ng damit na 2000 sa BPI card
+ID: 143 | Created: 2026-05-30 23:11:58 | Input: nagkagastos ako ng 800 sa barkada galing GCash
+ID: 144 | Created: 2026-05-30 23:12:02 | Input: binili ko ang load worth 100 using Maya
+ID: 145 | Created: 2026-05-30 23:12:12 | Input: nagbayad ng tubig bill na 250 gamit GCash
+ID: 146 | Created: 2026-05-30 23:12:18 | Input: nag-spend ng 1500 sa Shopee using BDO
+ID: 147 | Created: 2026-05-30 23:12:23 | Input: bumili ng merienda worth 150 mula cash
+ID: 148 | Created: 2026-05-30 23:12:28 | Input: nagpa-repair ng cellphone na 2500 gamit BPI
+ID: 149 | Created: 2026-05-30 23:12:34 | Input: nag-grab food ako worth 400 using GCash
+ID: 150 | Created: 2026-05-30 23:12:39 | Input: nagbayad ng 700 para sa jeep fare mula cash
+ID: 151 | Created: 2026-05-30 23:12:43 | Input: bumili ng regalo na 1200 using Maya
+ID: 152 | Created: 2026-05-30 23:12:48 | Input: nag-withdraw at gastos ng 3000 sa mall gamit BDO
+ID: 153 | Created: 2026-05-30 23:12:57 | Input: nagbayad ng kuryente na 1800 gamit BPI
+ID: 154 | Created: 2026-05-30 23:13:03 | Input: bumili ng bigas na 600 mula sa cash
+ID: 155 | Created: 2026-05-30 23:13:08 | Input: nagbayad ng upa na 5000 sa GCash
+ID: 156 | Created: 2026-05-30 23:13:13 | Input: binayaran ang tubig na 250 gamit Maya
+ID: 157 | Created: 2026-05-30 23:13:19 | Input: bumili ng gamot na 350 mula cash
+ID: 158 | Created: 2026-05-30 23:13:24 | Input: nagbayad ng internet na 999 gamit GCash
+ID: 159 | Created: 2026-05-30 23:13:30 | Input: nagastos ng 2000 sa pamilya gamit BDO
+ID: 160 | Created: 2026-05-30 23:13:37 | Input: bumili ng damit na 1500 sa BPI card
+ID: 161 | Created: 2026-05-30 23:13:43 | Input: nagbayad ng telepono na 500 gamit Maya
+ID: 162 | Created: 2026-05-30 23:13:54 | Input: nagastos ng 800 sa pagkain mula GCash
+ID: 163 | Created: 2026-05-30 23:14:02 | Input: nigasto ko og 500 para sa pagkaon gikan GCash
+ID: 164 | Created: 2026-05-30 23:14:09 | Input: gibayad nako ang kuryente nga 1500 pinaagi sa BPI
+ID: 165 | Created: 2026-05-30 23:14:14 | Input: nipalit ko og gamot nga 450 pesos gikan cash
+ID: 166 | Created: 2026-05-30 23:14:21 | Input: nigasto ko og 300 sa barkada gikan GCash
+ID: 167 | Created: 2026-05-30 23:14:26 | Input: gibayad nako ang tubig nga 250 gamit Maya
+ID: 168 | Created: 2026-05-30 23:14:33 | Input: nipalit ko og bag nga 2000 gikan BPI card
+ID: 169 | Created: 2026-05-30 23:14:42 | Input: nagbayad ko sa internet nga 600 pinaagi sa GCash
+ID: 170 | Created: 2026-05-30 23:14:47 | Input: nilabay ko og 800 sa pagkaon gikan cash
+ID: 171 | Created: 2026-05-30 23:14:52 | Input: gipalit ko ang load nga 100 pesos gamit Maya
+ID: 172 | Created: 2026-05-30 23:14:57 | Input: nigasto og 1200 sa shopping gikan BDO
+ID: 173 | Created: 2026-05-30 23:15:03 | Input: gibayad nako ang upa nga 5000 pinaagi sa GCash
+ID: 174 | Created: 2026-05-30 23:15:17 | Input: nipalit ko og isda nga 350 gikan cash
+ID: 175 | Created: 2026-05-30 23:15:25 | Input: nagasto ko og 600 sa barkada gikan Maya
+ID: 176 | Created: 2026-05-30 23:15:30 | Input: gibayad ang LPG nga 700 pinaagi sa cash
+ID: 177 | Created: 2026-05-30 23:15:35 | Input: nipalit og regalo nga 1500 gikan BPI
+ID: 178 | Created: 2026-05-30 23:15:40 | Input: nigasto ko og 250 sa sinehan gikan GCash
+ID: 179 | Created: 2026-05-30 23:15:45 | Input: gibayad nako ang utang sa tindahan nga 400
+ID: 180 | Created: 2026-05-30 23:16:01 | Input: nagasto ko og 900 sa gamit gikan Shopee via BDO
+ID: 181 | Created: 2026-05-30 23:16:07 | Input: nipalit og sapatos nga 3000 gikan BPI card
+ID: 182 | Created: 2026-05-30 23:16:12 | Input: gibayad ang dental nga 1200 pinaagi sa Maya
+ID: 183 | Created: 2026-05-30 23:16:21 | Input: naubos 300 ko sa milk tea from Maya
+ID: 184 | Created: 2026-05-30 23:16:28 | Input: nakagastos ng 1000 today sa online shopping BDO
+ID: 185 | Created: 2026-05-30 23:16:33 | Input: ginasto ko 2000 sa clothes kahapon from BPI
+ID: 186 | Created: 2026-05-30 23:16:37 | Input: 500 pesos gone na sa groceries from GCash
+ID: 187 | Created: 2026-05-30 23:16:44 | Input: ubos na 400 sa merienda gamit Maya
+ID: 188 | Created: 2026-05-30 23:16:49 | Input: sige lang 1500 sa Lazada from BDO
+ID: 189 | Created: 2026-05-30 23:16:56 | Input: pambili ng 250 na snacks from cash
+ID: 190 | Created: 2026-05-30 23:17:02 | Input: kumuha ng pagkain 350 worth galing GCash
+ID: 191 | Created: 2026-05-30 23:17:09 | Input: nag-shopping ng 3000 kanina via BPI
+ID: 192 | Created: 2026-05-30 23:17:16 | Input: expense 800 for groceries from GCash
+ID: 193 | Created: 2026-05-30 23:17:22 | Input: deducted 500 for lunch from Maya
+ID: 194 | Created: 2026-05-30 23:17:32 | Input: used up 1200 for shopping from BDO
+ID: 195 | Created: 2026-05-30 23:17:38 | Input: allocated 2000 for electricity bill via BPI
+ID: 196 | Created: 2026-05-30 23:17:43 | Input: set aside 300 for fare from cash
+ID: 197 | Created: 2026-05-30 23:17:58 | Input: disbursed 900 for internet bill via Maya
+ID: 198 | Created: 2026-05-30 23:18:04 | Input: outlaid 2500 for phone repair from BDO
+ID: 199 | Created: 2026-05-30 23:18:12 | Input: settled 400 for water bill using GCash
+ID: 200 | Created: 2026-05-30 23:18:18 | Input: covered 750 worth of groceries using Maya
+ID: 201 | Created: 2026-05-30 23:18:23 | Input: I just paid 500 for food from cash
+ID: 202 | Created: 2026-05-30 23:18:36 | Input: wound up paying 350 for transport using Maya
+ID: 203 | Created: 2026-05-30 23:18:51 | Input: it cost me 2000 for the shopping from BDO
+ID: 204 | Created: 2026-05-30 23:19:14 | Input: threw in 1500 for the party from BPI
+ID: 205 | Created: 2026-05-30 23:19:20 | Input: put in 500 for gasoline from cash
+ID: 206 | Created: 2026-05-30 23:19:41 | Input: laid out 3000 for the appliance from Maya
+ID: 207 | Created: 2026-05-30 23:20:29 | Input: bought 600 worth of vegetables from cash for the week
+ID: 208 | Created: 2026-05-30 23:21:49 | Input: bought milk for the baby worth 350 using Maya
+ID: 209 | Created: 2026-05-30 23:27:15 | Input: bought coffee for 150 pesos using Maya
+ID: 210 | Created: 2026-05-30 23:27:31 | Input: dropped 1000 on shopping from BPI
+ID: 211 | Created: 2026-05-30 23:28:18 | Input: shelled out 500 for electricity bill using BPI
+ID: 212 | Created: 2026-05-30 23:29:09 | Input: purchased medicine worth 450 using Maya
+ID: 213 | Created: 2026-05-30 23:29:14 | Input: grabbed milk tea for 180 pesos from GCash
+ID: 214 | Created: 2026-05-30 23:29:18 | Input: swiped 1500 for shoes at the mall using BPI card
+ID: 215 | Created: 2026-05-30 23:29:27 | Input: used 600 for internet bill from Maya
+ID: 216 | Created: 2026-05-30 23:29:33 | Input: charged 2500 to my BDO card for new clothes
+ID: 217 | Created: 2026-05-30 23:30:33 | Input: bought snacks worth 120 pesos from cash
+ID: 218 | Created: 2026-05-30 23:30:43 | Input: bought snacks worth 120 pesos from cash
+ID: 219 | Created: 2026-05-30 23:31:34 | Input: dropped 5000 on appliance repair from BPI
+ID: 220 | Created: 2026-05-30 23:32:01 | Input: dropped 5000 on appliance repair from BPI
+ID: 221 | Created: 2026-05-30 23:32:17 | Input: wasted 200 on cigarettes from cash
+ID: 222 | Created: 2026-05-30 23:32:38 | Input: bought school supplies for 750 pesos using GCash
+ID: 223 | Created: 2026-05-30 23:33:46 | Input: bought vitamins for 550 pesos using Maya
+ID: 224 | Created: 2026-05-30 23:34:25 | Input: yolo'd 500 on pizza using GCash
+ID: 225 | Created: 2026-05-30 23:34:37 | Input: copped new kicks for 3000 from BPI
+ID: 226 | Created: 2026-05-30 23:34:43 | Input: flexed 1500 on drinks last night from cash
+ID: 227 | Created: 2026-05-30 23:34:49 | Input: burned 400 on boba using Maya
+ID: 228 | Created: 2026-05-30 23:35:09 | Input: treated myself 800 worth of sushi from GCash
+ID: 229 | Created: 2026-05-30 23:35:14 | Input: splurged hard on 2000 worth of clothes using BPI
+ID: 230 | Created: 2026-05-30 23:35:35 | Input: drained 600 from my GCash for street food
+ID: 231 | Created: 2026-05-30 23:35:42 | Input: impulse bought 900 worth of stuff from Lazada via BDO
+ID: 232 | Created: 2026-05-30 23:36:02 | Input: burned cash on 350 worth of snacks from GCash
+ID: 233 | Created: 2026-05-30 23:36:17 | Input: burned cash on 350 worth of snacks from GCash
+ID: 234 | Created: 2026-05-30 23:36:37 | Input: nagbayad ako ng 500 para sa groceries gamit GCash
+ID: 235 | Created: 2026-05-30 23:36:50 | Input: nagbayad ako ng 500 para sa groceries gamit GCash
+ID: 236 | Created: 2026-05-30 23:37:07 | Input: bumili ako ng pagkain worth 200 mula sa cash
+ID: 237 | Created: 2026-05-30 23:37:19 | Input: bumili ako ng pagkain worth 200 mula sa cash
+ID: 238 | Created: 2026-05-30 23:37:29 | Input: nag-spend ako ng 1000 sa shopping using Maya
+ID: 239 | Created: 2026-05-30 23:37:48 | Input: nag-spend ako ng 1000 sa shopping using Maya
+ID: 240 | Created: 2026-05-30 23:37:53 | Input: nagastos ako ng 300 sa sine mula sa cash
+ID: 241 | Created: 2026-05-30 23:37:59 | Input: nagastos ako ng 300 sa sine mula sa cash
+ID: 242 | Created: 2026-05-30 23:38:21 | Input: binayaran ko ang kuryente na 1500 gamit BPI
+ID: 243 | Created: 2026-05-30 23:38:36 | Input: binayaran ko ang kuryente na 1500 gamit BPI
+ID: 244 | Created: 2026-05-30 23:38:54 | Input: nagbili ng gamot na 450 pesos galing GCash
+ID: 245 | Created: 2026-05-30 23:39:01 | Input: nag-order ako ng food worth 350 using Maya
+ID: 246 | Created: 2026-05-30 23:39:17 | Input: bumayad ng internet bill na 600 mula BDO
+ID: 247 | Created: 2026-05-30 23:39:26 | Input: nag-shopping ako ng damit na 2000 sa BPI card
+ID: 248 | Created: 2026-05-30 23:39:36 | Input: nagkagastos ako ng 800 sa barkada galing GCash
+ID: 249 | Created: 2026-05-31 00:13:08 | Input: I copped some fancy gaming gear from my GCash wallet, cost me 4500 pesos
+ID: 250 | Created: 2026-05-31 09:04:39 | Input: splurged 450 pesos on a fancy watch from cash
+ID: 252 | Created: 2026-05-31 10:06:34 | Input: I spent 100
+ID: 253 | Created: 2026-05-31 10:07:05 | Input: breakfast
+ID: 254 | Created: 2026-05-31 10:20:51 | Input: i bought new shoes for only 500 using cash
+ID: 255 | Created: 2026-05-31 10:34:11 | Input: I spent 100

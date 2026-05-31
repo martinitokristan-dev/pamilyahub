@@ -42,12 +42,65 @@ import {
 
 import { advancedClassify } from "@/lib/chatNlu.js";
 import { generateSmartFallback } from "@/lib/chatSmartFallback.js";
+import { detectHowToFlowQuestion } from "@/lib/chatQuestion.js";
 import api from "@/lib/axios.js";
+import chatRules from "@/lib/chatRules.json";
+import { ENGLISH_LEXICON } from "@/lib/knowledge/index.js";
 
-// FIXED: replaced single global with TTL-aware session Map
+// ─── Rules loaded from chatRules.json (single source of truth) ───────────────
+// Add new verbs and patterns by editing chatRules.json — no code changes needed.
+export const ACTION_TRIGGER_WORDS = {
+  log_expense:   chatRules.expense_verbs,
+  deposit:       chatRules.deposit_verbs,
+  transfer:      chatRules.transfer_verbs,
+  create_debt:   chatRules.debt_owe_verbs,
+  pay_debt:      chatRules.pay_debt_verbs,
+  set_budget:    ["budget", "limit"],
+  create_wallet: ["wallet", "create", "gawa"],
+};
+
+// Hydrate regex patterns from chatRules.json string patterns into real RegExp objects
+export const CHAT_REGEX_PATTERNS = (chatRules.regex_patterns || []).map((p) => ({
+  intent:  p.intent,
+  regex:   new RegExp(p.pattern, "i"),
+  groups:  p.groups,
+}));
+
+/**
+ * Loads rules dynamically from the backend and updates the memory references.
+ */
+export async function loadRemoteChatRules() {
+  try {
+    const res = await api.get('/chat/rules');
+    const rules = res.data;
+    if (rules) {
+      if (Array.isArray(rules.expense_verbs)) ACTION_TRIGGER_WORDS.log_expense = rules.expense_verbs;
+      if (Array.isArray(rules.deposit_verbs)) ACTION_TRIGGER_WORDS.deposit = rules.deposit_verbs;
+      if (Array.isArray(rules.transfer_verbs)) ACTION_TRIGGER_WORDS.transfer = rules.transfer_verbs;
+      if (Array.isArray(rules.debt_owe_verbs)) ACTION_TRIGGER_WORDS.create_debt = rules.debt_owe_verbs;
+      if (Array.isArray(rules.pay_debt_verbs)) ACTION_TRIGGER_WORDS.pay_debt = rules.pay_debt_verbs;
+
+      if (Array.isArray(rules.regex_patterns)) {
+        CHAT_REGEX_PATTERNS.length = 0;
+        rules.regex_patterns.forEach((p) => {
+          CHAT_REGEX_PATTERNS.push({
+            intent:  p.intent,
+            regex:   new RegExp(p.pattern, "i"),
+            groups:  p.groups,
+          });
+        });
+      }
+    }
+  } catch (err) {
+    console.warn("[EleFam AI] Failed to load remote chat rules:", err);
+  }
+}
+
+
 // to prevent race conditions and stale context execution
 const _pendingContexts = new Map();
-const PENDING_CONTEXT_TTL = 2 * 60 * 1000;
+const _requiresFullSentenceFlags = new Map();
+const PENDING_CONTEXT_TTL = 12 * 60 * 60 * 1000; // 12 hours
 const _lastPickedIndex = new Map();
 const _chatBudgetByMonth = new Map();
 const _chatBudgetUndoByMonth = new Map();
@@ -90,29 +143,7 @@ function pickAlternativeWallet(wallets = [], ...excludeCandidates) {
 
   if (!excludedIds.size) return wallets[0] || null;
   return wallets.find((w) => !excludedIds.has(String(w.id))) || null;
-}const ACTION_TRIGGER_WORDS = {
-  log_expense: [
-    "spend", "spent", "buy", "bought", "cost", "log", "bili", "bumili", "gastos", "nagastos", "expense"
-  ],
-  deposit: [
-    "deposit", "add", "dagdag", "lagay", "nagdeposito", "ipasok"
-  ],
-  transfer: [
-    "transfer", "move", "send", "pass", "lipat", "ipasa", "pasa", "padala"
-  ],
-  create_debt: [
-    "owe", "owes", "utang", "hiram", "debt", "lending", "lent"
-  ],
-  pay_debt: [
-    "pay", "paid", "bayad", "nagbayad", "singil", "siningil"
-  ],
-  set_budget: [
-    "budget", "limit"
-  ],
-  create_wallet: [
-    "wallet", "create", "gawa"
-  ],
-};
+}
 
 function hasExplicitActionTrigger(text, intent) {
   if (!text || !intent) return false;
@@ -403,8 +434,9 @@ const REQUIRED_FIELDS = {
 };
 
 function getRequiredFields(intent, entities = {}) {
-  const required = [...(REQUIRED_FIELDS[intent] || [])];
-  if (intent === "create_debt" && (entities?.type === "owed_to_me" || entities?.type === "owes_me")) {
+  const baseIntent = intent.startsWith("create_debt") ? "create_debt" : intent;
+  const required = [...(REQUIRED_FIELDS[baseIntent] || [])];
+  if (baseIntent === "create_debt" && (entities?.type === "owed_to_me" || entities?.type === "owes_me")) {
     if (!required.includes("walletId")) {
       required.push("walletId");
     }
@@ -438,7 +470,12 @@ async function planAction(intent, entities, sessionId, rawText = "") {
     if (val === null || val === undefined) return true;
     if (typeof val === "string" && val.trim() === "") return true;
     // Special case: category "expense" is not a real category
-    if (intent === "log_expense" && field === "category" && val === "expense")
+    if (
+      intent === "log_expense" &&
+      field === "category" &&
+      val === "expense" &&
+      !entities.reason
+    )
       return true;
     return false;
   });
@@ -466,7 +503,14 @@ async function planAction(intent, entities, sessionId, rawText = "") {
     };
 
     setPendingContext(sessionId, nextCtx);
-    const question = askForMissingField(nextField, nextCtx);
+    let prefix = "";
+    if (rawText) {
+      const howTo = detectHowToFlowQuestion(rawText);
+      if (howTo) {
+        prefix = getHowToPrefix(intent);
+      }
+    }
+    const question = prefix + askForMissingField(nextField, nextCtx);
     return {
       ok: false,
       message: question,
@@ -639,6 +683,17 @@ function askForMissingField(field, pendingCtx) {
     }
   }
   return `Please provide the ${field}.`;
+}
+
+function getHowToPrefix(intent) {
+  if (intent === "deposit") return "To make a deposit, you can tell me something like 'Deposit 1000 to Cash'. Or, I can do it for you right now! ";
+  if (intent === "log_expense") return "To log an expense, you can say 'Spent 500 for food from Cash'. Or, I can log it for you right now! ";
+  if (intent === "transfer") return "To transfer money, you can say 'Transfer 500 from Cash to GCash'. Or, I can do it for you right now! ";
+  if (intent === "create_debt") return "To track a debt, you can say 'John owes me 500' or 'I owe John 500'. Or, I can record it for you right now! ";
+  if (intent === "pay_debt") return "To pay a debt, you can say 'I paid John 500'. Or, I can log the payment for you right now! ";
+  if (intent === "set_budget") return "To set a budget, you can say 'Set budget to 15000'. Or, I can set it for you right now! ";
+  if (intent === "create_wallet") return "To create a wallet, you can say 'New wallet Travel Fund'. Or, I can create it for you right now! ";
+  return "";
 }
 
 async function executeIntent(intent, entities, sessionId) {
@@ -825,6 +880,11 @@ export async function resolvePendingContext(
       "using",
       "wallet",
       "account",
+      "po",
+      "opo",
+      "pls",
+      "please",
+      "log",
     ];
     const reason = weakReasons.includes(
       String(extractedReason || "").toLowerCase(),
@@ -1220,6 +1280,11 @@ async function handleLogExpense(text, sessionId = "default") {
     "using",
     "wallet",
     "account",
+    "po",
+    "opo",
+    "pls",
+    "please",
+    "log",
   ];
   const reason = weakReasons.includes(
     String(extractedReason || "").toLowerCase(),
@@ -2342,9 +2407,22 @@ async function executeAiAction(aiData, aiProvider, text, sessionId) {
   if (aiData.reason) aiEntities.reason = aiData.reason;
 
   // Match wallet names to actual wallet objects
-  if (aiData.wallet_name) {
-    aiEntities.wallet = matchWallet(aiData.wallet_name, walletsStore.wallets);
-    aiEntities.walletName = aiData.wallet_name;
+  // Prevent AI hallucination by verifying the wallet was actually mentioned in the text
+  const textWalletMatch = matchWallet(text, walletsStore.wallets);
+  if (textWalletMatch) {
+    aiEntities.wallet = textWalletMatch;
+    aiEntities.walletName = textWalletMatch.name;
+    aiEntities.walletId = textWalletMatch.id;
+  } else if (aiData.wallet_name) {
+    // Only fallback to AI's extraction if we couldn't find it locally, but AI explicitly found one
+    // We check if the AI extracted name is actually in the text (case-insensitive) to prevent hallucinating "Cash"
+    if (normalizeText(text).includes(normalizeText(aiData.wallet_name))) {
+      aiEntities.wallet = matchWallet(aiData.wallet_name, walletsStore.wallets);
+      if (aiEntities.wallet) {
+        aiEntities.walletName = aiEntities.wallet.name;
+        aiEntities.walletId = aiEntities.wallet.id;
+      }
+    }
   }
   if (aiData.wallet_type) {
     aiEntities.walletType = aiData.wallet_type;
@@ -2383,10 +2461,27 @@ async function executeAiAction(aiData, aiProvider, text, sessionId) {
 export async function processEleFamMessage(
   message = "",
   sessionId = "default",
+  history = []
 ) {
   let text = String(message || "").trim();
   if (!text) {
     return { ok: false, message: "Please type a finance question or command." };
+  }
+
+  const requiresFull = _requiresFullSentenceFlags.get(sessionId) === true;
+  if (requiresFull) {
+    const normalized = normalizeText(text);
+    const words = normalized.split(/\s+/).filter(Boolean);
+    if (words.length < 3) {
+      return {
+        ok: false,
+        message: "Please type a complete sentence, e.g. 'I spent 500 using cash for food'",
+        kind: "text",
+        intentType: "query",
+      };
+    } else {
+      _requiresFullSentenceFlags.delete(sessionId);
+    }
   }
 
   await ensureLoaded();
@@ -2501,7 +2596,9 @@ export async function processEleFamMessage(
       incomingNlu.matched &&
       incomingIntentName &&
       incomingIntentName !== "unknown" &&
-      incomingIntentName !== "ambiguous";
+      incomingIntentName !== "ambiguous" &&
+      incomingIntentName !== "out_of_scope";
+
     const isCancelWord = [
       "cancel",
       "nevermind",
@@ -2512,13 +2609,18 @@ export async function processEleFamMessage(
       "wag na",
       "ayaw na",
       "huwag na",
+      "forget it",
+      "ayaw na lang",
+      "dili na",
+      "stop",
+      "scratch that"
     ].some((w) => normalizeText(text).includes(w));
 
     if (isCancelWord) {
-      clearPendingContext(sessionId);
+      deletePendingContext(sessionId);
       return {
         ok: true,
-        message: getSmallTalkReply("cancel"),
+        message: "Okay, cancelled! Let me know if you need anything.",
         kind: "text",
         intentType: "query",
       };
@@ -2528,7 +2630,82 @@ export async function processEleFamMessage(
     let aiData = null;
     let aiProvider = null;
 
-    if (!isLocalNewIntent) {
+    let isLikelySlotFilling = false;
+    let currentSlotField = null;
+    let missing = [];
+
+    if (existingCtx && REQUIRED_FIELDS[existingCtx.intent]) {
+      const required = getRequiredFields(existingCtx.intent, existingCtx.entities);
+      missing = required.filter(field => {
+        const val = existingCtx.entities[field];
+        if (val === null || val === undefined) return true;
+        if (typeof val === "string" && val.trim() === "") return true;
+        if (existingCtx.intent === "log_expense" && field === "category" && val === "expense" && !existingCtx.entities.reason) {
+          return true;
+        }
+        return false;
+      });
+      currentSlotField = missing[0];
+
+      if (currentSlotField) {
+        const looksLikeQuestion = /^(what|how|where|who|when|why|show|list|can you|help)\b/i.test(normalizeText(text));
+        const walletsStore = useWalletsStore();
+        const textHasAmount = extractAmount(text) !== null;
+        const textHasWallet = matchWallet(text, walletsStore.wallets) !== null;
+        const textHasCategory = detectCategory(text) !== "expense";
+        const textHasPerson = extractPersonName(text) !== null;
+
+        if (currentSlotField === "amount" && textHasAmount) {
+          isLikelySlotFilling = true;
+        } else if (
+          (currentSlotField === "wallet" || currentSlotField === "walletId" || currentSlotField === "fromWallet" || currentSlotField === "toWallet") &&
+          textHasWallet
+        ) {
+          isLikelySlotFilling = true;
+        } else if (currentSlotField === "category") {
+          const isCategoryWord = textHasCategory;
+          const isReasonAnswer = text.trim().length >= 3 &&
+                                 !/^\d+$/.test(text.trim()) &&
+                                 !looksLikeQuestion &&
+                                 !textHasAmount;
+          if (isCategoryWord || isReasonAnswer) {
+            isLikelySlotFilling = true;
+          }
+        } else if (currentSlotField === "person") {
+          const isPersonName = textHasPerson;
+          const isNameAnswer = text.trim().length >= 2 &&
+                               !/^\d+$/.test(text.trim()) &&
+                               !looksLikeQuestion &&
+                               !textHasAmount;
+          if (isPersonName || isNameAnswer) {
+            isLikelySlotFilling = true;
+          }
+        } else if (currentSlotField === "debtId") {
+          const debtsStore = useDebtsStore();
+          const debtsResult = findDebtByName(text, debtsStore.debts);
+          if (debtsResult.match || debtsResult.ambiguous || (text.trim().length >= 2 && !/^\d+$/.test(text.trim()) && !looksLikeQuestion && !textHasAmount)) {
+            isLikelySlotFilling = true;
+          }
+        } else if (
+          !["amount", "wallet", "walletId", "fromWallet", "toWallet", "category", "person", "debtId"].includes(currentSlotField) &&
+          text.trim().length > 0
+        ) {
+          isLikelySlotFilling = true;
+        }
+      }
+    }
+
+    const actionKeywords = [
+      "spend", "spent", "deposit", "transfer", "balance", "owe", "lend", 
+      "pay", "limit", "budget", "income", "salary", "payroll", 
+      "cashout", "cashin", "cash in", "cash out", "bayad", "utang", "padala",
+      "pila", "check", "magkano", "pera", "cash", "wallet"
+    ];
+    const textHasActionKeyword = actionKeywords.some(w => normalizeText(text).includes(w));
+    const textHasAmount = extractAmount(text) !== null;
+    const isPotentialNewIntent = isLocalNewIntent || textHasAmount || textHasActionKeyword;
+
+    if (!isLocalNewIntent && !isLikelySlotFilling && isPotentialNewIntent) {
       try {
         const interpretResponse = await api.post("/chat/interpret", {
           message: text,
@@ -2551,7 +2728,9 @@ export async function processEleFamMessage(
       }
     }
 
-    const resolvedIntentName = incomingIntentName || aiIncomingIntent;
+    const resolvedIntentName = (incomingIntentName && incomingIntentName !== "unknown" && incomingIntentName !== "ambiguous")
+      ? incomingIntentName
+      : aiIncomingIntent;
     const isNewIntent = isLocalNewIntent || !!aiIncomingIntent;
 
     // Verify trigger words before prompting interruption to avoid false positives on slot-filling answers (e.g. "800 on cash")
@@ -2574,26 +2753,7 @@ export async function processEleFamMessage(
     }
 
     if (isRealInterruption) {
-      const mappedIncomingIntent = _mapNluIntent(
-        resolvedIntentName,
-        incomingNlu.entities || aiData || {},
-      );
-      const intentType = getIntentType(mappedIncomingIntent);
-      if (intentType === "action") {
-        setPendingContext(sessionId, {
-          intent: "confirm_interruption",
-          previousCtx: existingCtx,
-          newText: text,
-          newIntent: resolvedIntentName,
-        });
-        const prevDisp = getIntentDisplayName(existingCtx.intent);
-        return {
-          ok: true,
-          message: `You still have an unfinished ${prevDisp}. Do you want to continue it? (Please reply with yes/continue or no/cancel)`,
-          kind: "question",
-          intentType: "action",
-        };
-      }
+      deletePendingContext(sessionId);
       const result = aiIncomingIntent
         ? await executeAiAction(aiData, aiProvider, text, sessionId)
         : await _dispatchIntent(
@@ -2604,24 +2764,61 @@ export async function processEleFamMessage(
           );
 
       if (result) {
-        if (intentType === "query") {
-          const reminder = getPendingReminder(existingCtx);
-          const reminderText = reminder ? `\n\n${reminder.trim()}` : "";
-          return {
-            ...result,
-            message: `${result.message}${reminderText}`,
-            reminder: reminder ? reminder.trim() : undefined,
-            intentType,
-          };
-        } else {
-          deletePendingContext(sessionId);
-          return {
-            ...result,
-            intentType,
-          };
-        }
+        const finalIntentName = aiIncomingIntent || incomingIntentName;
+        const finalIntentType = getIntentType(
+          _mapNluIntent(finalIntentName, incomingNlu.entities || aiData || {})
+        );
+        return {
+          ...result,
+          intentType: finalIntentType,
+        };
       }
     }
+
+    // If it is not a new intent and it's not likely slot filling, then it is an invalid slot answer!
+    if (!isLikelySlotFilling) {
+      existingCtx.retryCount = (existingCtx.retryCount || 0) + 1;
+      if (existingCtx.retryCount >= 2) {
+        deletePendingContext(sessionId);
+        _requiresFullSentenceFlags.set(sessionId, true);
+        return {
+          ok: false,
+          message: "I wasn't able to understand. Please try again with a complete sentence.",
+          kind: "query",
+          intentType: "query",
+        };
+      }
+
+      setPendingContext(sessionId, existingCtx);
+
+      let promptMsg = "";
+      if (
+        currentSlotField === "wallet" ||
+        currentSlotField === "walletId" ||
+        currentSlotField === "fromWallet" ||
+        currentSlotField === "toWallet"
+      ) {
+        promptMsg = "Sorry, I didn't catch that. Which wallet did you use? (e.g. GCash, Maya, BPI, cash)";
+      } else if (currentSlotField === "category") {
+        promptMsg = "Sorry, I didn't get that. What was this expense for? (e.g. food, transport, bills)";
+      } else if (currentSlotField === "person") {
+        promptMsg = "Sorry, I didn't catch the person's name. Who is it?";
+      } else if (currentSlotField === "amount") {
+        promptMsg = "Sorry, I didn't get that amount. How much did you spend?";
+      } else {
+        promptMsg = `Sorry, I didn't catch that. ${askForMissingField(currentSlotField, existingCtx)}`;
+      }
+
+      return {
+        ok: true,
+        message: promptMsg,
+        kind: "question",
+        intentType: "action",
+      };
+    }
+
+    // If it's a valid slot filling input, reset retryCount for the next field
+    existingCtx.retryCount = 0;
 
     deletePendingContext(sessionId);
     if (existingCtx.intent === "create_wallet") {
@@ -2651,11 +2848,7 @@ export async function processEleFamMessage(
 
   let isConfidentAndComplete = false;
   if (nluResult.matched && nluResult.intent !== "unknown" && nluResult.intent !== "ambiguous" && nluResult.intent !== "out_of_scope") {
-    if (intentType === "query" || nluResult.sourceLayer === "knowledge") {
-      if (nluResult.confidence >= 0.85) {
-        isConfidentAndComplete = true;
-      }
-    } else if (isActionIntent) {
+    if (isActionIntent) {
       const orchestratorIntent = mappedIntentForType.startsWith("create_debt") ? "create_debt" : mappedIntentForType;
       const required = getRequiredFields(orchestratorIntent, nluResult.entities);
       const missing = required.filter(field => {
@@ -2666,22 +2859,14 @@ export async function processEleFamMessage(
         return false;
       });
 
-      if (missing.length === 0 && nluResult.confidence >= 0.95) {
+      if (nluResult.confidence >= 0.95) {
         isConfidentAndComplete = true;
       }
     }
   }
 
-  // 1. If it is confident and complete, execute it locally!
+  // 1. If it is confident and complete (ACTION ONLY), execute it locally!
   if (isConfidentAndComplete) {
-    if (nluResult.sourceLayer === "knowledge") {
-      return {
-        ok: true,
-        message: getSmallTalkReply(nluResult.intent, getLastBotAction()),
-        kind: "text",
-        intentType: "query",
-      };
-    }
     return _dispatchIntent(
       nluResult.intent,
       text,
@@ -2747,26 +2932,6 @@ export async function processEleFamMessage(
     };
   }
 
-  // Handle Knowledge (Smalltalk)
-  if (nluResult.sourceLayer === "knowledge") {
-    return {
-      ok: true,
-      message: getSmallTalkReply(nluResult.intent, getLastBotAction()),
-      kind: "text",
-      intentType: "query",
-    };
-  }
-
-  // Handle matched intents (Template, Synonym, Fuzzy)
-  if (nluResult.matched && nluResult.intent !== "unknown") {
-    return _dispatchIntent(
-      nluResult.intent,
-      text,
-      sessionId,
-      nluResult.entities,
-    );
-  }
-
   // Fall back to conversational AI if it is not a matched action intent
   if (!isActionIntent) {
     try {
@@ -2774,6 +2939,7 @@ export async function processEleFamMessage(
       const customBudget = getMonthlyBudgetLimit();
       const response = await api.post("/chat/message", {
         message: text,
+        history: history.slice(-10), // Limit to last 10 messages to avoid token bloat
         stats: {
           monthly_income: parseFloat(dashboardStore.stats.monthly_income || 0),
           monthly_expenses: parseFloat(dashboardStore.stats.monthly_expenses || 0),
@@ -2792,6 +2958,26 @@ export async function processEleFamMessage(
     } catch (err) {
       console.warn("[EleFam AI] Chat API error, falling back to local fallback:", err);
     }
+  }
+
+  // Handle Knowledge (Smalltalk)
+  if (nluResult.sourceLayer === "knowledge") {
+    return {
+      ok: true,
+      message: getSmallTalkReply(nluResult.intent, getLastBotAction()),
+      kind: "text",
+      intentType: "query",
+    };
+  }
+
+  // Handle matched intents (Template, Synonym, Fuzzy)
+  if (nluResult.matched && nluResult.intent !== "unknown") {
+    return _dispatchIntent(
+      nluResult.intent,
+      text,
+      sessionId,
+      nluResult.entities,
+    );
   }
 
   // Fall back to smart fallback
@@ -2815,3 +3001,10 @@ export async function processEleFamMessage(
     kind: "query",
   };
 }
+
+if (typeof window !== 'undefined') {
+  window.processEleFamMessage = processEleFamMessage;
+  window.clearPendingContext = clearPendingContext;
+  window.getPendingContext = getPendingContext;
+}
+

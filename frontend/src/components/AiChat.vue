@@ -5,7 +5,7 @@ import UiButton from '@/components/ui/Button.vue'
 import UiInput from '@/components/ui/Input.vue'
 import AiChatMessage from '@/components/AiChatMessage.vue'
 import { cacheSingleGet, cacheSingleSet } from '@/lib/offlineDb.js'
-import { processEleFamMessage, eleFamProfile, clearPendingContext } from '@/lib/chatEngine.js'
+import { processEleFamMessage, eleFamProfile, clearPendingContext, loadRemoteChatRules } from '@/lib/chatEngine.js'
 import { detectIntent, getIntentType } from '@/lib/chatIntents.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useDarkMode } from '@/composables/useDarkMode.js'
@@ -16,11 +16,23 @@ const input = ref('')
 const isThinking = ref(false)
 const currentIntentType = ref('query')
 const listEl = ref(null)
+const textareaRef = ref(null)
 const messages = ref([])
 
 const dragStartY = ref(0)
 const dragStartX = ref(0)
 const dragDeltaY = ref(0)
+
+const adjustTextareaHeight = () => {
+  if (textareaRef.value) {
+    textareaRef.value.style.height = 'auto'
+    textareaRef.value.style.height = textareaRef.value.scrollHeight + 'px'
+  }
+}
+
+watch(input, () => {
+  nextTick(adjustTextareaHeight)
+})
 
 const isUserCollapsed = ref(localStorage.getItem('elefam_chat_user_collapsed') === 'true')
 watch(isUserCollapsed, (newVal) => {
@@ -178,7 +190,8 @@ async function sendMessage(rawText = input.value) {
   await scrollToBottom()
 
   try {
-    const result = await processEleFamMessage(text)
+    const history = messages.value.map(m => ({ role: m.role, content: m.text || m.content }));
+    const result = await processEleFamMessage(text, "default", history)
     await new Promise((resolve) => setTimeout(resolve, 250))
     pushMessage('assistant', result.message, result.kind || 'text', result.walletType)
     // If a reminder exists (query during active multi-turn flow), push it as a separate purple bubble
@@ -256,6 +269,9 @@ function handleExternalOpenChat() {
 }
 
 onMounted(async () => {
+  // Load remote chat rules/vocabulary dynamically
+  loadRemoteChatRules().catch(err => console.warn('Failed to load remote chat rules:', err))
+
   window.addEventListener('popstate', handlePopState)
   window.addEventListener('pamilya:open-chat', handleExternalOpenChat)
   
@@ -392,9 +408,11 @@ watch(
             @submit.prevent="sendMessage()"
           >
             <textarea
+              ref="textareaRef"
               v-model="input"
+              rows="1"
               placeholder="Message Marti..."
-              class="flex-1 bg-transparent border-none focus:ring-0 focus:outline-none py-2 px-4 text-[15px] resize-none max-h-32 min-h-[40px] leading-[1.2] text-foreground placeholder:text-muted-foreground/60"
+              class="flex-1 bg-transparent border-none focus:ring-0 focus:outline-none py-1.5 px-4 text-[15px] resize-none max-h-[120px] overflow-y-auto leading-[1.4] text-foreground placeholder:text-muted-foreground/60"
               :disabled="isThinking"
               @keydown.enter.prevent="sendMessage()"
             ></textarea>
