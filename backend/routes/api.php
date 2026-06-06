@@ -32,14 +32,15 @@ Route::prefix('auth')->group(function () {
         Route::get('/sessions', [AuthController::class, 'getSessions']);
         Route::post('/sessions/logout-others', [AuthController::class, 'logoutOtherSessions']);
         Route::delete('/sessions/{id}', [AuthController::class, 'revokeSession']);
-        
-        Route::post('/push/subscribe', [\App\Http\Controllers\PushSubscriptionController::class, 'subscribe']);
-        Route::post('/push/unsubscribe', [\App\Http\Controllers\PushSubscriptionController::class, 'unsubscribe']);
-        Route::get('/push/status', [\App\Http\Controllers\PushSubscriptionController::class, 'status']);
     });
 });
 
 Route::middleware(['auth:sanctum', 'track_activity'])->group(function () {
+    // Push Notifications
+    Route::get('/push/status', [\App\Http\Controllers\PushSubscriptionController::class, 'status']);
+    Route::post('/push/subscribe', [\App\Http\Controllers\PushSubscriptionController::class, 'subscribe']);
+    Route::delete('/push/unsubscribe', [\App\Http\Controllers\PushSubscriptionController::class, 'unsubscribe']);
+
     Route::get('dashboard/stats', [DashboardController::class, 'stats']);
 
     Route::apiResource('notes', NoteController::class)->only(['index', 'store', 'update', 'destroy']);
