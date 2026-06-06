@@ -4,7 +4,7 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
+    --background: 240 12% 97.5%;
     --foreground: 240 10% 3.9%;
     --card: 0 0% 100%;
     --card-foreground: 240 10% 3.9%;
@@ -64,7 +64,8 @@
 
   html, body {
     @apply bg-background text-foreground antialiased;
-    font-feature-settings: "rlig" 1, "calt" 1;
+    font-family: 'Inter', system-ui, sans-serif;
+    font-feature-settings: "rlig" 1, "calt" 1, "tnum" 1;
   }
 
   .pb-safe {
@@ -108,4 +109,29 @@
   user-select: none;
   pointer-events: none;
   transition: filter 0.2s ease-in-out;
+}
+
+/* Hide scrollbar for elements that should be scrollable without visible bars */
+.hide-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+@keyframes lotto-scroll {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-50%); }
+}
+.animate-lotto-scroll {
+  animation: lotto-scroll 15s linear infinite;
+}
+.animate-lotto-scroll:hover {
+  animation-play-state: paused;
+}
+
+.mask-fade-y {
+  mask-image: linear-gradient(to bottom, transparent, black 15%, black 85%, transparent);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, black 15%, black 85%, transparent);
 }

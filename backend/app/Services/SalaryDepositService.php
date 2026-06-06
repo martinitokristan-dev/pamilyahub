@@ -106,8 +106,9 @@ class SalaryDepositService
                 ]);
             }
 
-            // 2.6 Invalidate dashboard cache (stats calculated from tables, not incremental)
-            DashboardController::invalidateCache($userId);
+            // 2.6 Update cumulative income stat and refresh dashboard cache for this month
+            $this->statsService->adjust($userId, 'income_total', $totalAmount);
+            DashboardController::invalidateCache($userId, $now->year, $now->month);
         });
     }
 

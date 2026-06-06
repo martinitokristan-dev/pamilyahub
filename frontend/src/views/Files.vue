@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, computed, watch } from 'vue'
-import { useRegisterAddAction } from '@/composables/usePageAction.js'
+import { useRoute, useRouter } from 'vue-router'
 import { useFilesStore } from '@/stores/files.js'
 import { Upload, Trash2, ExternalLink, FileText, Loader2, FolderOpen, ChevronLeft, ChevronRight, WifiOff } from 'lucide-vue-next'
 import UiButton from '@/components/ui/Button.vue'
@@ -8,7 +8,7 @@ import UiCard from '@/components/ui/Card.vue'
 import UiInput from '@/components/ui/Input.vue'
 import UiLabel from '@/components/ui/Label.vue'
 import { SkeletonGrid } from '@/components/skeletons'
-import imageCompression from 'browser-image-compression'
+import FileModal from '@/components/modals/FileModal.vue'
 
 const store = useFilesStore()
 const currentPage = ref(1)
@@ -20,8 +20,17 @@ if (typeof window !== 'undefined') {
   window.addEventListener('offline', () => isOffline.value = true)
 }
 
+const route = useRoute()
+const router = useRouter()
+
 onMounted(() => {
   if (!isOffline.value) store.fetchAll(false, currentPage.value)
+  
+  if (route.query.action === 'add') {
+    uploadAlbumName.value = activeAlbum.value || ''
+    showUploadModal.value = true 
+    router.replace({ query: { ...route.query, action: undefined } })
+  }
 })
 
 watch(currentPage, (val) => {
@@ -34,79 +43,9 @@ watch(currentPage, (val) => {
 
 const showUploadModal = ref(false)
 const activeAlbum = ref(null)
-
-useRegisterAddAction(() => { 
-  if (activeAlbum.value) {
-    uploadAlbumName.value = activeAlbum.value
-    fileInput.value?.click()
-  } else {
-    uploadAlbumName.value = ''
-    showUploadModal.value = true 
-  }
-})
-
-const fileInput = ref(null)
-const compressionStatus = ref('')
 const uploadAlbumName = ref('')
 
-const albums = computed(() => {
-  const groups = {}
-  store.files.forEach(f => {
-    const name = f.album_name || 'Uncategorized'
-    if (!groups[name]) groups[name] = []
-    groups[name].push(f)
-  })
-  return groups
-})
-
-function triggerFileInput() {
-  showUploadModal.value = false
-  fileInput.value?.click()
-}
-
-async function handleUpload(e) {
-  const selectedFiles = Array.from(e.target.files)
-  if (!selectedFiles.length) return
-  
-  // Limit to 10 files at once
-  const filesToUpload = selectedFiles.slice(0, 10)
-
-  for (let i = 0; i < filesToUpload.length; i++) {
-    let file = filesToUpload[i]
-    
-    // Compress if it's an image
-    if (file.type.startsWith('image/')) {
-      compressionStatus.value = `Compressing file ${i + 1} of ${filesToUpload.length}...`
-      const options = {
-        maxSizeMB: 1,
-        maxWidthOrHeight: 1920,
-        useWebWorker: true,
-      }
-      try {
-        const compressedFile = await imageCompression(file, options)
-        file = new File([compressedFile], file.name, { type: compressedFile.type })
-      } catch (err) {
-        console.error('Compression error:', err)
-      } finally {
-        compressionStatus.value = ''
-      }
-    }
-
-    const formData = new FormData()
-    formData.append('file', file)
-    if (uploadAlbumName.value) {
-      formData.append('album_name', uploadAlbumName.value)
-    }
-    
-    try {
-      await store.upload(formData)
-    } catch (err) {
-      console.error('Upload failed for file:', file.name, err)
-    }
-  }
-  
-  e.target.value = ''
-}
+// Upload logic moved to FileModal
 
 function formatSize(bytes) {
   if (bytes < 1024) return bytes + ' B'
@@ -136,36 +75,33 @@ function formatSize(bytes) {
           <h1 class="text-2xl font-medium tracking-tight text-foreground">Files & Albums</h1>
           <p class="text-sm font-medium text-muted-foreground">{{ store.files.length }} file{{ store.files.length !== 1 ? 's' : '' }} stored securely</p>
         </div>
-        <UiButton @click="showUploadModal = true" :disabled="store.uploading || !!compressionStatus" class="hidden sm:flex shrink-0">
-          <Loader2 v-if="store.uploading || compressionStatus" class="h-4 w-4 animate-spin mr-2" />
+        <UiButton @click="showUploadModal = true" :disabled="store.uploading" class="hidden sm:flex shrink-0">
+          <Loader2 v-if="store.uploading" class="h-4 w-4 animate-spin mr-2" />
           <Upload v-else class="h-4 w-4 mr-2" />
-          {{ compressionStatus || (store.uploading ? `Uploading ${store.uploadProgress}%` : 'Upload') }}
+          {{ store.uploading ? `Uploading ${store.uploadProgress}%` : 'Upload' }}
         </UiButton>
-        <input ref="fileInput" type="file" multiple class="hidden" @change="handleUpload" />
       </div>
 
       <!-- Upload progress banner -->
-      <div v-if="store.uploading || compressionStatus" class="mb-6 overflow-hidden rounded-xl border bg-card shadow-sm">
+      <div v-if="store.uploading" class="mb-6 overflow-hidden rounded-xl border bg-card shadow-sm">
         <div class="p-4">
           <div class="flex items-center justify-between mb-2">
             <div class="flex items-center gap-2">
               <div class="rounded-full bg-primary/10 p-1.5">
-                <Upload v-if="!compressionStatus" class="h-4 w-4 text-primary animate-bounce" />
-                <Loader2 v-else class="h-4 w-4 text-primary animate-spin" />
+                <Upload class="h-4 w-4 text-primary animate-bounce" />
               </div>
               <span class="text-sm font-semibold">
-                {{ compressionStatus || 'Uploading file...' }}
+                Uploading file...
               </span>
             </div>
-            <span v-if="!compressionStatus" class="text-xs font-medium text-muted-foreground">{{ store.uploadProgress }}%</span>
+            <span class="text-xs font-medium text-muted-foreground">{{ store.uploadProgress }}%</span>
           </div>
-          <div v-if="!compressionStatus" class="h-2 w-full bg-muted rounded-full overflow-hidden">
+          <div class="h-2 w-full bg-muted rounded-full overflow-hidden">
             <div
               class="h-full bg-primary transition-all duration-300 ease-out"
               :style="{ width: `${store.uploadProgress}%` }"
             />
           </div>
-          <p v-else class="text-xs text-muted-foreground">Preparing your file for storage...</p>
         </div>
       </div>
 
@@ -327,25 +263,11 @@ function formatSize(bytes) {
         </div>
       </div>
 
-      <!-- Upload Modal -->
-      <Teleport to="body">
-        <div v-if="showUploadModal" class="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" @mousedown.self="showUploadModal = false">
-          <UiCard class="w-full sm:max-w-md shadow-xl animate-fade-in rounded-2xl p-5">
-            <h2 class="text-lg font-semibold mb-4">Upload Files</h2>
-            <div class="space-y-4">
-              <div>
-                <UiLabel>Album Name (Optional)</UiLabel>
-                <UiInput v-model="uploadAlbumName" placeholder="e.g. Vacation 2026, Receipts..." class="mt-1" autofocus />
-                <p class="text-[11px] text-muted-foreground mt-1.5">Leave empty to keep files uncategorized.</p>
-              </div>
-              <div class="flex justify-end gap-2 mt-6">
-                <UiButton variant="ghost" @click="showUploadModal = false">Cancel</UiButton>
-                <UiButton @click="triggerFileInput">Select Files</UiButton>
-              </div>
-            </div>
-          </UiCard>
-        </div>
-      </Teleport>
+      <FileModal
+        :show="showUploadModal"
+        :defaultAlbum="uploadAlbumName"
+        @close="showUploadModal = false"
+      />
     </div>
   </div>
 </template>

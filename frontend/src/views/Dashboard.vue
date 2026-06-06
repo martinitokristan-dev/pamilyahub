@@ -1,15 +1,16 @@
 <script setup>
 defineOptions({ name: 'Dashboard' })
-import { ref, computed, onMounted, watch } from 'vue'
-import { useRegisterAddAction } from '@/composables/usePageAction.js'
+import { ref, computed, onMounted, onActivated, onBeforeUnmount, watch, nextTick } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.js'
 import { useNotesStore } from '@/stores/notes.js'
 import { useExpensesStore } from '@/stores/expenses.js'
 import { useWalletsStore } from '@/stores/wallets.js'
 import { useDashboardStore } from '@/stores/dashboard.js'
 import { useSalaryStore } from '@/stores/salary.js'
+import { usePlansStore } from '@/stores/plans.js'
 import {
-  NotebookPen, Receipt, TrendingUp, TrendingDown, Banknote, Plus, Wallet
+  NotebookPen, Receipt, TrendingUp, TrendingDown, Banknote, Plus, Wallet, Settings, Calendar, ArrowRight, ArrowRightLeft
 } from 'lucide-vue-next'
 import UiCard from '@/components/ui/Card.vue'
 import UiCardHeader from '@/components/ui/CardHeader.vue'
@@ -19,16 +20,22 @@ import UiButton from '@/components/ui/Button.vue'
 import UiBadge from '@/components/ui/Badge.vue'
 import DepositSalaryModal from '@/components/financial/DepositSalaryModal.vue'
 import dashboardService from '@/services/dashboardService.js'
-import { formatCurrency } from '@/utils/format'
+import { formatCurrency, formatDateTime, isTodayInPh, parseAppDate } from '@/utils/format'
+import ExpenseIcon from '@/components/shared/ExpenseIcon.vue'
+import CurrencyAmount from '@/components/shared/CurrencyAmount.vue'
+import TransactionDetailsModal from '@/components/modals/TransactionDetailsModal.vue'
+import { getDaysRemaining, getDaysRemainingText, getDaysRemainingClass, getPlanBackgroundClass } from '@/utils/planHelpers'
 
 import { SkeletonGrid, SkeletonListItem } from '@/components/skeletons'
 
+const router = useRouter()
 const auth      = useAuthStore()
 const notes     = useNotesStore()
 const expenses  = useExpensesStore()
 const wallets   = useWalletsStore()
 const dashboard = useDashboardStore()
 const salary    = useSalaryStore()
+const plans     = usePlansStore()
 
 const showDepositModal  = ref(false)
 const isAddMore         = ref(false)
@@ -90,8 +97,160 @@ function stepNumber(stepId) {
   return order[stepId] ?? 0
 }
 
-// Use the exact same global floating action button / plus shortcut as other pages
-useRegisterAddAction(openDeposit)
+const showTransactionDetails = ref(false)
+const selectedTransaction = ref(null)
+
+const upcomingPlans = computed(() => {
+  if (!plans.plans) return []
+  return [...plans.plans]
+    .filter(p => !p.is_paid && getDaysRemaining(p) <= 7)
+    .sort((a, b) => {
+      const aDate = a.due_date ? new Date(a.due_date) : new Date(8640000000000000)
+      const bDate = b.due_date ? new Date(b.due_date) : new Date(8640000000000000)
+      return aDate - bDate
+    })
+})
+
+const recentExpensesList = computed(() => {
+  if (!expenses.expenses) return []
+  return expenses.expenses.filter(e => e.type !== 'deposit').slice(0, 5)
+})
+
+const last7DaysExpenses = computed(() => {
+  if (!expenses.expenses) return 0
+  const now = new Date()
+  const startOfWeek = new Date(now)
+  startOfWeek.setDate(now.getDate() - now.getDay())
+  startOfWeek.setHours(0, 0, 0, 0)
+  return expenses.expenses
+    .filter(e => e.type === 'expense' && new Date(e.created_at) >= startOfWeek)
+    .reduce((sum, e) => sum + parseFloat(e.amount || 0), 0)
+})
+
+const weeklyExpensesByDay = computed(() => {
+  const now = new Date()
+  const todayIdx = now.getDay() // 0=Sun
+  const dayLabels = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
+  const days = Array.from({ length: 7 }, (_, i) => ({
+    label: dayLabels[i],
+    total: 0,
+    isToday: i === todayIdx,
+    isFuture: i > todayIdx,
+  }))
+  if (!expenses.expenses) return days
+  const startOfWeek = new Date(now)
+  startOfWeek.setDate(now.getDate() - todayIdx)
+  startOfWeek.setHours(0, 0, 0, 0)
+  expenses.expenses
+    .filter(e => e.type === 'expense' && new Date(e.created_at) >= startOfWeek)
+    .forEach(e => {
+      const d = new Date(e.created_at)
+      days[d.getDay()].total += parseFloat(e.amount || 0)
+    })
+  return days
+})
+
+// Per-day bar color based on spending vs daily income budget
+
+
+// Today's expense stats
+const todayStats = computed(() => {
+  const todayExpenses = (expenses.expenses || []).filter(
+    e => e.type === 'expense' && isTodayInPh(e.created_at)
+  )
+  const todayDeposits = (expenses.expenses || []).filter(
+    e => e.type === 'deposit' && isTodayInPh(e.created_at)
+  )
+  const items = [...todayExpenses, ...todayDeposits].sort(
+    (a, b) => (parseAppDate(b.created_at)?.getTime() ?? 0) - (parseAppDate(a.created_at)?.getTime() ?? 0)
+  )
+  return {
+    count: todayExpenses.length,
+    total: todayExpenses.reduce((s, e) => s + parseFloat(e.amount || 0), 0),
+    depositTotal: todayDeposits.reduce((s, e) => s + parseFloat(e.amount || 0), 0),
+    items
+  }
+})
+
+const LOTTO_ITEM_HEIGHT = 38 // 34px row + 4px gap
+const lottoScrollRef = ref(null)
+const lottoPad = ref(30)
+const mascotVideoRef = ref(null)
+const activeLottoIndex = ref(0)
+const lastTodayLeadId = ref(null)
+
+function syncLottoPad() {
+  const el = lottoScrollRef.value
+  if (!el) return
+  lottoPad.value = Math.max(0, (el.clientHeight - 34) / 2)
+}
+
+function onLottoScroll(e) {
+  const container = e.target
+  const viewportCenter = container.scrollTop + container.clientHeight / 2
+  const firstItemCenter = lottoPad.value + 17 // half of 34px row height
+  const index = Math.round((viewportCenter - firstItemCenter) / LOTTO_ITEM_HEIGHT)
+  const max = Math.max(0, todayStats.value.items.length - 1)
+  activeLottoIndex.value = Math.min(Math.max(0, index), max)
+}
+
+function scrollLottoToNewest(behavior = 'auto') {
+  const targetIndex = todayStats.value.items.length > 1 ? 1 : 0
+  activeLottoIndex.value = targetIndex
+  nextTick(() => {
+    const el = lottoScrollRef.value
+    if (!el) return
+    syncLottoPad()
+    const targetScrollTop = targetIndex * LOTTO_ITEM_HEIGHT
+    el.scrollTo({ top: targetScrollTop, behavior })
+    requestAnimationFrame(() => {
+      if (behavior === 'auto') {
+        el.scrollTop = targetScrollTop
+      }
+      activeLottoIndex.value = targetIndex
+    })
+  })
+}
+
+function playMascotVideo() {
+  const el = mascotVideoRef.value
+  if (!el) return
+  if (el.paused || el.ended) {
+    el.play().catch(() => {})
+  }
+}
+
+function resumeMascotVideo() {
+  const el = mascotVideoRef.value
+  if (!el) return
+  if (el.paused) {
+    el.play().catch(() => {})
+  }
+}
+
+function onFinanceChanged() {
+  scrollLottoToNewest('smooth')
+}
+
+watch(
+  () => todayStats.value.items.map((i) => `${i.id}:${i.created_at}`).join('|'),
+  () => {
+    const lead = todayStats.value.items[0]
+    if (!lead) {
+      lastTodayLeadId.value = null
+      return
+    }
+    if (String(lead.id) !== String(lastTodayLeadId.value)) {
+      lastTodayLeadId.value = lead.id
+      scrollLottoToNewest('smooth')
+    }
+  },
+)
+
+function openTransaction(expense) {
+  selectedTransaction.value = expense
+  showTransactionDetails.value = true
+}
 
 function openDeposit() {
   // If already received, this acts as "Add More"
@@ -353,10 +512,18 @@ function generateEleFamBubbleLine() {
   }
 
   if (todaySpend > 0 && (todayVsBaselineRatio === null || todayVsBaselineRatio < 1.2)) {
+    const budget = dailyIncomeBaseline
+    const ratio = budget > 0 ? todaySpend / budget : null
+    let tone = ''
+    if (ratio !== null) {
+      if (ratio >= 0.8) tone = `⚠️ That's already ${Math.round(ratio * 100)}% of your daily budget — pumipiga na.`
+      else if (ratio >= 0.5) tone = `Medyo kalahati na ng daily budget mo — mindful pa rin tayo.`
+      else tone = `Still within safe pace — maayos ang takbo ng araw mo!`
+    }
     candidates.push({
       severity: 'info',
       score: todaySpend,
-      text: `${name}, today you spent ${formatCurrency(todaySpend)} across ${todayExpenseCount} expense${todayExpenseCount > 1 ? 's' : ''}. ${topWallet ? `Most of it came from ${topWallet}. ` : ''}Tuloy lang sa mindful spending today.`,
+      text: `${name}, today you spent ${formatCurrency(todaySpend)} across ${todayExpenseCount} expense${todayExpenseCount > 1 ? 's' : ''}. ${topWallet ? `Most of it came from ${topWallet}. ` : ''}${tone}`,
       rule: 'today_activity_summary',
     })
   }
@@ -505,7 +672,19 @@ watch(
   }
 )
 
+function onVisibilityChange() {
+  if (document.visibilityState === 'visible') playMascotVideo()
+}
+
 onMounted(async () => {
+  window.addEventListener('pamilya:finance-changed', onFinanceChanged)
+  document.addEventListener('visibilitychange', onVisibilityChange)
+  nextTick(() => {
+    playMascotVideo()
+    syncLottoPad()
+    scrollLottoToNewest()
+  })
+
   // Wave 1: Fetch stats, salary, expenses, and wallets (dashboard-critical)
   const fetches = []
   const currentMonthKey = `dashboard_${new Date().getFullYear()}_${new Date().getMonth() + 1}`
@@ -515,6 +694,7 @@ onMounted(async () => {
   if (!salary.fetched) fetches.push(salary.fetchCurrentMonth())
   if (!expenses.fetched) fetches.push(expenses.fetchAll())
   if (!wallets.fetched) fetches.push(wallets.fetchAll())
+  if (!plans.fetched) fetches.push(plans.fetchAll())
   fetches.push(fetchPreviousMonthStats())
 
   try {
@@ -535,94 +715,86 @@ onMounted(async () => {
   }
 })
 
-// ── Stat cards ───────────────────────────────────────────────────────────────
-const stats = computed(() => {
-  const baseStats = []
-
-  const remaining = parseFloat(dashboard.stats.remaining_salary ?? 0)
-
-  baseStats.push({
-    label: 'Budget Left',
-    value: formatCurrency(remaining),
-    icon: Banknote,
-    bg: remaining < 0
-      ? 'bg-gradient-to-br from-rose-500 to-red-600'
-      : 'bg-gradient-to-br from-emerald-500 to-teal-600',
-    isBalance: true,
-    isStat: true,
+onActivated(() => {
+  nextTick(() => {
+    resumeMascotVideo()
+    scrollLottoToNewest()
   })
-
-  baseStats.push(
-    {
-      label: 'Notes',
-      value: dashboard.stats.notes_count,
-      icon: NotebookPen,
-      bg: 'bg-gradient-to-br from-blue-500 to-indigo-600',
-      isBalance: false,
-      isStat: true,
-    },
-    {
-      label: 'Income (Monthly)',
-      value: formatCurrency(dashboard.stats.monthly_income),
-      icon: TrendingUp,
-      bg: 'bg-gradient-to-br from-emerald-400 to-teal-500',
-      isBalance: true,
-      isStat: true,
-    },
-    {
-      label: 'Expenses (Monthly)',
-      value: formatCurrency(dashboard.stats.monthly_expenses),
-      icon: Receipt,
-      bg: 'bg-gradient-to-br from-orange-500 to-amber-500',
-      isBalance: true,
-      isStat: true,
-    },
-    {
-      label: 'Owed to Me',
-      value: formatCurrency(dashboard.stats.debts_owed_to_me),
-      icon: TrendingUp,
-      bg: 'bg-gradient-to-br from-blue-400 to-blue-600',
-      isBalance: true,
-      isStat: true,
-    },
-    {
-      label: 'I Owe',
-      value: formatCurrency(dashboard.stats.debts_i_owe),
-      icon: TrendingDown,
-      bg: 'bg-gradient-to-br from-rose-500 to-red-600',
-      isBalance: true,
-      isStat: true,
-    }
-  )
-
-  return baseStats
 })
+
+onBeforeUnmount(() => {
+  window.removeEventListener('pamilya:finance-changed', onFinanceChanged)
+  document.removeEventListener('visibilitychange', onVisibilityChange)
+})
+
+// ── Stat cards ───────────────────────────────────────────────────────────────
+const remaining = computed(() => parseFloat(dashboard.stats.remaining_salary ?? 0))
+
+const statCards = computed(() => [
+  {
+    label: 'Last 7 Days',
+    sublabel: 'Expenses this week',
+    value: formatCurrency(last7DaysExpenses.value),
+    icon: Receipt,
+    type: 'weekly',
+    gradientFrom: '#f97316',
+    gradientTo:   '#f59e0b',
+  },
+])
 </script>
 
 <template>
-  <div class="animate-fade-in bg-[#e9eff6] dark:bg-zinc-950 min-h-screen">
+  <div class="animate-fade-in bg-background dark:bg-zinc-950 min-h-screen">
     <!-- ── Top Greeting (White Background) ── -->
-    <div class="bg-[#e9eff6] dark:bg-zinc-950 pt-4 px-8 pb-4 max-w-6xl mx-auto">
-      <p class="text-[10px] font-black text-muted-foreground tracking-widest uppercase mb-1">
-        {{ currentDate }}
-      </p>
-      <h1 class="text-2xl font-medium tracking-tight text-foreground">
-        {{ greeting }}, <span class="font-black">{{ auth.user?.name?.split(' ')[0] }}!</span>
-      </h1>
+    <div class="bg-background dark:bg-zinc-950 pt-10 px-5 sm:px-8 pb-4 max-w-6xl mx-auto relative">
+      <!-- Settings Icon on top right (Positioned absolutely above greeting) -->
+      <RouterLink to="/settings" class="absolute top-4 right-8 h-10 w-10 rounded-2xl bg-white dark:bg-zinc-900 shadow-sm border border-zinc-200 dark:border-zinc-800 text-purple-600 dark:text-purple-500 hover:text-purple-700 hover:scale-105 transition-all flex items-center justify-center z-10">
+        <Settings class="h-[20px] w-[20px] stroke-[2.5px]" />
+      </RouterLink>
+
+      <div>
+        <p class="text-[10px] font-black text-muted-foreground tracking-widest uppercase mb-1">
+          {{ currentDate }}
+        </p>
+        <h1 class="text-2xl font-medium tracking-tight text-foreground relative z-10">
+          {{ greeting }}, <span class="font-black">{{ auth.user?.name?.split(' ')[0] }}!</span>
+        </h1>
+      </div>
     </div>
 
     <!-- ── Mascot Section (Triple Split: White / Purple / White) ── -->
     <div class="relative z-0" style="background: linear-gradient(to bottom, transparent 40%, #9333ea 40%, #9333ea 82%, transparent 82%)">
-      <div class="max-w-6xl mx-auto px-6 pt-2 pb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+      
+      <!-- SVG Filter for Green Screen Removal -->
+      <svg width="0" height="0" class="absolute pointer-events-none">
+        <defs>
+          <filter id="green-screen" color-interpolation-filters="sRGB">
+            <feColorMatrix type="matrix" values="
+              1 0 0 0 0
+              0 1 0 0 0
+              0 0 1 0 0
+              1.5 -2.5 1.5 1 0
+            " />
+          </filter>
+        </defs>
+      </svg>
+
+      <div class="max-w-6xl mx-auto px-4 sm:px-6 pt-2 pb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div class="flex flex-col w-full relative">
           <div class="flex items-center gap-0 w-full relative">
-            <!-- Mascot Image Container -->
             <div class="w-32 h-36 shrink-0 overflow-hidden z-10 flex items-start justify-center bg-transparent -ml-4">
-              <img 
-                src="/icons/wallets/elefam.png" 
-                alt="EleFam Mascot" 
-                class="w-[110%] max-w-none h-auto object-cover -translate-y-[5%]" 
-              />
+              <video 
+                ref="mascotVideoRef"
+                autoplay 
+                loop 
+                muted 
+                playsinline
+                class="w-[110%] max-w-none h-auto object-cover -translate-y-[5%]"
+                style="filter: url(#green-screen)"
+                @loadeddata="playMascotVideo"
+              >
+                <source src="/icons/wallets/elefam_greenscreen.mp4" type="video/mp4" />
+              </video>
             </div>
             
             <!-- Chat Bubble (Solid White / Dark Mode Aware) -->
@@ -640,140 +812,289 @@ const stats = computed(() => {
           </div>
         </div>
 
-        <!-- Desktop Deposit Button -->
-        <div class="hidden sm:flex items-center justify-end mb-4 shrink-0">
-          <UiButton @click="openDeposit" class="h-12 px-6 rounded-2xl bg-white text-purple-700 hover:bg-purple-50 font-bold shadow-xl border-none">
-            <Plus class="h-5 w-5 mr-1" /> Deposit
-          </UiButton>
-        </div>
       </div>
     </div>
 
     <!-- ── Main Content Area ── -->
-    <div class="px-6 pt-4 pb-24 max-w-6xl mx-auto relative z-10">
+    <div class="px-3 sm:px-6 -mt-4 pb-24 max-w-6xl mx-auto relative z-10">
 
-      <!-- ── Financial Stats Grid ── -->
-      <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-8">
+      <!-- ── Financial Stats ── -->
+      <div class="flex flex-col gap-3 mb-8">
         <template v-if="dashboard.loading && !dashboard.fetched">
-          <SkeletonGrid :count="6" variant="stat" />
+          <div class="grid grid-cols-2 gap-3">
+            <div class="h-[110px] rounded-2xl bg-zinc-100 dark:bg-zinc-800 animate-pulse" />
+            <div class="h-[110px] rounded-2xl bg-zinc-100 dark:bg-zinc-800 animate-pulse" />
+          </div>
+          <div class="h-[110px] rounded-2xl bg-zinc-100 dark:bg-zinc-800 animate-pulse" />
         </template>
         <template v-else>
-          <div
-            v-for="stat in stats"
-            :key="stat.label"
-            class="relative overflow-hidden rounded-2xl p-4 text-white shadow-sm"
-            :class="stat.bg"
-          >
-            <div class="flex items-start justify-between mb-2">
-              <div class="rounded-lg bg-white/20 p-1.5">
-                <component :is="stat.icon" class="h-3.5 w-3.5 text-white" />
+
+          <!-- ── 2-col square cards row ── -->
+          <div class="grid grid-cols-2 gap-3">
+
+            <!-- Today's Expenses card -->
+            <div
+              class="relative rounded-2xl p-4 bg-white dark:bg-zinc-900 shadow-sm border border-zinc-200 dark:border-zinc-800 flex flex-col"
+              style="height: 160px"
+            >
+              <div class="flex items-center justify-between mb-3 shrink-0">
+                <span class="text-[9px] font-black uppercase tracking-widest text-zinc-900 dark:text-zinc-100">Today</span>
+              </div>
+              
+
+
+              <!-- Scrolling wheel list -->
+              <div class="overflow-hidden relative flex-1">
+                <div
+                  v-if="todayStats.items.length > 0"
+                  ref="lottoScrollRef"
+                  class="h-full overflow-y-auto snap-y snap-mandatory hide-scrollbar flex flex-col gap-1"
+                  :style="{ paddingTop: `${lottoPad}px`, paddingBottom: `${lottoPad}px` }"
+                  @scroll="onLottoScroll"
+                >
+                  <div
+                    v-for="(item, idx) in todayStats.items"
+                    :key="item.id"
+                    class="flex items-center justify-center gap-3 shrink-0 h-[34px] snap-center transition-all duration-300 origin-center"
+                    :class="activeLottoIndex === idx ? 'scale-100 opacity-100' : 'scale-[0.75] opacity-60'"
+                  >
+                    <TrendingDown v-if="item.type === 'expense'" class="h-4 w-4 text-red-500 stroke-[3px] shrink-0" />
+                    <TrendingUp v-else class="h-4 w-4 text-emerald-500 stroke-[3px] shrink-0" />
+
+                    <span class="text-[20px] font-black tracking-tight" :class="item.type === 'expense' ? 'text-zinc-900 dark:text-zinc-100' : 'text-emerald-500'">
+                      {{ item.type === 'deposit' ? '+' : '' }}{{ formatCurrency(item.amount) }}
+                    </span>
+                  </div>
+                </div>
+                <div v-else class="flex items-center justify-center h-full pb-2">
+                  <span class="text-[10px] font-bold text-zinc-400">No activity today</span>
+                </div>
               </div>
             </div>
-            <p class="text-lg font-bold leading-none mb-1 truncate sensitive-stat">
-              {{ stat.value }}
-            </p>
-            <p class="text-[9px] font-bold text-white/80 uppercase tracking-widest">{{ stat.label }}</p>
+
+            <!-- Monthly Income card -->
+            <div
+              class="relative rounded-2xl p-4 bg-white dark:bg-zinc-900 shadow-sm border border-zinc-200 dark:border-zinc-800 flex flex-col"
+              style="height: 160px"
+            >
+              <div class="flex items-center justify-between mb-3 shrink-0">
+                <span class="text-[9px] font-black uppercase tracking-widest text-zinc-900 dark:text-zinc-100">Income</span>
+              </div>
+              <div class="flex-1 flex flex-col justify-center">
+                <p class="text-2xl font-black leading-none text-emerald-500 sensitive-stat mb-1.5">{{ formatCurrency(dashboard.stats.monthly_income) }}</p>
+                <p class="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 leading-tight">Deposited this month</p>
+              </div>
+            </div>
+
           </div>
+
+          <!-- ── Full-width Weekly Bar Chart card ── -->
+          <div
+            class="relative rounded-2xl px-5 pt-5 pb-5 bg-white dark:bg-zinc-900 shadow-sm border border-zinc-200 dark:border-zinc-800"
+          >
+            <!-- Top row: label + total -->
+            <div class="flex items-start justify-between mb-5">
+              <div>
+                <p class="text-[10px] font-black uppercase tracking-widest text-zinc-900 dark:text-zinc-100 leading-none">Last 7 Days</p>
+                <p class="text-[10px] font-medium text-zinc-500 dark:text-zinc-400 mt-1">Expenses this week</p>
+              </div>
+              <div class="text-right">
+                <p class="text-[9px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400 mb-0.5">Total</p>
+                <p class="text-sm font-black leading-none text-zinc-900 dark:text-zinc-100 sensitive-stat">{{ formatCurrency(last7DaysExpenses) }}</p>
+              </div>
+            </div>
+
+            <!-- Bar Chart -->
+            <div class="flex items-end justify-between gap-1 h-20">
+              <template v-for="(day, idx) in weeklyExpensesByDay" :key="idx">
+                <div class="flex flex-col items-center justify-end flex-1 h-full gap-2">
+                  <!-- Bar or dot -->
+                  <div class="w-full flex items-end justify-center" style="height: 60px">
+                    <template v-if="day.total > 0">
+                      <div
+                        class="w-2.5 rounded-full transition-all"
+                        :class="day.isToday ? 'bg-emerald-500' : 'bg-emerald-500/40'"
+                        :style="{
+                          height: Math.max(8, Math.round((day.total / Math.max(...weeklyExpensesByDay.map(d => d.total), 1)) * 60)) + 'px'
+                        }"
+                      />
+                    </template>
+                    <template v-else>
+                      <div
+                        class="w-2 h-2 rounded-full"
+                        :class="day.isToday ? 'bg-zinc-400 dark:bg-zinc-500' : 'bg-zinc-100 dark:bg-zinc-800'"
+                      />
+                    </template>
+                  </div>
+                  <!-- Day label -->
+                  <span
+                    class="text-[11px] font-black uppercase leading-none"
+                    :class="day.isToday ? 'text-zinc-900 dark:text-zinc-100' : 'text-zinc-400 dark:text-zinc-600'"
+                  >{{ day.label }}</span>
+                </div>
+              </template>
+            </div>
+          </div>
+
         </template>
       </div>
 
-      <!-- ── Recent Expenses Section ── -->
-      <div class="mt-4">
-        <div class="flex items-center justify-between mb-4 px-2">
-          <h2 class="text-xl font-black tracking-tight text-foreground flex items-center gap-2">
-            Recent Expenses
-            <span class="inline-flex h-2 w-2 rounded-full bg-destructive animate-pulse"></span>
-          </h2>
-          <RouterLink to="/expenses" class="text-xs font-black uppercase tracking-widest text-primary hover:opacity-70 transition-opacity">
-            See All
-          </RouterLink>
-        </div>
-
-        <div class="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800/80 rounded-2xl shadow-[0_15px_35px_rgba(0,0,0,0.06)] dark:shadow-none overflow-hidden relative z-10">
-          <div v-if="expenses.loading && expenses.expenses.length === 0" class="divide-y divide-border/30">
-            <div v-for="i in 3" :key="i" class="p-4">
-              <SkeletonListItem />
-            </div>
-          </div>
-
-          <div v-else-if="expenses.expenses.length === 0" class="p-12 text-center">
-            <div class="inline-flex h-16 w-16 items-center justify-center rounded-3xl bg-muted/30 mb-4">
-              <Receipt class="h-8 w-8 text-muted-foreground/30" />
-            </div>
-            <p class="text-sm font-bold text-muted-foreground">No recent expenses found</p>
-            <p class="text-xs text-muted-foreground/60 mt-1">Start tracking to see them here.</p>
-          </div>
+      <!-- ── Unified Overview Section ── -->
+      <div class="mt-8 mb-6">
+        <div class="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800/80 rounded-[24px] shadow-[0_15px_35px_rgba(0,0,0,0.06)] dark:shadow-none overflow-hidden relative z-10 pt-5 pb-2">
           
-          <div v-else class="divide-y divide-border/30">
-            <div
-              v-for="expense in expenses.expenses.slice(0, 5)"
-              :key="expense.id"
-              class="flex items-center gap-3 p-4 transition-all active:bg-muted/50"
-            >
-              <!-- Category/Wallet Icon -->
-              <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl overflow-hidden bg-muted/50 border border-border shadow-sm">
-                <template v-if="isLendingExpense(expense)">
-                  <img 
-                    src="/icons/wallets/lending.png" 
-                    class="w-full h-full object-contain rounded dark:invert" 
-                  />
-                </template>
-                <template v-else-if="expense.wallet">
-                  <img 
-                    :src="expense.wallet.icon_url || `/icons/wallets/${expense.wallet.type === 'metrobank' ? 'metrobank.jpg' : expense.wallet.type + '.png'}`" 
-                    class="w-full h-full object-contain rounded" 
-                    @error="$event.target.style.display='none'; $event.target.nextElementSibling.style.display='block'"
-                  />
-                  <Wallet class="h-5 w-5 text-muted-foreground" style="display:none" />
-                </template>
-                <Receipt v-else class="h-6 w-6 text-primary/60" />
+          <!-- Header -->
+          <div class="flex items-start justify-between mb-5 px-5">
+            <div>
+              <div class="flex items-center gap-2">
+                <Calendar class="h-[22px] w-[22px] shrink-0 text-emerald-500 stroke-[2.5px]" />
+                <h2 class="text-[19px] font-extrabold text-foreground leading-none">Upcoming</h2>
               </div>
+              <p class="text-[11px] font-medium text-muted-foreground mt-2 pl-[30px]">Planned and recurring money moves</p>
+            </div>
+            <RouterLink to="/plans" class="text-[11px] font-black uppercase tracking-widest text-primary hover:opacity-70 transition-opacity mt-1">
+              See All
+            </RouterLink>
+          </div>
 
-              <!-- Details -->
-              <div class="min-w-0 flex-1">
-                <div class="flex items-center gap-1.5 min-w-0">
-                  <span class="font-semibold text-sm truncate" :class="{ 'line-through text-muted-foreground/70': expense.is_settled }">
-                    {{ expense.title }}
-                  </span>
+          <!-- Items Container -->
+          <div class="space-y-1 px-2">
+            
+            <!-- Upcoming Plans -->
+            <div class="max-h-[250px] overflow-y-auto space-y-1 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-zinc-200 dark:[&::-webkit-scrollbar-thumb]:bg-zinc-800 [&::-webkit-scrollbar-thumb]:rounded-full" v-if="upcomingPlans.length > 0">
+              <div
+                v-for="plan in upcomingPlans"
+                :key="plan.id"
+                class="flex items-center justify-between gap-4 p-4 transition-all hover:bg-muted/30 active:bg-muted/50 cursor-pointer relative overflow-hidden rounded-[20px]"
+                :class="getPlanBackgroundClass(plan)"
+                @click="router.push('/plans')"
+              >
+                <!-- Left side: Icon + Details -->
+                <div class="flex items-center gap-3.5 flex-1 min-w-0 z-0">
+                  <div class="shrink-0">
+                    <ExpenseIcon :title="plan.title" size="lg" />
+                  </div>
+                  <div class="flex flex-col min-w-0">
+                    <div class="flex items-center gap-1.5 min-w-0">
+                      <span class="font-bold text-foreground truncate text-sm">{{ plan.title }}</span>
+                      <span v-if="plan.recurrence" class="text-[9px] uppercase tracking-widest font-black bg-purple-100 text-purple-600 dark:bg-purple-500/20 dark:text-purple-400 px-1.5 py-0.5 rounded shrink-0">{{ plan.recurrence }}</span>
+                    </div>
+                    <span class="text-xs font-semibold text-muted-foreground/80 mt-0.5">{{ formatExpenseDate(plan.due_date) }}</span>
+                  </div>
                 </div>
-                <div class="flex flex-wrap items-center gap-1.5 mt-0.5">
-                  <!-- Category badge removed -->
-                  <span v-if="expense.wallet" class="text-[10px] text-muted-foreground font-medium lowercase first-letter:uppercase">
-                    {{ expense.wallet.name }}
-                  </span>
-                </div>
-                <p class="text-[10px] text-muted-foreground mt-0.5 opacity-70">
-                  {{ formatExpenseDate(expense.date) }}
-                </p>
-              </div>
 
-              <!-- Amount -->
-              <div class="shrink-0 text-right flex flex-col items-end justify-center">
-                <p 
-                  class="font-bold text-sm" 
-                  :class="[
-                    expense.is_settled ? 'line-through text-muted-foreground/50' : '',
-                    parseFloat(expense.amount) < 0 ? 'text-emerald-600' : 'text-destructive'
-                  ]"
-                >
-                  {{ parseFloat(expense.amount) < 0 ? '+' : '-' }}{{ formatCurrency(Math.abs(parseFloat(expense.amount))) }}
-                </p>
-                <div v-if="expense.is_settled" class="mt-1">
-                  <UiBadge variant="outline" class="text-[9px] uppercase tracking-wider py-0 px-1 border-emerald-500/30 bg-emerald-500/10 text-emerald-600">PAID</UiBadge>
+                <!-- Right side: Amount + Days Left -->
+                <div class="flex flex-col items-end shrink-0 z-0 text-right">
+                  <span class="text-[10px] tracking-wider mb-0.5" :class="getDaysRemainingClass(plan)">
+                    {{ getDaysRemainingText(plan) }}
+                  </span>
+                  <CurrencyAmount 
+                    :amount="plan.amount" 
+                    type="muted" 
+                    size="md" 
+                    class="font-black tabular-nums" 
+                  />
                 </div>
               </div>
             </div>
-          </div>
 
-          <!-- Add Expense Shortcut -->
-          <div class="p-4 bg-muted/10 border-t border-border/20">
-            <RouterLink 
-              to="/expenses" 
-              class="flex items-center justify-center gap-2 py-3 w-full rounded-2xl bg-muted/50 text-[11px] font-black uppercase tracking-widest text-muted-foreground hover:bg-muted transition-colors"
-            >
-              <Plus class="h-3 w-3" />
-              Track New Expense
-            </RouterLink>
+            <!-- Recent Expenses Loading State -->
+            <div v-if="expenses.loading && expenses.expenses.length === 0" class="p-4">
+              <SkeletonListItem v-for="i in 3" :key="i" class="mb-2" />
+            </div>
+
+            <!-- Empty State -->
+            <div v-else-if="recentExpensesList.length === 0 && upcomingPlans.length === 0" class="p-12 text-center">
+              <div class="inline-flex h-16 w-16 items-center justify-center rounded-3xl bg-muted/30 mb-4">
+                <Receipt class="h-8 w-8 text-muted-foreground/30" />
+              </div>
+              <p class="text-sm font-bold text-muted-foreground">No recent expenses found</p>
+              <p class="text-xs text-muted-foreground/60 mt-1">Start tracking to see them here.</p>
+            </div>
+            
+            <!-- Recent Expenses List -->
+            <template v-else>
+              <div v-if="recentExpensesList.length > 0" class="text-[15px] font-extrabold tracking-widest text-destructive uppercase pt-6 pb-2 px-3">
+                Expenses
+              </div>
+              <div
+                v-for="(expense, index) in recentExpensesList"
+                :key="`${expense.type || 'expense'}-${expense.id}`"
+                class="flex items-center gap-3 p-4 transition-all hover:bg-muted/30 active:bg-muted/50 cursor-pointer rounded-[20px] relative"
+                @click="openTransaction(expense)"
+              >
+                <!-- Category/Wallet Icon -->
+                <template v-if="expense.type === 'transfer'">
+                  <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-muted/50 border border-border shadow-sm">
+                    <ArrowRightLeft class="h-6 w-6 text-muted-foreground" />
+                  </div>
+                </template>
+                <template v-else-if="expense.type === 'deposit'">
+                  <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-muted/50 border border-border shadow-sm">
+                     <TrendingUp class="h-6 w-6 text-emerald-600" />
+                  </div>
+                </template>
+                <template v-else-if="isLendingExpense(expense)">
+                  <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl overflow-hidden bg-muted/50 border border-border shadow-sm">
+                    <img 
+                      src="/icons/wallets/lending.png" 
+                      class="w-full h-full object-contain rounded dark:invert" 
+                    />
+                  </div>
+                </template>
+                <template v-else>
+                  <ExpenseIcon :title="expense.title" size="lg" />
+                </template>
+
+                <!-- Details -->
+                <div class="min-w-0 flex-1">
+                  <div class="flex items-center gap-1.5 min-w-0">
+                    <span class="font-semibold text-sm truncate" :class="{ 'line-through text-muted-foreground/70': expense.is_settled }">
+                      <template v-if="expense.type === 'transfer'">
+                        Transfer
+                      </template>
+                      <template v-else>
+                        {{ expense.title }}
+                      </template>
+                    </span>
+                  </div>
+                  <div class="flex flex-wrap items-center gap-1.5 mt-0.5">
+                    <template v-if="expense.type === 'transfer'">
+                       <span class="text-[10px] text-muted-foreground font-medium">{{ expense.wallet?.name }}</span>
+                       <ArrowRight class="h-3 w-3 text-muted-foreground" />
+                       <span class="text-[10px] text-muted-foreground font-medium">{{ expense.to_wallet?.name }}</span>
+                    </template>
+                    <template v-else-if="expense.wallet">
+                       <span class="text-[10px] text-muted-foreground font-medium">{{ expense.wallet.name }}</span>
+                    </template>
+                  </div>
+                  <p class="text-[11px] text-muted-foreground mt-0.5">
+                    {{ formatDateTime(expense.date, expense.created_at) }}
+                  </p>
+                </div>
+
+                <!-- Amount -->
+                <div class="shrink-0 text-right">
+                  <CurrencyAmount
+                    :amount="expense.type === 'deposit' ? parseFloat(expense.amount) : -parseFloat(expense.amount)"
+                    :type="expense.type === 'transfer' ? 'muted' : 'auto'"
+                    :prefix="expense.type === 'deposit' ? '+' : (expense.type === 'transfer' ? '' : '-')"
+                    :strikethrough="expense.is_settled"
+                    size="md"
+                    class="text-sm font-bold"
+                  />
+                  <div v-if="expense.is_settled" class="mt-1 flex justify-end">
+                    <UiBadge variant="outline" class="text-[9px] uppercase tracking-wider py-0 px-1 border-emerald-500/30 bg-emerald-500/10 text-emerald-600">PAID</UiBadge>
+                  </div>
+                  <div v-else-if="parseFloat(expense.settled_amount || 0) > 0" class="mt-1 flex justify-end">
+                    <UiBadge variant="outline" class="text-[9px] uppercase tracking-wider py-0 px-1 border-amber-500/30 bg-amber-500/10 text-amber-600">PARTIAL +<span class="font-bold">{{ formatCurrency(expense.settled_amount).replace(/^[₱\s\xa0]+/g, '') }}</span></UiBadge>
+                  </div>
+                </div>
+
+                <!-- Bottom Divider Line (except last item) -->
+                <div v-if="index !== expenses.expenses.slice(0, 5).length - 1" class="absolute bottom-0 left-4 right-4 h-[1px] bg-zinc-200 dark:bg-zinc-800/80 pointer-events-none"></div>
+              </div>
+            </template>
           </div>
         </div>
       </div>
@@ -861,7 +1182,6 @@ const stats = computed(() => {
                 <p class="rounded-lg bg-emerald-100/80 dark:bg-emerald-900/40 px-2.5 py-1.5 text-[12px] text-emerald-900 dark:text-emerald-100 font-mono">set salary 25000</p>
                 <p class="rounded-lg bg-emerald-100/80 dark:bg-emerald-900/40 px-2.5 py-1.5 text-[12px] text-emerald-900 dark:text-emerald-100 font-mono">deposit 25000 to GCash</p>
                 <p class="rounded-lg bg-emerald-100/80 dark:bg-emerald-900/40 px-2.5 py-1.5 text-[12px] text-emerald-900 dark:text-emerald-100 font-mono">spent 500 on food from GCash</p>
-                <p class="rounded-lg bg-emerald-100/80 dark:bg-emerald-900/40 px-2.5 py-1.5 text-[12px] text-emerald-900 dark:text-emerald-100 font-mono">set my budget to 15000</p>
                 <p class="rounded-lg bg-emerald-100/80 dark:bg-emerald-900/40 px-2.5 py-1.5 text-[12px] text-emerald-900 dark:text-emerald-100 font-mono">transfer 1000 from GCash to Maya</p>
               </div>
               <UiButton size="sm" class="rounded-xl h-8 px-3 mt-3 text-[11px] font-semibold" @click="() => { dismissSetupGuide(); openAiChat(); }">
@@ -879,6 +1199,15 @@ const stats = computed(() => {
       :is-add-more="isAddMore"
       @close="showDepositModal = false"
       @success="handleDepositSuccess"
+    />
+
+    <!-- Generic Read-only Details Drawer for Transfers/Deposits -->
+    <TransactionDetailsModal
+      v-if="selectedTransaction"
+      :show="showTransactionDetails"
+      :transaction="selectedTransaction"
+      read-only
+      @close="showTransactionDetails = false; selectedTransaction = null"
     />
   </div>
 </template>

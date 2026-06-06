@@ -26,7 +26,7 @@ export const useWalletsStore = defineStore("wallets", () => {
   const cacheTime = ref(null);
 
   const totalBalance = computed(() =>
-    wallets.value.reduce((sum, w) => sum + parseFloat(w.balance || 0), 0)
+    wallets.value.reduce((sum, w) => sum + parseFloat(w.balance || 0), 0),
   );
 
   function isCacheValid() {
@@ -73,7 +73,9 @@ export const useWalletsStore = defineStore("wallets", () => {
           // unnecessary network attempts that could overwrite optimistic balances
           if (!cacheTime.value) cacheTime.value = Date.now();
         }
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     }
 
     loading.value = true;
@@ -82,7 +84,9 @@ export const useWalletsStore = defineStore("wallets", () => {
       const serverItems = res.data.data || [];
       const pendingItems = wallets.value.filter((w) => w._pending);
       const serverIds = new Set(serverItems.map((s) => String(s.id)));
-      const unsyncedPending = pendingItems.filter((p) => !serverIds.has(String(p.id)));
+      const unsyncedPending = pendingItems.filter(
+        (p) => !serverIds.has(String(p.id)),
+      );
       wallets.value = [...unsyncedPending, ...serverItems];
       await cacheSet("wallets", [...serverItems, ...unsyncedPending]);
       fetched.value = true;
@@ -108,9 +112,12 @@ export const useWalletsStore = defineStore("wallets", () => {
       const res = await walletService.create(data);
       wallets.value.push(res.data.data);
       await cacheUpsert("wallets", res.data.data);
-      useDashboardStore().invalidate({ month: new Date().getMonth() + 1, year: new Date().getFullYear() });
+      useDashboardStore().invalidate({
+        month: new Date().getMonth() + 1,
+        year: new Date().getFullYear(),
+      });
       invalidate();
-      useToast().wallet('Wallet created', data.name);
+      useToast().wallet("Wallet created", data.name);
       return res.data.data;
     } catch (e) {
       if (isNetworkError(e)) return _createOffline(data);
@@ -136,9 +143,15 @@ export const useWalletsStore = defineStore("wallets", () => {
       };
       wallets.value.push(optimistic);
       await cacheUpsert("wallets", optimistic);
-      await outboxAdd({ method: "post", url: "/wallets", data, entity: "wallets", tempId });
+      await outboxAdd({
+        method: "post",
+        url: "/wallets",
+        data,
+        entity: "wallets",
+        tempId,
+      });
       await refreshPendingCount();
-      useToast().offline('Saved offline', 'Wallet creation queued');
+      useToast().offline("Saved offline", "Wallet creation queued");
       return { data: { data: optimistic } };
     } finally {
       loading.value = false;
@@ -154,9 +167,12 @@ export const useWalletsStore = defineStore("wallets", () => {
       const idx = wallets.value.findIndex((w) => w.id === id);
       if (idx !== -1) wallets.value[idx] = res.data.data;
       await cacheUpsert("wallets", res.data.data);
-      useDashboardStore().invalidate({ month: new Date().getMonth() + 1, year: new Date().getFullYear() });
+      useDashboardStore().invalidate({
+        month: new Date().getMonth() + 1,
+        year: new Date().getFullYear(),
+      });
       invalidate();
-      useToast().wallet('Wallet updated', data.name);
+      useToast().wallet("Wallet updated", data.name);
       return res.data.data;
     } catch (e) {
       if (isNetworkError(e)) return _updateOffline(id, data);
@@ -183,13 +199,24 @@ export const useWalletsStore = defineStore("wallets", () => {
       const isTemp = String(id).startsWith("tmp_");
       if (isTemp) {
         const pending = await outboxGetPending();
-        const createEntry = pending.find((e) => e.tempId === id && e.method === "post");
-        if (createEntry) await outboxUpdate(createEntry.id, { data: { ...createEntry.data, ...data } });
+        const createEntry = pending.find(
+          (e) => e.tempId === id && e.method === "post",
+        );
+        if (createEntry)
+          await outboxUpdate(createEntry.id, {
+            data: { ...createEntry.data, ...data },
+          });
       } else {
-        await outboxAdd({ method: "put", url: `/wallets/${id}`, data, entity: "wallets", recordId: id });
+        await outboxAdd({
+          method: "put",
+          url: `/wallets/${id}`,
+          data,
+          entity: "wallets",
+          recordId: id,
+        });
       }
       await refreshPendingCount();
-      useToast().offline('Saved offline', 'Wallet update queued');
+      useToast().offline("Saved offline", "Wallet update queued");
       return { data: { data: updated } };
     } finally {
       loading.value = false;
@@ -204,9 +231,12 @@ export const useWalletsStore = defineStore("wallets", () => {
       await walletService.delete(id);
       wallets.value = wallets.value.filter((w) => w.id !== id);
       await cacheRemove("wallets", id);
-      useDashboardStore().invalidate({ month: new Date().getMonth() + 1, year: new Date().getFullYear() });
+      useDashboardStore().invalidate({
+        month: new Date().getMonth() + 1,
+        year: new Date().getFullYear(),
+      });
       invalidate();
-      useToast().delete('Wallet deleted', 'Removed successfully');
+      useToast().delete("Wallet deleted", "Removed successfully");
     } catch (e) {
       if (isNetworkError(e)) return _removeOffline(id);
       throw e;
@@ -223,13 +253,20 @@ export const useWalletsStore = defineStore("wallets", () => {
       const isTemp = String(id).startsWith("tmp_");
       if (isTemp) {
         const pending = await outboxGetPending();
-        const createEntry = pending.find((e) => e.tempId === id && e.method === "post");
+        const createEntry = pending.find(
+          (e) => e.tempId === id && e.method === "post",
+        );
         if (createEntry) await outboxDeleteEntry(createEntry.id);
       } else {
-        await outboxAdd({ method: "delete", url: `/wallets/${id}`, entity: "wallets", recordId: id });
+        await outboxAdd({
+          method: "delete",
+          url: `/wallets/${id}`,
+          entity: "wallets",
+          recordId: id,
+        });
       }
       await refreshPendingCount();
-      useToast().offline('Saved offline', 'Wallet deletion queued');
+      useToast().offline("Saved offline", "Wallet deletion queued");
     } finally {
       loading.value = false;
     }
@@ -261,8 +298,180 @@ export const useWalletsStore = defineStore("wallets", () => {
     }
   }
 
+  // ── transfers ─────────────────────────────────────────────────────────────────
+  async function createTransfer(payload) {
+    loading.value = true;
+    try {
+      const { transferService } = await import('@/services/transferService.js');
+      const res = await transferService.create(payload);
+      
+      await adjustBalance(payload.from_wallet_id, -parseFloat(payload.amount));
+      await adjustBalance(payload.to_wallet_id, parseFloat(payload.amount));
+      
+      const { useExpensesStore } = await import('@/stores/expenses.js');
+      useExpensesStore().injectOptimisticFeedItem({
+        id: `trans_${res.data?.data?.id || crypto.randomUUID()}`,
+        type: 'transfer',
+        amount: String(payload.amount),
+        date: payload.date || new Date().toISOString().split('T')[0],
+        description: payload.description || 'Transfer',
+        from_wallet_id: payload.from_wallet_id,
+        to_wallet_id: payload.to_wallet_id,
+        created_at: new Date().toISOString(),
+      });
+      
+      useDashboardStore().invalidate({
+        month: new Date().getMonth() + 1,
+        year: new Date().getFullYear(),
+      });
+      
+      return res.data.data;
+    } catch (e) {
+      if (isNetworkError(e)) return _createTransferOffline(payload);
+      throw e;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function _createTransferOffline(payload) {
+    loading.value = true;
+    try {
+      const tempId = `tmp_trans_${crypto.randomUUID()}`;
+      
+      await adjustBalance(payload.from_wallet_id, -parseFloat(payload.amount));
+      await adjustBalance(payload.to_wallet_id, parseFloat(payload.amount));
+      
+      const { useExpensesStore } = await import('@/stores/expenses.js');
+      useExpensesStore().injectOptimisticFeedItem({
+        id: tempId,
+        type: 'transfer',
+        amount: String(payload.amount),
+        date: payload.date || new Date().toISOString().split('T')[0],
+        description: payload.description || 'Transfer',
+        from_wallet_id: payload.from_wallet_id,
+        to_wallet_id: payload.to_wallet_id,
+        created_at: new Date().toISOString(),
+        _pending: true,
+      });
+
+      await outboxAdd({
+        method: 'post',
+        url: '/transfers',
+        data: payload,
+        entity: 'wallets',
+        tempId,
+      });
+      await refreshPendingCount();
+      
+      useToast().offline("Saved offline", "Transfer queued");
+      return { id: tempId, ...payload };
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  const feedItems = ref([]);
+  const feedLoading = ref(false);
+  const feedHasMore = ref(false);
+  const feedNextCursor = ref(null);
+  const filters = ref({ dateFrom: null, dateTo: null });
+  const feedContext = ref({
+    walletId: null,
+    limit: 10,
+    startDate: null,
+    endDate: null,
+    search: "",
+  });
+  const hasMore = computed(() => feedHasMore.value);
+  const isLoadingMore = computed(() => feedLoading.value);
+
+  function invalidateHistory() {
+    // Clear feed state to force a fresh refetch
+    feedNextCursor.value = null;
+    feedHasMore.value = false;
+    feedItems.value = [];
+  }
+
+  async function fetchFeed(walletId, options = {}) {
+    const {
+      refresh = false,
+      limit = 10,
+      startDate = null,
+      endDate = null,
+      search = "",
+    } = options;
+
+    feedContext.value = { walletId, limit, startDate, endDate, search };
+
+    if (refresh) {
+      feedNextCursor.value = null;
+      feedHasMore.value = false;
+      feedItems.value = [];
+    }
+
+    feedLoading.value = true;
+    error.value = null;
+
+    try {
+      const params = { limit };
+      if (feedNextCursor.value && !refresh) {
+        params.cursor = feedNextCursor.value;
+      }
+      if (startDate) params.start_date = startDate;
+      if (endDate) params.end_date = endDate;
+      if (search) params.search = search;
+
+      const res = await walletService.getFeed(walletId, params);
+      const newItems = res.data.data || [];
+
+      feedNextCursor.value = res.data.meta?.next_cursor || null;
+      feedHasMore.value = !!res.data.meta?.has_more;
+
+      if (refresh) {
+        feedItems.value = newItems;
+      } else {
+        const existingIds = new Set(
+          feedItems.value.map((item) => String(item.id)),
+        );
+        const filteredNew = newItems.filter(
+          (item) => !existingIds.has(String(item.id)),
+        );
+        feedItems.value = [...feedItems.value, ...filteredNew];
+      }
+    } catch (e) {
+      if (!isNetworkError(e)) {
+        error.value = "Failed to load wallet feed";
+      }
+    } finally {
+      feedLoading.value = false;
+    }
+  }
+
   function invalidate() {
     fetched.value = false;
+  }
+
+  function applyFilters(dateFrom, dateTo) {
+    filters.value = {
+      dateFrom: dateFrom || null,
+      dateTo: dateTo || null,
+    };
+  }
+
+  function clearFilters() {
+    filters.value = { dateFrom: null, dateTo: null };
+  }
+
+  function loadMore() {
+    if (!feedContext.value.walletId || feedLoading.value) return;
+    return fetchFeed(feedContext.value.walletId, {
+      refresh: false,
+      limit: feedContext.value.limit,
+      startDate: feedContext.value.startDate,
+      endDate: feedContext.value.endDate,
+      search: feedContext.value.search,
+    });
   }
 
   return {
@@ -271,11 +480,24 @@ export const useWalletsStore = defineStore("wallets", () => {
     error,
     fetched,
     totalBalance,
+    feedItems,
+    feedLoading,
+    feedHasMore,
+    feedNextCursor,
+    filters,
+    hasMore,
+    isLoadingMore,
+    invalidateHistory,
     fetchAll,
     create,
+    createTransfer,
     update,
     remove,
     adjustBalance,
+    fetchFeed,
+    applyFilters,
+    clearFilters,
+    loadMore,
     invalidate,
   };
 });

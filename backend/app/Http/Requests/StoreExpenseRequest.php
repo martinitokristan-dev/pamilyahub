@@ -18,7 +18,6 @@ class StoreExpenseRequest extends FormRequest
             'amount'         => ['required', 'numeric', 'min:0'],
             'description'    => ['nullable', 'string'],
             'date'           => ['required', 'date'],
-            'payment_method' => ['nullable', 'string', 'max:50'],
             'wallet_id'      => ['nullable', 'integer', 'exists:wallets,id'],
         ];
     }

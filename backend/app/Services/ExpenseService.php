@@ -16,9 +16,9 @@ class ExpenseService
         private UserStatsService  $stats
     ) {}
 
-    public function getAll(int $userId, array $filters = []): \Illuminate\Pagination\LengthAwarePaginator
+    public function getAll(int $userId, array $filters = []): Collection
     {
-        return $this->repository->getByUserPaginated($userId, $filters);
+        return $this->repository->getByUser($userId, $filters);
     }
 
     public function create(int $userId, array $data): Expense

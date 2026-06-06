@@ -180,7 +180,7 @@ export const INTENTS = {
   log_expense: {
     minScore: 1,
     keywords: [
-      'expense', 'spent', 'spend', 'buy', 'bought', 'paid for', 'gastos', 'ginastos', 'nagastos',
+      'expense', 'spent', 'spend', 'buy', 'bought', 'paid for', 'pay for', 'pay', 'paid', 'gastos', 'ginastos', 'nagastos',
       'gigasto', 'nagasto', 'palit', 'bayad sa',
       'bumili', 'nagbayad', 'bayad para sa', 'gasto', 'mga nagastos', 'nabili', 'pinambili',
       'add 150 pesos for transpo', 'bumili ako ng drinks for 100', 'add 2000 pesos for food', 'bumili ako ng electricity for 2000', 'i spent 200 on transpo',
@@ -235,6 +235,30 @@ export const INTENTS = {
       'advice me', 'give me tips', 'how to save',
       'reduce expenses', 'reduce my expenses', 'reduce spending', 'cut my expenses',
       'how can i reduce my expenses', 'based on my data', 'spending advice'
+    ],
+  },
+  create_plan: {
+    minScore: 1,
+    keywords: [
+      'add a new plan', 'add new plan', 'new plan', 'create plan', 'add plan',
+      'schedule plan', 'add bill', 'new bill', 'add upcoming', 'upcoming payment',
+      'magdagdag ng plan', 'bagong plan', 'gawa ng plan', 'mag add ng plan',
+      'unsaon pag add plan', 'add subscription', 'new subscription',
+    ],
+  },
+  view_plans: {
+    minScore: 1,
+    keywords: [
+      'show my plans', 'view plans', 'upcoming plans', 'my plans', 'list plans',
+      'show plans', 'upcoming bills', 'my bills', 'show bills', 'list bills',
+      'pakita plans', 'tan-awa plans', 'ipakita plans',
+    ],
+  },
+  pay_plan: {
+    minScore: 1,
+    keywords: [
+      'pay plan', 'pay bill', 'pay my plan', 'pay my bill', 'mark plan paid',
+      'bayad plan', 'bayad bill', 'bayaran plan', 'bayaran bill',
     ],
   },
   flow_help: {
@@ -390,15 +414,16 @@ export function normalizeText(text = '') {
 
 export function getIntentType(intentName) {
   const actionIntents = [
-    'create_wallet', 'deposit', 'transfer', 'log_expense', 
-    'create_debt', 'pay_debt', 'set_budget', 'undo', 'cancel'
+    'create_wallet', 'deposit', 'transfer', 'log_expense',
+    'create_debt', 'pay_debt', 'pay_plan', 'create_plan',
+    'set_budget', 'undo', 'cancel',
   ]
   if (actionIntents.includes(intentName) || intentName.startsWith('create_debt_')) {
     return 'action'
   }
   const queryIntents = [
-    'query_expenses', 'query_debts', 'query_budget', 'query_missing_wallets', 
-    'query_balance', 'ask_help', 'ask_tips', 'flow_help'
+    'query_expenses', 'query_debts', 'query_budget', 'query_missing_wallets',
+    'query_balance', 'ask_help', 'ask_tips', 'flow_help', 'view_plans',
   ]
   if (queryIntents.includes(intentName)) {
     return 'query'

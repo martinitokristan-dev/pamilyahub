@@ -1,7 +1,7 @@
 <script setup>
 import { useToast } from '@/composables/useToast'
 
-const { toasts } = useToast()
+const { toasts, removeToast } = useToast()
 
 function shouldInline(toast) {
   if (!toast.subtitle) return true
@@ -23,15 +23,40 @@ function shouldInline(toast) {
     >
       <div class="app-toast-text-content">
         <template v-if="!toast.subtitle">
-          <span class="app-toast-single-line">{{ toast.title }}</span>
+          <div class="flex items-center gap-2">
+            <span class="app-toast-single-line">{{ toast.title }}</span>
+            <button 
+              v-if="toast.action" 
+              @click.stop="toast.action.onClick(); removeToast(toast.id)"
+              class="shrink-0 rounded-full bg-white/20 px-3 py-1 text-xs font-semibold hover:bg-white/30 transition-colors"
+            >
+              {{ toast.action.text }}
+            </button>
+          </div>
         </template>
         <template v-else-if="shouldInline(toast)">
-          <span class="app-toast-single-line">{{ toast.title }} · {{ toast.subtitle }}</span>
+          <div class="flex items-center gap-2">
+            <span class="app-toast-single-line">{{ toast.title }} · {{ toast.subtitle }}</span>
+            <button 
+              v-if="toast.action" 
+              @click.stop="toast.action.onClick(); removeToast(toast.id)"
+              class="shrink-0 rounded-full bg-white/20 px-3 py-1 text-xs font-semibold hover:bg-white/30 transition-colors"
+            >
+              {{ toast.action.text }}
+            </button>
+          </div>
         </template>
         <template v-else>
           <div class="app-toast-stacked">
             <div class="app-toast-title">{{ toast.title }}</div>
             <div class="app-toast-subtitle">{{ toast.subtitle }}</div>
+            <button 
+              v-if="toast.action" 
+              @click.stop="toast.action.onClick(); removeToast(toast.id)"
+              class="mt-2.5 w-fit rounded-full bg-white/20 px-4 py-1.5 text-xs font-semibold hover:bg-white/30 transition-colors"
+            >
+              {{ toast.action.text }}
+            </button>
           </div>
         </template>
       </div>

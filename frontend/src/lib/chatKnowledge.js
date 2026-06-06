@@ -1,5 +1,40 @@
 import { normalizeText } from "@/lib/chatIntents.js";
 
+export const APP_COMMANDS_HELP = [
+  "Welcome to EleFam. You can manage your finances using these commands:",
+  "",
+  "**Wallets**",
+  "• new wallet [name] [balance] — e.g. new wallet GCash 5000",
+  "",
+  "**Expenses**",
+  "• spent [amount] [reason] from [wallet] — e.g. spent 150 food from GCash",
+  "",
+  "**Deposits**",
+  "• deposit [amount] to [wallet] — e.g. deposit 25000 to bank",
+  "",
+  "**Transfers**",
+  "• transfer [amount] from [source] to [destination] — e.g. transfer 1000 from bank to GCash",
+  "",
+  "**Debts**",
+  "• i owe [person] [amount] — e.g. i owe Ana 800",
+  "• [person] owes me [amount] — e.g. Mark owes me 400",
+  "• pay [person] [amount] from [wallet] — e.g. pay Ana 300 from gcash",
+  "",
+  "**Plans**",
+  "• add a new plan — I'll ask for the name, amount, and due date step by step",
+  "• add plan [title] [amount] due [date] — e.g. add plan Netflix 450 due June 30",
+  "• show my plans",
+  "• pay plan [name] [amount] from [wallet] — e.g. pay plan Netflix 250 from gcash",
+  "",
+  "**Quick queries**",
+  '• "How much is in my GCash?"',
+  '• "How much did I spend today?"',
+  "",
+  "**Chat commands**",
+  "• /help — show this list",
+  "• /clear — clear conversation history",
+].join("\n");
+
 let _lastBotAction = null;
 
 export function setLastBotAction(action) {
@@ -37,20 +72,7 @@ const FLOW_KNOWLEDGE = [
       "help me get started",
       "get started"
     ],
-    answer: [
-      "Welcome to EleFam. I am Marti, your personal finance assistant. Here is how to get started:",
-      "",
-      "1. Add Wallets: Track cash, GCash, Maya, or bank accounts (e.g. 'new wallet GCash 5000').",
-      "2. Log Expenses: Track what you spend (e.g. 'spent 150 food from GCash').",
-      "3. Deposit Income: Record salary or cash-ins (e.g. 'deposit 25000 to bank').",
-      "4. Transfer Money: Move money between wallets (e.g. 'transfer 1000 from bank to GCash').",
-      "5. Track Debts: Track who owes you or who you owe (e.g. 'Mark owes me 400' or 'i owe Ana 800').",
-      "6. Set Budgets: Keep your monthly spending in check (e.g. 'set my budget to 15000').",
-      "",
-      "You can ask me questions about your balances (e.g. 'how much money do I have?') or recent expenses (e.g. 'what did I spend on food?').",
-      "",
-      "How can I assist you with your finances today?"
-    ].join("\n"),
+    answer: APP_COMMANDS_HELP,
   },
   {
     topic: "add_wallet",
@@ -106,7 +128,7 @@ const FLOW_KNOWLEDGE = [
     ],
     answer: [
       "To add a wallet in Elefam:",
-      '1) Type: "new wallet <wallet name> <starting balance>"',
+      '1) Type: "new wallet [wallet name] [starting balance]"',
       '2) Example: "new wallet Travel Fund 1000"',
       "3) If you skip the amount, I will ask for it next.",
       "4) You can also add common wallets like GCash, Maya, BPI, BDO, and more.",
@@ -167,7 +189,7 @@ const FLOW_KNOWLEDGE = [
     ],
     answer: [
       "To deposit money:",
-      '1) Type: "deposit <amount> to <wallet>"',
+      '1) Type: "deposit [amount] to [wallet]"',
       '2) Example: "deposit 2000 to maya"',
       "3) If amount or wallet is missing, I will ask follow-up questions.",
     ].join("\n"),
@@ -224,7 +246,7 @@ const FLOW_KNOWLEDGE = [
     ],
     answer: [
       "To transfer between wallets:",
-      '1) Type: "transfer <amount> from <source wallet> to <destination wallet>"',
+      '1) Type: "transfer [amount] from [source wallet] to [destination wallet]"',
       '2) Example: "transfer 500 from gcash to maya"',
       "3) If details are incomplete, I will guide you step by step.",
     ].join("\n"),
@@ -279,7 +301,7 @@ const FLOW_KNOWLEDGE = [
     ],
     answer: [
       "To log an expense:",
-      '1) Type: "spent <amount> <reason> from <wallet>"',
+      '1) Type: "spent [amount] [reason] from [wallet]"',
       '2) Example: "spent 350 food from gcash"',
       "3) You can also ask by category later (food, bills, transport, etc.).",
     ].join("\n"),
@@ -475,13 +497,9 @@ const TECHNICAL_QUESTION_HINTS = [
 
 const SMALLTALK_RESPONSES = {
   greeting: [
-    "Hi! I'm Marti. I can guide you with wallets, deposits, transfers, expenses, debts, and budget flows.",
-    "Hello! I'm here to help you use this app's finance features like wallet setup, deposits, transfers, and expense tracking.",
-    "Hey! Tell me your goal and I'll guide you step by step.",
-    "Hi there. What would you like to do today? I can help with wallets, money transfers, expenses, debts, or budget planning.",
-    "Hello. Ready to manage your finances? Just tell me what you need and I'll walk you through it.",
-    "Hey. I'm Marti, your finance assistant. Ask me anything about wallets, deposits, transfers, expenses, debts, or budget.",
-    "Hi. How can I help you with your money today? Wallets, deposits, transfers, expenses, debts, or budget — just ask.",
+    "Hello! I am Marti AI from Elefam, your AI Assistant. I can guide you with wallets, deposits, transfers, expenses, debts, and budget flows.",
+    "Hello! I am Marti AI from Elefam, your AI Assistant. Tell me your goal and I'll guide you step by step.",
+    "Hello! I am Marti AI from Elefam, your AI Assistant. Ask me anything about wallets, deposits, transfers, expenses, debts, or budget.",
   ],
   thanks: [
     "You're welcome! If you want, ask me how to add wallet, deposit, transfer, or track expenses.",
@@ -787,6 +805,20 @@ const SEMANTIC_PATTERNS = [
       /(record|track|log).*(spending|expense|what i spent|my spend)/.test(n),
     intent: "log_expense",
     score: 180,
+  },
+  {
+    test: (n) =>
+      /(add|create|new|schedule|set up|setup)\s+(a\s+)?(new\s+)?(plan|bill|subscription|upcoming)/.test(n) &&
+      !/(how\s+to|how\s+do|help\s+me|guide\s+me|show\s+me\s+how|teach\s+me)/.test(n),
+    intent: "create_plan",
+    score: 200,
+  },
+  {
+    test: (n) =>
+      /(show|view|list|display).*(plan|bill|upcoming)/.test(n) &&
+      !/(how\s+to|how\s+do|help\s+me|guide\s+me)/.test(n),
+    intent: "view_plans",
+    score: 190,
   },
 ];
 
@@ -1550,41 +1582,41 @@ export function detectSmallTalk(text = "") {
     "time is it",
   ];
 
-  if (thanksHints.some((w) => normalized.includes(w))) return "thanks";
-  if (cancelHints.some((w) => normalized.includes(w))) return "cancel";
-  if (angryHints.some((w) => normalized.includes(w))) return "angry";
-  if (identityHints.some((w) => normalized.includes(w))) return "identity";
-  if (capabilityHints.some((w) => normalized.includes(w)) && !_hasFinanceSignal(normalized))
+  if (thanksHints.some((w) => _matchesWord(normalized, w))) return "thanks";
+  if (cancelHints.some((w) => _matchesWord(normalized, w))) return "cancel";
+  if (angryHints.some((w) => _matchesWord(normalized, w))) return "angry";
+  if (identityHints.some((w) => _matchesWord(normalized, w))) return "identity";
+  if (capabilityHints.some((w) => _matchesWord(normalized, w)) && !_hasFinanceSignal(normalized))
     return "capabilities";
-  if (confusedHints.some((w) => normalized.includes(w))) return "confused";
-  if (reassureHints.some((w) => normalized.includes(w))) return "reassure";
-  if (byeHints.some((w) => normalized.includes(w))) return "bye";
+  if (confusedHints.some((w) => _matchesWord(normalized, w))) return "confused";
+  if (reassureHints.some((w) => _matchesWord(normalized, w))) return "reassure";
+  if (byeHints.some((w) => _matchesWord(normalized, w))) return "bye";
   if (
     tokenCount <= 5 &&
     casualHints.some(
-      (w) => normalized === w || (w.length > 3 && normalized.includes(w)),
+      (w) => normalized === w || (w.length > 3 && _matchesWord(normalized, w)),
     )
   )
     return "casual";
   if (
     tokenCount <= 5 &&
     acknowledgeHints.some(
-      (w) => normalized === w || (w.length > 3 && normalized.includes(w)),
+      (w) => normalized === w || (w.length > 3 && _matchesWord(normalized, w)),
     )
   )
     return "acknowledge";
   if (
     negativeExact.has(normalized) ||
-    negativeContains.some((w) => normalized.includes(w))
+    negativeContains.some((w) => _matchesWord(normalized, w))
   )
     return "negative";
   if (
     affirmativeExact.has(normalized) ||
-    affirmativeContains.some((w) => normalized.includes(w))
+    affirmativeContains.some((w) => _matchesWord(normalized, w))
   )
     return "affirmative";
-  if (timeHints.some((w) => normalized.includes(w))) return "time";
-  if (unknownHints.some((w) => normalized.includes(w))) return "unknown";
+  if (timeHints.some((w) => _matchesWord(normalized, w))) return "time";
+  if (unknownHints.some((w) => _matchesWord(normalized, w))) return "unknown";
 
   // FIXED: greeting detection now uses word boundary matching for short words
   // and skips greeting if the message has clear finance intent signals

@@ -1,7 +1,7 @@
 import { openDB } from 'idb'
 
 const DB_NAME = 'pamilyahub_offline'
-const DB_VERSION = 5
+const DB_VERSION = 6
 
 let _db = null
 
@@ -18,7 +18,7 @@ export async function getDb() {
           db.createObjectStore(`cache_${entity}`, { keyPath: 'id' })
         }
       }
-      for (const entity of ['dashboard', 'salary', 'notes', 'user', 'files', 'chat_history']) {
+      for (const entity of ['dashboard', 'salary', 'notes', 'user', 'files', 'chat_history', 'plans']) {
         if (!db.objectStoreNames.contains(`cache_${entity}`)) {
           db.createObjectStore(`cache_${entity}`, { keyPath: 'key' })
         }

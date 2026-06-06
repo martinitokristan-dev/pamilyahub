@@ -88,7 +88,15 @@
         "laid",
         "worth",
         "milk",
-        "breakfast"
+        "breakfast",
+        "shoes",
+        "today",
+        "nagcheckout",
+        "dinner",
+        "netflix",
+        "shopee",
+        "amazon",
+        "lunch"
     ],
     "deposit_verbs": [
         "deposit",
@@ -112,7 +120,10 @@
         "dagdag",
         "lagay",
         "nagdeposito",
-        "ipasok"
+        "ipasok",
+        "bdo",
+        "maya",
+        "maribank"
     ],
     "transfer_verbs": [
         "transfer",
@@ -132,7 +143,8 @@
         "lipat",
         "ipasa",
         "pasa",
-        "padala"
+        "padala",
+        "help"
     ],
     "pay_debt_verbs": [
         "pay",
@@ -147,7 +159,9 @@
         "nagbayad",
         "sinlil",
         "siningil",
-        "gibayad"
+        "gibayad",
+        "ana",
+        "kyla"
     ],
     "debt_owe_verbs": [
         "owe",
@@ -161,7 +175,10 @@
         "utang",
         "hiram",
         "hiniram",
-        "nagpautang"
+        "nagpautang",
+        "umutang",
+        "alice",
+        "ana"
     ],
     "currency_keywords": [
         "pesos",

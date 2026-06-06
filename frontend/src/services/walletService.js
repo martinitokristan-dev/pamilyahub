@@ -5,4 +5,5 @@ export const walletService = {
   create: (data) => api.post("/wallets", data),
   update: (id, data) => api.put(`/wallets/${id}`, data),
   delete: (id) => api.delete(`/wallets/${id}`),
+  getFeed: (id, params = {}) => api.get(`/wallets/${id}/feed`, { params }),
 };

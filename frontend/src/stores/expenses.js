@@ -1,5 +1,6 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
+
 import { expenseService } from "@/services/expenseService.js";
 import { useDashboardStore } from "./dashboard.js";
 import { useToast } from "@/composables/useToast.js";
@@ -15,6 +16,8 @@ import {
   isNetworkError,
 } from "@/lib/offlineDb.js";
 import { refreshPendingCount, isSyncing } from "@/lib/syncEngine.js";
+import { notifyFinanceActivity } from "@/lib/financeEvents.js";
+import { parseExpenseAmount } from "@/utils/format.js";
 
 export const useExpensesStore = defineStore("expenses", () => {
   const expenses = ref([]);
@@ -22,7 +25,6 @@ export const useExpensesStore = defineStore("expenses", () => {
   const error = ref(null);
   const fetched = ref(false);
   const cacheTime = ref(0);
-  const pagination = ref({ page: 1, per_page: 10, total: 0, last_page: 1 });
   const lastCacheKey = ref(null);
 
   // ── Sync event listeners ────────────────────────────────────────────────────
@@ -36,14 +38,16 @@ export const useExpensesStore = defineStore("expenses", () => {
           expenses.value[idx]._pending = false;
         }
       } else if (entity === "debts" && tempId) {
-        expenses.value = expenses.value.filter((ex) => ex._debt_temp_id !== tempId);
+        expenses.value = expenses.value.filter(
+          (ex) => ex._debt_temp_id !== tempId,
+        );
         try {
           const cached = await cacheGet("expenses");
           if (cached && cached.length > 0) {
             const filtered = cached.filter((ex) => ex._debt_temp_id !== tempId);
             await cacheSet("expenses", filtered);
           }
-        } catch { }
+        } catch {}
       }
     });
     window.addEventListener("pamilya:sync-done", (e) => {
@@ -54,15 +58,19 @@ export const useExpensesStore = defineStore("expenses", () => {
     window.addEventListener("pamilya:drain-complete", async (e) => {
       const entities = e.detail?.entities || [];
       if (entities.some((en) => ["expenses", "debts", "salary"].includes(en))) {
-        expenses.value = expenses.value.filter((ex) => !String(ex.id).startsWith("tmp_debt"));
+        expenses.value = expenses.value.filter(
+          (ex) => !String(ex.id).startsWith("tmp_debt"),
+        );
         try {
           const cached = await cacheGet("expenses");
           if (cached && cached.length > 0) {
-            const filtered = cached.filter((ex) => !String(ex.id).startsWith("tmp_debt"));
+            const filtered = cached.filter(
+              (ex) => !String(ex.id).startsWith("tmp_debt"),
+            );
             await cacheSet("expenses", filtered);
           }
-        } catch { }
-        
+        } catch {}
+
         fetched.value = false;
         lastCacheKey.value = null;
       }
@@ -70,8 +78,8 @@ export const useExpensesStore = defineStore("expenses", () => {
   }
 
   // ── fetchAll ────────────────────────────────────────────────────────────────
-  async function fetchAll(page = 1, filters = {}) {
-    const cacheKey = JSON.stringify({ page, ...filters });
+  async function fetchAll(filters = {}) {
+    const cacheKey = JSON.stringify(filters);
     const isNewRequest = lastCacheKey.value !== cacheKey;
     if (!isNewRequest && fetched.value) return;
 
@@ -81,10 +89,12 @@ export const useExpensesStore = defineStore("expenses", () => {
         const cached = await cacheGet("expenses");
         if (cached.length > 0) {
           expenses.value = cached.sort(
-            (a, b) => new Date(b.created_at) - new Date(a.created_at)
+            (a, b) => new Date(b.created_at) - new Date(a.created_at),
           );
         }
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     }
 
     const isInitialLoad =
@@ -97,30 +107,17 @@ export const useExpensesStore = defineStore("expenses", () => {
     if (isSyncing.value) return;
 
     try {
-      const res = await expenseService.getAll({ page, ...filters });
+      const res = await expenseService.getAll(filters);
       // Exclude _debt_payment items — backend creates the real expense on debt sync
-      const pendingItems = expenses.value.filter((e) => e._pending && !e._debt_payment);
+      const pendingItems = expenses.value.filter(
+        (e) => e._pending && !e._debt_payment,
+      );
 
       let serverItems = [];
-      if (res.data?.data?.data && Array.isArray(res.data.data.data)) {
-        serverItems = res.data.data.data;
-        pagination.value = {
-          page: res.data.data.current_page,
-          per_page: res.data.data.per_page,
-          total: res.data.data.total,
-          last_page: res.data.data.last_page,
-        };
-      } else if (res.data && Array.isArray(res.data.data)) {
+      if (res.data?.data && Array.isArray(res.data.data)) {
         serverItems = res.data.data;
-        pagination.value = {
-          page: 1,
-          per_page: serverItems.length,
-          total: serverItems.length,
-          last_page: 1,
-        };
       } else {
         expenses.value = pendingItems;
-        pagination.value = { page: 1, per_page: 10, total: 0, last_page: 1 };
         fetched.value = true;
         cacheTime.value = Date.now();
         return;
@@ -129,7 +126,7 @@ export const useExpensesStore = defineStore("expenses", () => {
       // Merge: keep unsynced pending items + fresh server items
       const serverIds = new Set(serverItems.map((s) => String(s.id)));
       const unsyncedPending = pendingItems.filter(
-        (p) => !serverIds.has(String(p.id))
+        (p) => !serverIds.has(String(p.id)),
       );
       expenses.value = [...unsyncedPending, ...serverItems];
 
@@ -155,21 +152,38 @@ export const useExpensesStore = defineStore("expenses", () => {
     loading.value = true;
     try {
       const res = await expenseService.create(data);
-      expenses.value.unshift(res.data.data);
-      await cacheUpsert("expenses", res.data.data);
-      const date = new Date(data.date || new Date())
-      const m = date.getMonth() + 1
-      const y = date.getFullYear()
+      const newExpense = { ...res.data.data, type: res.data.data.type || 'expense' };
+      expenses.value.unshift(newExpense);
+      if (
+        newExpense &&
+        !feedItems.value.some((item) => item.id === newExpense.id)
+      ) {
+        feedItems.value.unshift(newExpense);
+      }
+      await cacheUpsert("expenses", newExpense);
+      const date = new Date(data.date || new Date());
+      const m = date.getMonth() + 1;
+      const y = date.getFullYear();
       useDashboardStore().invalidate({ month: m, year: y });
       invalidate();
       if (data.wallet_id) {
         const { useWalletsStore } = await import("./wallets.js");
         const walletsStore = useWalletsStore();
-        await walletsStore.adjustBalance(data.wallet_id, -parseFloat(data.amount || 0));
-        await cacheSet("wallets", JSON.parse(JSON.stringify(walletsStore.wallets)));
+        await walletsStore.adjustBalance(
+          data.wallet_id,
+          -parseFloat(data.amount || 0),
+        );
+        await cacheSet(
+          "wallets",
+          JSON.parse(JSON.stringify(walletsStore.wallets)),
+        );
       }
-      useDashboardStore().adjustStat('monthly_expenses', parseFloat(data.amount || 0));
-      useToast().expense('Expense created', data.title);
+      useDashboardStore().adjustStat(
+        "monthly_expenses",
+        parseFloat(data.amount || 0),
+      );
+      useToast().expense("Expense created", data.title);
+      notifyFinanceActivity({ type: "expense", action: "create" });
       return res.data.data;
     } catch (e) {
       if (isNetworkError(e)) return _createOffline(data);
@@ -192,9 +206,12 @@ export const useExpensesStore = defineStore("expenses", () => {
           if (cached && cached.length > 0) {
             walletsStore.wallets = cached;
           }
-        } catch { }
+        } catch {}
       }
-      const walletRaw = walletsStore.wallets.find((w) => String(w.id) === String(data.wallet_id)) || null;
+      const walletRaw =
+        walletsStore.wallets.find(
+          (w) => String(w.id) === String(data.wallet_id),
+        ) || null;
       const wallet = walletRaw ? JSON.parse(JSON.stringify(walletRaw)) : null;
       const optimistic = {
         ...data,
@@ -202,19 +219,37 @@ export const useExpensesStore = defineStore("expenses", () => {
         _clientKey: crypto.randomUUID(),
         _pending: true,
         wallet,
+        type: 'expense',
         created_at: data.date || now,
         updated_at: now,
       };
       expenses.value.unshift(optimistic);
+      feedItems.value.unshift(optimistic);
       await cacheUpsert("expenses", optimistic);
-      await outboxAdd({ method: "post", url: "/expenses", data, entity: "expenses", tempId });
+      await outboxAdd({
+        method: "post",
+        url: "/expenses",
+        data,
+        entity: "expenses",
+        tempId,
+      });
       await refreshPendingCount();
       if (data.wallet_id) {
-        await walletsStore.adjustBalance(data.wallet_id, -parseFloat(data.amount || 0));
-        await cacheSet("wallets", JSON.parse(JSON.stringify(walletsStore.wallets)));
+        await walletsStore.adjustBalance(
+          data.wallet_id,
+          -parseFloat(data.amount || 0),
+        );
+        await cacheSet(
+          "wallets",
+          JSON.parse(JSON.stringify(walletsStore.wallets)),
+        );
       }
-      await useDashboardStore().adjustStat('monthly_expenses', parseFloat(data.amount || 0));
-      useToast().offline('Saved offline', 'Expense logging queued');
+      await useDashboardStore().adjustStat(
+        "monthly_expenses",
+        parseFloat(data.amount || 0),
+      );
+      useToast().offline("Saved offline", "Expense logging queued");
+      notifyFinanceActivity({ type: "expense", action: "create", offline: true });
       return { data: { data: optimistic } };
     } finally {
       loading.value = false;
@@ -226,14 +261,16 @@ export const useExpensesStore = defineStore("expenses", () => {
     if (!navigator.onLine) return _updateOffline(id, data);
     loading.value = true;
     try {
-      const existing = expenses.value.find((e) => e.id === id);
+      const existing = expenses.value.find((e) => e.id === id) || feedItems.value.find((e) => e.id === id);
       const res = await expenseService.update(id, data);
       const idx = expenses.value.findIndex((e) => e.id === id);
       if (idx !== -1) expenses.value[idx] = res.data.data;
+      const feedIdx = feedItems.value.findIndex((e) => e.id === id);
+      if (feedIdx !== -1) feedItems.value[feedIdx] = res.data.data;
       await cacheUpsert("expenses", res.data.data);
-      const date = new Date(data.date || existing?.date || new Date())
-      const m = date.getMonth() + 1
-      const y = date.getFullYear()
+      const date = new Date(data.date || existing?.date || new Date());
+      const m = date.getMonth() + 1;
+      const y = date.getFullYear();
       useDashboardStore().invalidate({ month: m, year: y });
       invalidate();
 
@@ -242,17 +279,31 @@ export const useExpensesStore = defineStore("expenses", () => {
         const { useWalletsStore } = await import("./wallets.js");
         const walletsStore = useWalletsStore();
         if (existing.wallet_id) {
-          await walletsStore.adjustBalance(existing.wallet_id, parseFloat(existing.amount || 0));
+          await walletsStore.adjustBalance(
+            existing.wallet_id,
+            parseExpenseAmount(existing.amount),
+          );
         }
         if (data.wallet_id) {
-          await walletsStore.adjustBalance(data.wallet_id, -parseFloat(data.amount || 0));
+          await walletsStore.adjustBalance(
+            data.wallet_id,
+            -parseFloat(data.amount || 0),
+          );
         }
-        await cacheSet("wallets", JSON.parse(JSON.stringify(walletsStore.wallets)));
+        await cacheSet(
+          "wallets",
+          JSON.parse(JSON.stringify(walletsStore.wallets)),
+        );
       }
 
-      const amtDelta = parseFloat(data.amount ?? existing?.amount ?? 0) - parseFloat(existing?.amount || 0);
-      if (amtDelta !== 0) await useDashboardStore().adjustStat('monthly_expenses', amtDelta);
-      useToast().expense('Expense updated', data.title);
+      const oldAmt = parseExpenseAmount(existing?.amount);
+      const newAmt = parseFloat(data.amount ?? oldAmt);
+      const amtDelta = newAmt - oldAmt;
+      
+      if (amtDelta !== 0)
+        await useDashboardStore().adjustStat("monthly_expenses", amtDelta);
+      useToast().expense("Expense updated", data.title);
+      notifyFinanceActivity({ type: "expense", action: "update" });
       return res.data.data;
     } catch (e) {
       if (isNetworkError(e)) return _updateOffline(id, data);
@@ -277,9 +328,12 @@ export const useExpensesStore = defineStore("expenses", () => {
           if (cached && cached.length > 0) {
             walletsStore.wallets = cached;
           }
-        } catch { }
+        } catch {}
       }
-      const walletRaw = walletsStore.wallets.find((w) => String(w.id) === String(data.wallet_id)) || null;
+      const walletRaw =
+        walletsStore.wallets.find(
+          (w) => String(w.id) === String(data.wallet_id),
+        ) || null;
       const wallet = walletRaw ? JSON.parse(JSON.stringify(walletRaw)) : null;
 
       const updated = {
@@ -291,33 +345,58 @@ export const useExpensesStore = defineStore("expenses", () => {
         updated_at: now,
       };
       if (idx !== -1) expenses.value[idx] = updated;
+      const feedIdx = feedItems.value.findIndex((e) => e.id === id);
+      if (feedIdx !== -1) feedItems.value[feedIdx] = updated;
       await cacheUpsert("expenses", updated);
-      const amtDelta = parseFloat(data.amount ?? existing?.amount ?? 0) - parseFloat(existing?.amount || 0);
+      const amtDelta =
+        parseFloat(data.amount ?? existing?.amount ?? 0) -
+        parseFloat(existing?.amount || 0);
       const isTemp = String(id).startsWith("tmp_");
       if (isTemp) {
         const pending = await outboxGetPending();
-        const createEntry = pending.find((e) => e.tempId === id && e.method === "post");
+        const createEntry = pending.find(
+          (e) => e.tempId === id && e.method === "post",
+        );
         if (createEntry) {
-          await outboxUpdate(createEntry.id, { data: { ...createEntry.data, ...data } });
+          await outboxUpdate(createEntry.id, {
+            data: { ...createEntry.data, ...data },
+          });
         }
       } else {
-        await outboxAdd({ method: "put", url: `/expenses/${id}`, data, entity: "expenses", recordId: id });
+        await outboxAdd({
+          method: "put",
+          url: `/expenses/${id}`,
+          data,
+          entity: "expenses",
+          recordId: id,
+        });
       }
       await refreshPendingCount();
 
       // Adjust wallet balances offline
       if (existing) {
         if (existing.wallet_id) {
-          await walletsStore.adjustBalance(existing.wallet_id, parseFloat(existing.amount || 0));
+          await walletsStore.adjustBalance(
+            existing.wallet_id,
+            parseFloat(existing.amount || 0),
+          );
         }
         if (data.wallet_id) {
-          await walletsStore.adjustBalance(data.wallet_id, -parseFloat(data.amount || 0));
+          await walletsStore.adjustBalance(
+            data.wallet_id,
+            -parseFloat(data.amount || 0),
+          );
         }
-        await cacheSet("wallets", JSON.parse(JSON.stringify(walletsStore.wallets)));
+        await cacheSet(
+          "wallets",
+          JSON.parse(JSON.stringify(walletsStore.wallets)),
+        );
       }
 
-      if (amtDelta !== 0) await useDashboardStore().adjustStat('monthly_expenses', amtDelta);
-      useToast().offline('Saved offline', 'Expense update queued');
+      if (amtDelta !== 0)
+        await useDashboardStore().adjustStat("monthly_expenses", amtDelta);
+      useToast().offline("Saved offline", "Expense update queued");
+      notifyFinanceActivity({ type: "expense", action: "update", offline: true });
       return { data: { data: updated } };
     } finally {
       loading.value = false;
@@ -332,11 +411,12 @@ export const useExpensesStore = defineStore("expenses", () => {
       const existing = expenses.value.find((e) => e.id === id);
       await expenseService.delete(id);
       expenses.value = expenses.value.filter((e) => e.id !== id);
+      feedItems.value = feedItems.value.filter((e) => e.id !== id);
       await cacheRemove("expenses", id);
 
-      const date = new Date(existing?.date || new Date())
-      const m = date.getMonth() + 1
-      const y = date.getFullYear()
+      const date = new Date(existing?.date || new Date());
+      const m = date.getMonth() + 1;
+      const y = date.getFullYear();
       useDashboardStore().invalidate({ month: m, year: y });
       invalidate();
 
@@ -344,14 +424,24 @@ export const useExpensesStore = defineStore("expenses", () => {
       if (existing && existing.wallet_id) {
         const { useWalletsStore } = await import("./wallets.js");
         const walletsStore = useWalletsStore();
-        await walletsStore.adjustBalance(existing.wallet_id, parseFloat(existing.amount || 0));
-        await cacheSet("wallets", JSON.parse(JSON.stringify(walletsStore.wallets)));
+        await walletsStore.adjustBalance(
+          existing.wallet_id,
+          parseFloat(existing.amount || 0),
+        );
+        await cacheSet(
+          "wallets",
+          JSON.parse(JSON.stringify(walletsStore.wallets)),
+        );
       }
 
       if (existing?.amount) {
-        await useDashboardStore().adjustStat('monthly_expenses', -parseFloat(existing.amount));
+        await useDashboardStore().adjustStat(
+          "monthly_expenses",
+          -parseFloat(existing.amount),
+        );
       }
-      useToast().delete('Expense deleted', 'Removed successfully');
+      useToast().delete("Expense deleted", "Removed successfully");
+      notifyFinanceActivity({ type: "expense", action: "delete" });
     } catch (e) {
       if (isNetworkError(e)) return _removeOffline(id);
       throw e;
@@ -365,11 +455,14 @@ export const useExpensesStore = defineStore("expenses", () => {
     try {
       const toRemove = expenses.value.find((e) => e.id === id);
       expenses.value = expenses.value.filter((e) => e.id !== id);
+      feedItems.value = feedItems.value.filter((e) => e.id !== id);
       await cacheRemove("expenses", id);
       const isTemp = String(id).startsWith("tmp_");
       if (isTemp) {
         const pending = await outboxGetPending();
-        const createEntry = pending.find((e) => e.tempId === id && e.method === "post");
+        const createEntry = pending.find(
+          (e) => e.tempId === id && e.method === "post",
+        );
         if (createEntry) await outboxDeleteEntry(createEntry.id);
       } else {
         await outboxAdd({
@@ -385,16 +478,134 @@ export const useExpensesStore = defineStore("expenses", () => {
       if (toRemove && toRemove.wallet_id) {
         const { useWalletsStore } = await import("./wallets.js");
         const walletsStore = useWalletsStore();
-        await walletsStore.adjustBalance(toRemove.wallet_id, parseFloat(toRemove.amount || 0));
-        await cacheSet("wallets", JSON.parse(JSON.stringify(walletsStore.wallets)));
+        await walletsStore.adjustBalance(
+          toRemove.wallet_id,
+          parseFloat(toRemove.amount || 0),
+        );
+        await cacheSet(
+          "wallets",
+          JSON.parse(JSON.stringify(walletsStore.wallets)),
+        );
       }
 
       if (toRemove?.amount) {
-        await useDashboardStore().adjustStat('monthly_expenses', -parseFloat(toRemove.amount));
+        await useDashboardStore().adjustStat(
+          "monthly_expenses",
+          -parseFloat(toRemove.amount),
+        );
       }
-      useToast().offline('Saved offline', 'Expense deletion queued');
+      useToast().offline("Saved offline", "Expense deletion queued");
+      notifyFinanceActivity({ type: "expense", action: "delete", offline: true });
     } finally {
       loading.value = false;
+    }
+  }
+
+  const feedItems = ref([]);
+  const feedLoading = ref(false);
+  const feedHasMore = ref(false);
+  const feedNextCursor = ref(null);
+  const filters = ref({ dateFrom: null, dateTo: null, type: 'all' });
+
+  async function fetchFeed(options = {}) {
+    const {
+      refresh = false,
+      limit = 10,
+      startDate = null,
+      endDate = null,
+      search = "",
+      type = filters.value.type,
+    } = options;
+
+    if (refresh) {
+      feedNextCursor.value = null;
+      feedHasMore.value = false;
+      // Do not clear feedItems.value here to prevent skeleton flicker during refresh
+    }
+
+    feedLoading.value = true;
+    try {
+      const params = { limit };
+      if (feedNextCursor.value && !refresh) {
+        params.cursor = feedNextCursor.value;
+      }
+      if (startDate) params.start_date = startDate;
+      if (endDate) params.end_date = endDate;
+      if (search) params.search = search;
+      if (type) params.type = type;
+      if (options.onlyArchives) params.only_archives = 1;
+
+      const res = await expenseService.getFeed(params);
+      const newItems = res.data.data || [];
+
+      feedNextCursor.value = res.data.meta?.next_cursor || null;
+      feedHasMore.value = !!res.data.meta?.has_more;
+
+      if (refresh) {
+        feedItems.value = newItems;
+      } else {
+        const existingIds = new Set(
+          feedItems.value.map((item) => String(item.id) + '-' + item.type),
+        );
+        const filteredNew = newItems.filter(
+          (item) => !existingIds.has(String(item.id) + '-' + item.type),
+        );
+        feedItems.value = [...feedItems.value, ...filteredNew];
+      }
+    } catch (e) {
+      error.value = e.response?.data?.message ?? "Failed to load feed";
+    } finally {
+      feedLoading.value = false;
+    }
+  }
+
+  async function archiveTransaction(type, id) {
+    if (!navigator.onLine) {
+      useToast().error("Action unavailable", "Cannot archive while offline");
+      return;
+    }
+    loading.value = true;
+    try {
+      if (type === "expense") {
+        await expenseService.archive(id);
+      } else if (type === "income" || type === "deposit") {
+        const { incomeService } = await import("@/services/incomeService.js");
+        await incomeService.archive(id);
+      } else if (type === "transfer") {
+        const { transferService } = await import("@/services/transferService.js");
+        await transferService.archive(id);
+      } else if (type.startsWith("debt") || type === "owed_to_me" || type === "i_owe") {
+        const { debtService } = await import("@/services/debtService.js");
+        await debtService.archive(id);
+      }
+
+      feedItems.value = feedItems.value.filter(
+        (item) => !(
+          String(item.id) === String(id) && 
+          (
+            item.type === type || 
+            (item.type === "deposit" && type === "income") ||
+            (item.type === "income" && type === "deposit") ||
+            ((item.type.startsWith("debt") || item.type === "owed_to_me" || item.type === "i_owe") && 
+             (type.startsWith("debt") || type === "owed_to_me" || type === "i_owe"))
+          )
+        )
+      );
+      useToast().success("Archived successfully");
+    } catch (e) {
+      useToast().error("Archive failed", e.response?.data?.message || e.message);
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  function injectOptimisticFeedItem(item) {
+    // Only inject if it doesn't already exist
+    const exists = feedItems.value.some(
+      (existing) => String(existing.id) === String(item.id) && existing.type === item.type
+    );
+    if (!exists) {
+      feedItems.value.unshift(item);
     }
   }
 
@@ -403,17 +614,38 @@ export const useExpensesStore = defineStore("expenses", () => {
     lastCacheKey.value = null;
   }
 
+  function applyFilters(dateFrom, dateTo, type) {
+    filters.value = {
+      dateFrom: dateFrom || null,
+      dateTo: dateTo || null,
+      type: type !== undefined ? type : filters.value.type,
+    };
+  }
+
+  function clearFilters() {
+    filters.value = { dateFrom: null, dateTo: null, type: filters.value.type };
+  }
+
   return {
     expenses,
     loading,
     error,
     fetched,
     cacheTime,
-    pagination,
+    feedItems,
+    feedLoading,
+    feedHasMore,
+    feedNextCursor,
+    filters,
     fetchAll,
+    fetchFeed,
+    injectOptimisticFeedItem,
+    applyFilters,
+    clearFilters,
     create,
     update,
     remove,
+    archiveTransaction,
     invalidate,
   };
 });

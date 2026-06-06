@@ -10,5 +10,12 @@ Artisan::command('inspire', function () {
 
 Schedule::command('api-logs:prune')->daily();
 
+Schedule::command('finances:archive')
+    ->monthlyOn(1, '00:00')
+    ->withoutOverlapping()
+    ->runInBackground();
 
-
+Schedule::command('reminders:send')
+    ->dailyAt('08:00')
+    ->withoutOverlapping()
+    ->runInBackground();

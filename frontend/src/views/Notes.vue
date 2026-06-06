@@ -1,7 +1,7 @@
 <script setup>
 defineOptions({ name: 'Notes' })
 import { ref, onMounted, computed, nextTick, watch, onBeforeUnmount } from 'vue'
-import { useRegisterAddAction } from '@/composables/usePageAction.js'
+import { useRoute, useRouter } from 'vue-router'
 import { useNotesStore } from '@/stores/notes.js'
 import { useToast } from '@/composables/useToast.js'
 import { Plus, Pencil, Trash2, X, NotebookPen, Search, Check, Undo, Redo, MoreVertical, Star, FolderPlus, Lock, FolderOpen, Eye, EyeOff, FileText } from 'lucide-vue-next'
@@ -11,23 +11,12 @@ import UiLabel from '@/components/ui/Label.vue'
 import UiCard from '@/components/ui/Card.vue'
 import AppBackButton from '@/components/AppBackButton.vue'
 import { SkeletonNoteCard } from '@/components/skeletons'
-import { Editor, EditorContent } from '@tiptap/vue-3'
-import { BubbleMenu } from '@tiptap/vue-3/menus'
-import StarterKit from '@tiptap/starter-kit'
-import Placeholder from '@tiptap/extension-placeholder'
+import { useModalsStore } from '@/stores/modals.js'
 
 const store = useNotesStore()
 const toast = useToast()
-const showEditor = ref(false)
-const editing = ref(null)
-const form = ref({ title: '', content: '', folder_id: null })
-const searchQuery = ref('')
-const editor = ref(null)
-const expandTools = ref(false)
-const currentEditorHTML = ref('')
+const modals = useModalsStore()
 const isMobile = ref(false)
-const autoSaveTimer = ref(null)
-const isSaving = ref(false)
 
 // Folder & Priority State
 const activeFolderId = ref(null)
@@ -42,87 +31,22 @@ const menuOpenId = ref(null)
 const showPasswordCreate = ref(false)
 const showPasswordUnlock = ref(false)
 const pendingFolderId = ref(null)
+const searchQuery = ref('')
+
+const route = useRoute()
+const router = useRouter()
 
 onMounted(() => {
   store.fetchAll()
   isMobile.value = window.innerWidth < 640
   window.addEventListener('resize', () => isMobile.value = window.innerWidth < 640)
-})
-onBeforeUnmount(() => {
-  if (autoSaveTimer.value) clearTimeout(autoSaveTimer.value)
-  if (editor.value) editor.value.destroy()
-})
-useRegisterAddAction(openCreate)
-
-// --- Auto-save (debounced 500ms) ---
-function scheduleAutoSave() {
-  if (autoSaveTimer.value) clearTimeout(autoSaveTimer.value)
-  autoSaveTimer.value = setTimeout(() => performAutoSave(), 500)
-}
-
-async function performAutoSave() {
-  if (!showEditor.value || isSaving.value) return
-  const contentHTML = currentEditorHTML.value
-  const title = form.value.title
-  const isEmpty = !title.trim() && (!contentHTML || contentHTML === '<p></p>')
-  if (isEmpty) return
-
-  const data = {
-    title,
-    content: contentHTML,
-    folder_id: form.value.folder_id
-  }
-
-  isSaving.value = true
-  try {
-    if (editing.value) {
-      await store.update(editing.value.id, data)
-    } else {
-      const created = await store.create(data)
-      if (created) editing.value = created // switch to editing mode so future saves update
-    }
-  } finally {
-    isSaving.value = false
-  }
-}
-
-// Watch title changes to trigger auto-save
-watch(() => form.value.title, (newVal, oldVal) => {
-  if (showEditor.value && newVal !== oldVal) {
-    scheduleAutoSave()
+  
+  if (route.query.action === 'add') {
+    openCreate()
+    router.replace({ query: { ...route.query, action: undefined } })
   }
 })
-
-function initEditor(content = '') {
-  if (editor.value) {
-    editor.value.destroy()
-  }
-  editor.value = new Editor({
-    extensions: [
-      StarterKit,
-      Placeholder.configure({
-        placeholder: 'Start writing…',
-      }),
-    ],
-    content: content,
-    editorProps: {
-      attributes: {
-        class: 'w-full h-full bg-transparent text-sm sm:text-base text-foreground placeholder:text-muted-foreground/40 border-none outline-none resize-none leading-relaxed min-h-[300px] focus:outline-none prose prose-sm sm:prose-base dark:prose-invert max-w-none',
-        spellcheck: 'true',
-        autocorrect: 'on',
-      },
-    },
-    onUpdate({ editor: e }) {
-      currentEditorHTML.value = e.getHTML()
-      scheduleAutoSave()
-    },
-    onSelectionUpdate() {
-      if (!isMobile.value) {
-        expandTools.value = false
-      }
-    }
-  })
-}
+// Editor logic moved to NoteModal
 
 const activeFolder = computed(() => {
   if (!activeFolderId.value) return null
@@ -173,45 +97,11 @@ const filteredNotes = computed(() => {
 })
 
 function openCreate() {
-  editing.value = null
-  form.value = { 
-    title: '', 
-    content: '', 
-    folder_id: activeFolderId.value || null
-  }
-  currentEditorHTML.value = ''
-  showEditor.value = true
-  initEditor('')
-  nextTick(() => {
-    editor.value?.commands.focus()
-  })
+  modals.openNoteModal(null, activeFolderId.value)
 }
 
 function openNote(note) {
-  editing.value = note
-  form.value = { 
-    title: note.title, 
-    content: note.content,
-    folder_id: note.folder_id
-  }
-  currentEditorHTML.value = note.content
-  showEditor.value = true
-  initEditor(note.content)
-}
-
-function closeEditor() {
-  // Flush any pending auto-save immediately
-  if (autoSaveTimer.value) {
-    clearTimeout(autoSaveTimer.value)
-    autoSaveTimer.value = null
-    performAutoSave()
-  }
-
-  showEditor.value = false
-  if (editor.value) {
-    editor.value.destroy()
-    editor.value = null
-  }
+  modals.openNoteModal(note.id)
 }
 
 // Menu Actions
@@ -296,7 +186,7 @@ function getPreviewLines(content) {
 <template>
   <div class="p-4 sm:p-6 max-w-6xl mx-auto animate-fade-in pb-6">
     <!-- List view -->
-    <template v-if="!showEditor">
+    <div>
       <div class="mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div class="flex items-center gap-3 space-y-1">
           <AppBackButton
@@ -433,105 +323,8 @@ function getPreviewLines(content) {
           </UiCard>
         </div>
       </div>
-    </template>
+    </div>
 
-    <!-- Full-screen notepad editor -->
-    <Teleport to="body">
-      <transition name="note-editor">
-        <div v-if="showEditor" class="fixed inset-0 z-[80] flex flex-col bg-background">
-          <!-- Header bar -->
-          <div class="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-border bg-card/95 backdrop-blur-sm shrink-0">
-            <AppBackButton
-              @click="closeEditor"
-            />
-
-            <div class="flex items-center gap-2">
-              <!-- Undo/Redo Pill -->
-              <div class="flex items-center border border-border rounded-full overflow-hidden bg-card/50">
-                <button
-                  @click="editor?.chain().focus().undo().run()"
-                  :disabled="!editor?.can().undo()"
-                  class="w-10 h-10 flex items-center justify-center text-foreground hover:bg-muted disabled:opacity-30 disabled:pointer-events-none transition-all active:scale-90 border-r border-border"
-                >
-                  <Undo class="h-4 w-4" />
-                </button>
-                <button
-                  @click="editor?.chain().focus().redo().run()"
-                  :disabled="!editor?.can().redo()"
-                  class="w-10 h-10 flex items-center justify-center text-foreground hover:bg-muted disabled:opacity-30 disabled:pointer-events-none transition-all active:scale-90"
-                >
-                  <Redo class="h-4 w-4" />
-                </button>
-              </div>
-
-              <!-- Check Button -->
-              <button
-                @click="closeEditor"
-                class="w-10 h-10 rounded-full border border-border flex items-center justify-center text-foreground hover:bg-muted transition-all active:scale-90"
-              >
-                <Check class="h-5 w-5" />
-              </button>
-            </div>
-          </div>
-
-          <!-- Editor body -->
-          <div class="flex-1 flex flex-col overflow-y-auto relative">
-            <div class="max-w-3xl w-full mx-auto flex flex-col flex-1 px-4 sm:px-6 py-4">
-              <!-- Title input -->
-              <input
-                v-model="form.title"
-                type="text"
-                placeholder="Title"
-                class="w-full bg-transparent text-2xl sm:text-3xl font-bold text-foreground placeholder:text-muted-foreground/40 border-none outline-none mb-3 pb-2"
-              />
-
-
-
-              <!-- Content textarea -->
-              <editor-content :editor="editor" class="flex-1 flex flex-col [&>div]:flex-1" />
-
-              <bubble-menu
-                v-if="editor"
-                :editor="editor"
-                :options="{ placement: 'top' }"
-                class="flex items-center bg-card border border-border shadow-xl rounded-xl overflow-hidden p-1 gap-1"
-              >
-                <!-- Desktop Pen Toggle -->
-                <div v-if="!isMobile && !expandTools">
-                  <button @click="expandTools = true" class="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors flex items-center justify-center">
-                    <Pencil class="h-4 w-4" />
-                  </button>
-                </div>
-                
-                <!-- Tools -->
-                <div v-show="isMobile || expandTools" class="flex items-center gap-1 animate-in fade-in zoom-in-95 duration-200">
-                  <button @click="editor.chain().focus().toggleBold().run()" :class="{ 'bg-muted text-foreground': editor.isActive('bold') }" class="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors font-bold font-serif">
-                    B
-                  </button>
-                  <button @click="editor.chain().focus().toggleItalic().run()" :class="{ 'bg-muted text-foreground': editor.isActive('italic') }" class="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors italic font-serif">
-                    I
-                  </button>
-                  <button @click="editor.chain().focus().toggleStrike().run()" :class="{ 'bg-muted text-foreground': editor.isActive('strike') }" class="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors line-through">
-                    S
-                  </button>
-                  <div class="w-px h-4 bg-border mx-1"></div>
-                  <button @click="editor.chain().focus().toggleHeading({ level: 2 }).run()" :class="{ 'bg-muted text-foreground': editor.isActive('heading', { level: 2 }) }" class="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors font-bold text-sm">
-                    H2
-                  </button>
-                  <button @click="editor.chain().focus().toggleHeading({ level: 3 }).run()" :class="{ 'bg-muted text-foreground': editor.isActive('heading', { level: 3 }) }" class="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors font-bold text-sm">
-                    H3
-                  </button>
-                  <div class="w-px h-4 bg-border mx-1"></div>
-                  <button @click="editor.chain().focus().toggleBulletList().run()" :class="{ 'bg-muted text-foreground': editor.isActive('bulletList') }" class="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors text-sm whitespace-nowrap">
-                    • List
-                  </button>
-                </div>
-              </bubble-menu>
-            </div>
-          </div>
-        </div>
-      </transition>
-    </Teleport>
     <!-- Global Click Handler for Menu -->
     <div v-if="menuOpenId" class="fixed inset-0 z-40" @click="menuOpenId = null"></div>
 
@@ -652,67 +445,3 @@ function getPreviewLines(content) {
     </Teleport>
   </div>
 </template>
-
-<style scoped>
-.note-editor-enter-active,
-.note-editor-leave-active {
-  transition: transform 0.3s ease, opacity 0.3s ease;
-}
-.note-editor-enter-from {
-  transform: translateY(100%);
-  opacity: 0.8;
-}
-.note-editor-leave-to {
-  transform: translateY(100%);
-  opacity: 0.8;
-}
-
-/* TipTap Editor Styles */
-:deep(.tiptap p.is-editor-empty:first-child::before) {
-  content: attr(data-placeholder);
-  float: left;
-  color: hsl(var(--muted-foreground) / 0.4);
-  pointer-events: none;
-  height: 0;
-}
-:deep(.tiptap) {
-  outline: none !important;
-}
-:deep(.tiptap p) {
-  margin-bottom: 0.75em;
-}
-:deep(.tiptap h1) {
-  font-size: 1.5em;
-  font-weight: 700;
-  margin-bottom: 0.5em;
-  margin-top: 1em;
-}
-:deep(.tiptap h2) {
-  font-size: 1.25em;
-  font-weight: 600;
-  margin-bottom: 0.5em;
-  margin-top: 1em;
-}
-:deep(.tiptap h3) {
-  font-size: 1.1em;
-  font-weight: 600;
-  margin-bottom: 0.5em;
-  margin-top: 1em;
-}
-:deep(.tiptap ul) {
-  list-style-type: disc;
-  padding-left: 1.5em;
-  margin-bottom: 0.75em;
-}
-:deep(.tiptap ol) {
-  list-style-type: decimal;
-  padding-left: 1.5em;
-  margin-bottom: 0.75em;
-}
-:deep(.tiptap blockquote) {
-  border-left: 3px solid hsl(var(--border));
-  padding-left: 1em;
-  color: hsl(var(--muted-foreground));
-  font-style: italic;
-}
-</style>

@@ -1,0 +1,821 @@
+﻿{
+    "value":  [
+                  {
+                      "id":  348,
+                      "input_text":  "bought new shoes 1500 shopee",
+                      "translated_intent":  "log_expense",
+                      "translated_entities":  {
+                                                  "amount":  1500,
+                                                  "category":  "shopping",
+                                                  "reason":  "New Shoes",
+                                                  "wallet_name":  "Shopee"
+                                              },
+                      "reasoning":  "The user indicated a purchase of new shoes for 1500. I mapped the action to log_expense, extracted the amount, categorized it as shopping, and set the reason as New Shoes.",
+                      "provider":  "gemini",
+                      "local_missed":  true,
+                      "reviewed":  false,
+                      "keyword":  "shoes",
+                      "created_at":  "2026-06-04T11:02:19.000000Z",
+                      "updated_at":  "2026-06-04T11:02:19.000000Z"
+                  },
+                  {
+                      "id":  347,
+                      "input_text":  "nagbayad ng meralco 2000",
+                      "translated_intent":  "log_expense",
+                      "translated_entities":  {
+                                                  "amount":  2000,
+                                                  "category":  "bills",
+                                                  "reason":  "Meralco Bill"
+                                              },
+                      "reasoning":  "The user indicated a payment for Meralco, which is a utility bill. I mapped this to the log_expense action and categorized it as bills.",
+                      "provider":  "gemini",
+                      "local_missed":  true,
+                      "reviewed":  false,
+                      "keyword":  "nagbayad",
+                      "created_at":  "2026-06-04T11:02:17.000000Z",
+                      "updated_at":  "2026-06-04T11:02:17.000000Z"
+                  },
+                  {
+                      "id":  346,
+                      "input_text":  "pay Ana 300 from gcash",
+                      "translated_intent":  "pay_debt",
+                      "translated_entities":  {
+                                                  "amount":  300,
+                                                  "wallet_name":  "GCash",
+                                                  "person":  "Ana"
+                                              },
+                      "reasoning":  "The user explicitly stated \u0027pay Ana\u0027, which indicates a debt payment to a person rather than an expense for a service. I identified the amount as 300, the person as Ana, and the source wallet as GCash.",
+                      "provider":  "gemini",
+                      "local_missed":  true,
+                      "reviewed":  false,
+                      "keyword":  "ana",
+                      "created_at":  "2026-06-04T11:02:15.000000Z",
+                      "updated_at":  "2026-06-04T11:02:15.000000Z"
+                  },
+                  {
+                      "id":  345,
+                      "input_text":  "I paid for Netflix 500 from maya",
+                      "translated_intent":  "log_expense",
+                      "translated_entities":  {
+                                                  "amount":  500,
+                                                  "category":  "expense",
+                                                  "reason":  "Netflix Subscription",
+                                                  "wallet_name":  "Maya"
+                                              },
+                      "reasoning":  "The user indicated a payment for a service (Netflix) using a specific wallet (Maya). I mapped this to log_expense, extracted the amount 500, and set the reason to Netflix Subscription.",
+                      "provider":  "gemini",
+                      "local_missed":  true,
+                      "reviewed":  false,
+                      "keyword":  "netflix",
+                      "created_at":  "2026-06-04T11:02:14.000000Z",
+                      "updated_at":  "2026-06-04T11:02:14.000000Z"
+                  },
+                  {
+                      "id":  344,
+                      "input_text":  "spent 200 for dinner from gcash",
+                      "translated_intent":  "log_expense",
+                      "translated_entities":  {
+                                                  "amount":  200,
+                                                  "category":  "food",
+                                                  "reason":  "Dinner",
+                                                  "wallet_name":  "GCash"
+                                              },
+                      "reasoning":  "The user explicitly stated they spent money on dinner using GCash. I mapped the verb \u0027spent\u0027 to log_expense, extracted the amount 200, identified the category as food, and set the reason as Dinner.",
+                      "provider":  "gemini",
+                      "local_missed":  true,
+                      "reviewed":  false,
+                      "keyword":  "dinner",
+                      "created_at":  "2026-06-04T11:02:12.000000Z",
+                      "updated_at":  "2026-06-04T11:02:12.000000Z"
+                  },
+                  {
+                      "id":  343,
+                      "input_text":  "bought new shoes 1500 shopee",
+                      "translated_intent":  "log_expense",
+                      "translated_entities":  {
+                                                  "amount":  1500,
+                                                  "category":  "shopping",
+                                                  "reason":  "New Shoes",
+                                                  "wallet_name":  "Shopee"
+                                              },
+                      "reasoning":  "The user indicated a purchase of new shoes for 1500, which maps to the log_expense action. I extracted the amount 1500, categorized it as shopping, and set the reason to New Shoes.",
+                      "provider":  "gemini",
+                      "local_missed":  true,
+                      "reviewed":  false,
+                      "keyword":  "shoes",
+                      "created_at":  "2026-06-04T11:01:39.000000Z",
+                      "updated_at":  "2026-06-04T11:01:39.000000Z"
+                  },
+                  {
+                      "id":  342,
+                      "input_text":  "nagbayad ng meralco 2000",
+                      "translated_intent":  "log_expense",
+                      "translated_entities":  {
+                                                  "amount":  2000,
+                                                  "category":  "bills",
+                                                  "reason":  "Meralco"
+                                              },
+                      "reasoning":  "The user indicated a payment for a utility bill, which maps to the log_expense action. I extracted the amount 2000 and identified Meralco as the reason for the expense.",
+                      "provider":  "gemini",
+                      "local_missed":  true,
+                      "reviewed":  false,
+                      "keyword":  "nagbayad",
+                      "created_at":  "2026-06-04T11:01:30.000000Z",
+                      "updated_at":  "2026-06-04T11:01:30.000000Z"
+                  },
+                  {
+                      "id":  341,
+                      "input_text":  "pay Ana 300 from gcash",
+                      "translated_intent":  "pay_debt",
+                      "translated_entities":  {
+                                                  "amount":  300,
+                                                  "wallet_name":  "GCash",
+                                                  "person":  "Ana"
+                                              },
+                      "reasoning":  "The user explicitly stated \u0027pay Ana\u0027, which indicates a debt payment to a person rather than an expense for a service. I extracted the amount 300, the person Ana, and the wallet GCash.",
+                      "provider":  "gemini",
+                      "local_missed":  true,
+                      "reviewed":  false,
+                      "keyword":  "ana",
+                      "created_at":  "2026-06-04T11:01:28.000000Z",
+                      "updated_at":  "2026-06-04T11:01:28.000000Z"
+                  },
+                  {
+                      "id":  340,
+                      "input_text":  "I paid for Netflix 500 from maya",
+                      "translated_intent":  "log_expense",
+                      "translated_entities":  {
+                                                  "amount":  500,
+                                                  "category":  "bills",
+                                                  "reason":  "Netflix Subscription",
+                                                  "wallet_name":  "Maya"
+                                              },
+                      "reasoning":  "The user indicated a payment for a service (Netflix) using a specific wallet (Maya). I mapped this to log_expense, extracted the amount 500, and identified \u0027Netflix Subscription\u0027 as the reason.",
+                      "provider":  "gemini",
+                      "local_missed":  true,
+                      "reviewed":  false,
+                      "keyword":  "netflix",
+                      "created_at":  "2026-06-04T11:01:27.000000Z",
+                      "updated_at":  "2026-06-04T11:01:27.000000Z"
+                  },
+                  {
+                      "id":  339,
+                      "input_text":  "spent 200 for dinner from gcash",
+                      "translated_intent":  "log_expense",
+                      "translated_entities":  {
+                                                  "amount":  200,
+                                                  "category":  "food",
+                                                  "reason":  "Dinner",
+                                                  "wallet_name":  "GCash"
+                                              },
+                      "reasoning":  "The user provided an amount, a reason, and a wallet, which maps directly to the log_expense action. I extracted 200 as the amount, Dinner as the reason, and GCash as the wallet.",
+                      "provider":  "gemini",
+                      "local_missed":  true,
+                      "reviewed":  false,
+                      "keyword":  "dinner",
+                      "created_at":  "2026-06-04T11:01:25.000000Z",
+                      "updated_at":  "2026-06-04T11:01:25.000000Z"
+                  },
+                  {
+                      "id":  338,
+                      "input_text":  "bought new shoes 1500 shopee",
+                      "translated_intent":  "log_expense",
+                      "translated_entities":  {
+                                                  "amount":  1500,
+                                                  "category":  "shopping",
+                                                  "reason":  "New Shoes"
+                                              },
+                      "reasoning":  "The user indicated a purchase of new shoes for 1500. I mapped the action to log_expense, extracted the amount, and identified the reason as New Shoes.",
+                      "provider":  "gemini",
+                      "local_missed":  true,
+                      "reviewed":  false,
+                      "keyword":  "shoes",
+                      "created_at":  "2026-06-04T11:01:08.000000Z",
+                      "updated_at":  "2026-06-04T11:01:08.000000Z"
+                  },
+                  {
+                      "id":  337,
+                      "input_text":  "nagbayad ng meralco 2000",
+                      "translated_intent":  "log_expense",
+                      "translated_entities":  {
+                                                  "amount":  2000,
+                                                  "category":  "bills",
+                                                  "reason":  "Meralco Bill"
+                                              },
+                      "reasoning":  "The user indicated a payment for a utility bill, which maps to the log_expense action. I extracted the amount 2000 and the reason Meralco Bill, assigning it to the bills category.",
+                      "provider":  "gemini",
+                      "local_missed":  true,
+                      "reviewed":  false,
+                      "keyword":  "nagbayad",
+                      "created_at":  "2026-06-04T11:01:06.000000Z",
+                      "updated_at":  "2026-06-04T11:01:06.000000Z"
+                  },
+                  {
+                      "id":  336,
+                      "input_text":  "pay Ana 300 from gcash",
+                      "translated_intent":  "pay_debt",
+                      "translated_entities":  {
+                                                  "amount":  300,
+                                                  "wallet_name":  "GCash",
+                                                  "person":  "Ana"
+                                              },
+                      "reasoning":  "The user explicitly stated \u0027pay Ana\u0027, which indicates a debt payment to a person rather than a service expense. I identified \u0027Ana\u0027 as the person, 300 as the amount, and \u0027GCash\u0027 as the source wallet.",
+                      "provider":  "gemini",
+                      "local_missed":  true,
+                      "reviewed":  false,
+                      "keyword":  "ana",
+                      "created_at":  "2026-06-04T11:01:05.000000Z",
+                      "updated_at":  "2026-06-04T11:01:05.000000Z"
+                  },
+                  {
+                      "id":  335,
+                      "input_text":  "I paid for Netflix 500 from maya",
+                      "translated_intent":  "log_expense",
+                      "translated_entities":  {
+                                                  "amount":  500,
+                                                  "category":  "bills",
+                                                  "reason":  "Netflix Subscription",
+                                                  "wallet_name":  "Maya"
+                                              },
+                      "reasoning":  "The user indicated a payment for a service (Netflix) using a specific wallet (Maya). I mapped this to log_expense, extracted the amount 500, and identified the reason as Netflix Subscription.",
+                      "provider":  "gemini",
+                      "local_missed":  true,
+                      "reviewed":  false,
+                      "keyword":  "netflix",
+                      "created_at":  "2026-06-04T11:01:03.000000Z",
+                      "updated_at":  "2026-06-04T11:01:03.000000Z"
+                  },
+                  {
+                      "id":  334,
+                      "input_text":  "spent 200 for dinner from gcash",
+                      "translated_intent":  "log_expense",
+                      "translated_entities":  {
+                                                  "amount":  200,
+                                                  "category":  "food",
+                                                  "reason":  "Dinner",
+                                                  "wallet_name":  "GCash"
+                                              },
+                      "reasoning":  "The user explicitly stated they spent money on a specific item (dinner) using a known wallet (GCash). I mapped the verb to log_expense, extracted the amount as 200, the category as food, and the reason as Dinner.",
+                      "provider":  "gemini",
+                      "local_missed":  true,
+                      "reviewed":  false,
+                      "keyword":  "dinner",
+                      "created_at":  "2026-06-04T11:01:00.000000Z",
+                      "updated_at":  "2026-06-04T11:01:00.000000Z"
+                  },
+                  {
+                      "id":  333,
+                      "input_text":  "show wallets",
+                      "translated_intent":  "query_balance",
+                      "translated_entities":  [
+
+                                              ],
+                      "reasoning":  "The user requested to see their wallets, which maps directly to the query_balance intent for viewing account status.",
+                      "provider":  "gemini",
+                      "local_missed":  true,
+                      "reviewed":  false,
+                      "keyword":  "show",
+                      "created_at":  "2026-06-04T06:00:16.000000Z",
+                      "updated_at":  "2026-06-04T06:00:16.000000Z"
+                  },
+                  {
+                      "id":  332,
+                      "input_text":  "show wallets",
+                      "translated_intent":  "query_balance",
+                      "translated_entities":  [
+
+                                              ],
+                      "reasoning":  "The user explicitly requested to see their wallets, which maps to the query_balance action.",
+                      "provider":  "gemini",
+                      "local_missed":  true,
+                      "reviewed":  false,
+                      "keyword":  "show",
+                      "created_at":  "2026-06-04T06:00:06.000000Z",
+                      "updated_at":  "2026-06-04T06:00:06.000000Z"
+                  },
+                  {
+                      "id":  331,
+                      "input_text":  "show wallets",
+                      "translated_intent":  "query_balance",
+                      "translated_entities":  [
+
+                                              ],
+                      "reasoning":  "The user explicitly requested to see their wallets, which maps to the query_balance intent for viewing account information.",
+                      "provider":  "gemini",
+                      "local_missed":  true,
+                      "reviewed":  false,
+                      "keyword":  "show",
+                      "created_at":  "2026-06-03T06:35:51.000000Z",
+                      "updated_at":  "2026-06-03T06:35:51.000000Z"
+                  },
+                  {
+                      "id":  330,
+                      "input_text":  "what wallet that i dont have",
+                      "translated_intent":  "query_missing_wallets",
+                      "translated_entities":  [
+
+                                              ],
+                      "reasoning":  "The user is asking for information about wallets they have not yet added to their account. This maps directly to the query_missing_wallets intent.",
+                      "provider":  "gemini",
+                      "local_missed":  true,
+                      "reviewed":  false,
+                      "keyword":  "what",
+                      "created_at":  "2026-06-02T22:34:57.000000Z",
+                      "updated_at":  "2026-06-02T22:34:57.000000Z"
+                  },
+                  {
+                      "id":  329,
+                      "input_text":  "what is the available wallets?",
+                      "translated_intent":  "query_balance",
+                      "translated_entities":  [
+
+                                              ],
+                      "reasoning":  "The user is asking to see their available wallets, which maps to the query_balance intent to retrieve and display the list of current wallets and their balances.",
+                      "provider":  "gemini",
+                      "local_missed":  true,
+                      "reviewed":  false,
+                      "keyword":  "what",
+                      "created_at":  "2026-06-02T22:34:35.000000Z",
+                      "updated_at":  "2026-06-02T22:34:35.000000Z"
+                  },
+                  {
+                      "id":  328,
+                      "input_text":  "deposit 50 on maya",
+                      "translated_intent":  "deposit",
+                      "translated_entities":  {
+                                                  "amount":  50,
+                                                  "wallet_name":  "Maya"
+                                              },
+                      "reasoning":  "The user explicitly stated the action \u0027deposit\u0027 with an amount of 50 and the target wallet \u0027Maya\u0027. I mapped these to the deposit action fields.",
+                      "provider":  "gemini",
+                      "local_missed":  true,
+                      "reviewed":  false,
+                      "keyword":  "maya",
+                      "created_at":  "2026-06-02T22:02:39.000000Z",
+                      "updated_at":  "2026-06-02T22:02:39.000000Z"
+                  },
+                  {
+                      "id":  327,
+                      "input_text":  "deposit 50 on bdo",
+                      "translated_intent":  "deposit",
+                      "translated_entities":  {
+                                                  "amount":  50,
+                                                  "wallet_name":  "BDO"
+                                              },
+                      "reasoning":  "The user explicitly stated the intent to deposit money, identifying the amount as 50 and the target wallet as BDO.",
+                      "provider":  "gemini",
+                      "local_missed":  true,
+                      "reviewed":  false,
+                      "keyword":  "bdo",
+                      "created_at":  "2026-06-02T22:02:23.000000Z",
+                      "updated_at":  "2026-06-02T22:02:23.000000Z"
+                  },
+                  {
+                      "id":  326,
+                      "input_text":  "deposit 50 on maya",
+                      "translated_intent":  "deposit",
+                      "translated_entities":  {
+                                                  "amount":  50,
+                                                  "wallet_name":  "Maya"
+                                              },
+                      "reasoning":  "The user explicitly stated the action \u0027deposit\u0027, the amount \u002750\u0027, and the target wallet \u0027Maya\u0027. I mapped these to the deposit action fields.",
+                      "provider":  "gemini",
+                      "local_missed":  true,
+                      "reviewed":  false,
+                      "keyword":  "maya",
+                      "created_at":  "2026-06-02T22:01:21.000000Z",
+                      "updated_at":  "2026-06-02T22:01:21.000000Z"
+                  },
+                  {
+                      "id":  325,
+                      "input_text":  "deposit 300 on bdo",
+                      "translated_intent":  "deposit",
+                      "translated_entities":  {
+                                                  "amount":  300,
+                                                  "wallet_name":  "BDO"
+                                              },
+                      "reasoning":  "The user explicitly stated the intent to deposit money, identifying the amount as 300 and the target wallet as BDO.",
+                      "provider":  "gemini",
+                      "local_missed":  true,
+                      "reviewed":  false,
+                      "keyword":  "bdo",
+                      "created_at":  "2026-06-02T22:00:37.000000Z",
+                      "updated_at":  "2026-06-02T22:00:37.000000Z"
+                  },
+                  {
+                      "id":  324,
+                      "input_text":  "whats my budget left?",
+                      "translated_intent":  "query_budget",
+                      "translated_entities":  [
+
+                                              ],
+                      "reasoning":  "The user is asking for their remaining budget, which maps directly to the query_budget intent.",
+                      "provider":  "gemini",
+                      "local_missed":  true,
+                      "reviewed":  false,
+                      "keyword":  "whats",
+                      "created_at":  "2026-06-02T21:59:54.000000Z",
+                      "updated_at":  "2026-06-02T21:59:54.000000Z"
+                  },
+                  {
+                      "id":  323,
+                      "input_text":  "show wallets",
+                      "translated_intent":  "query_balance",
+                      "translated_entities":  [
+
+                                              ],
+                      "reasoning":  "The user explicitly requested to see their wallets, which maps to the query_balance intent.",
+                      "provider":  "gemini",
+                      "local_missed":  true,
+                      "reviewed":  false,
+                      "keyword":  "show",
+                      "created_at":  "2026-06-02T21:53:56.000000Z",
+                      "updated_at":  "2026-06-02T21:53:56.000000Z"
+                  },
+                  {
+                      "id":  322,
+                      "input_text":  "deposit 100 on bdo",
+                      "translated_intent":  "deposit",
+                      "translated_entities":  {
+                                                  "amount":  100,
+                                                  "wallet_name":  "BDO"
+                                              },
+                      "reasoning":  "The user explicitly stated the intent to deposit money into a specific wallet. I identified the amount as 100 and the target wallet as BDO.",
+                      "provider":  "gemini",
+                      "local_missed":  true,
+                      "reviewed":  false,
+                      "keyword":  "bdo",
+                      "created_at":  "2026-06-02T21:53:34.000000Z",
+                      "updated_at":  "2026-06-02T21:53:34.000000Z"
+                  },
+                  {
+                      "id":  321,
+                      "input_text":  "show wallets",
+                      "translated_intent":  "query_balance",
+                      "translated_entities":  [
+
+                                              ],
+                      "reasoning":  "The user explicitly requested to see their wallets, which maps to the query_balance intent.",
+                      "provider":  "gemini",
+                      "local_missed":  true,
+                      "reviewed":  false,
+                      "keyword":  "show",
+                      "created_at":  "2026-06-02T21:53:20.000000Z",
+                      "updated_at":  "2026-06-02T21:53:20.000000Z"
+                  },
+                  {
+                      "id":  320,
+                      "input_text":  "deposit 5k",
+                      "translated_intent":  "deposit",
+                      "translated_entities":  {
+                                                  "amount":  5000
+                                              },
+                      "reasoning":  "The user used the keyword deposit with a numeric value of 5000. I mapped the intent to the deposit action and extracted the amount.",
+                      "provider":  "gemini",
+                      "local_missed":  true,
+                      "reviewed":  false,
+                      "keyword":  null,
+                      "created_at":  "2026-06-02T21:40:40.000000Z",
+                      "updated_at":  "2026-06-02T21:40:40.000000Z"
+                  },
+                  {
+                      "id":  319,
+                      "input_text":  "show wallets",
+                      "translated_intent":  "query_balance",
+                      "translated_entities":  [
+
+                                              ],
+                      "reasoning":  "The user explicitly requested to see their wallets, which maps to the query_balance intent.",
+                      "provider":  "gemini",
+                      "local_missed":  true,
+                      "reviewed":  false,
+                      "keyword":  "show",
+                      "created_at":  "2026-06-02T13:03:21.000000Z",
+                      "updated_at":  "2026-06-02T13:03:21.000000Z"
+                  },
+                  {
+                      "id":  318,
+                      "input_text":  "help me to transfer please",
+                      "translated_intent":  "transfer",
+                      "translated_entities":  {
+                                                  "amount":  0,
+                                                  "from_wallet":  "",
+                                                  "to_wallet":  ""
+                                              },
+                      "reasoning":  "The user explicitly requested to perform a transfer action. Since the source, destination, and amount are missing, I am classifying this as a transfer action to trigger the system to prompt for the required details.",
+                      "provider":  "gemini",
+                      "local_missed":  true,
+                      "reviewed":  false,
+                      "keyword":  "help",
+                      "created_at":  "2026-06-02T13:02:26.000000Z",
+                      "updated_at":  "2026-06-02T13:02:26.000000Z"
+                  },
+                  {
+                      "id":  317,
+                      "input_text":  "show wallets",
+                      "translated_intent":  "query_balance",
+                      "translated_entities":  [
+
+                                              ],
+                      "reasoning":  "The user explicitly requested to see their wallets, which maps to the query_balance intent.",
+                      "provider":  "gemini",
+                      "local_missed":  true,
+                      "reviewed":  false,
+                      "keyword":  "show",
+                      "created_at":  "2026-06-02T13:00:53.000000Z",
+                      "updated_at":  "2026-06-02T13:00:53.000000Z"
+                  },
+                  {
+                      "id":  316,
+                      "input_text":  "show debts",
+                      "translated_intent":  "query_debts",
+                      "translated_entities":  [
+
+                                              ],
+                      "reasoning":  "The user explicitly requested to see their debts using the phrase show debts, which maps directly to the query_debts intent.",
+                      "provider":  "gemini",
+                      "local_missed":  true,
+                      "reviewed":  true,
+                      "keyword":  "show",
+                      "created_at":  "2026-06-02T11:24:11.000000Z",
+                      "updated_at":  "2026-06-02T11:26:31.000000Z"
+                  },
+                  {
+                      "id":  315,
+                      "input_text":  "i spent 20 today",
+                      "translated_intent":  "log_expense",
+                      "translated_entities":  {
+                                                  "amount":  20
+                                              },
+                      "reasoning":  "The user stated they spent 20, which maps to the log_expense action. The amount 20 is extracted, while category, reason, and wallet_name are missing and will be requested by the system.",
+                      "provider":  "gemini",
+                      "local_missed":  true,
+                      "reviewed":  true,
+                      "keyword":  "today",
+                      "created_at":  "2026-06-01T22:00:46.000000Z",
+                      "updated_at":  "2026-06-02T11:26:31.000000Z"
+                  },
+                  {
+                      "id":  314,
+                      "input_text":  "nagbayad si kyla ng utang niya",
+                      "translated_intent":  "pay_debt",
+                      "translated_entities":  {
+                                                  "reason":  "nagbayad ng utang",
+                                                  "wallet_name":  "Cash",
+                                                  "person":  "kyla"
+                                              },
+                      "reasoning":  "The user stated \u0027nagbayad si kyla\u0027, which translates to \u0027Kyla paid\u0027. This indicates a debt payment where the user is receiving money, mapping to the pay_debt action with debt_type set to owed_to_me.",
+                      "provider":  "gemini",
+                      "local_missed":  true,
+                      "reviewed":  true,
+                      "keyword":  "nagbayad",
+                      "created_at":  "2026-06-01T17:21:53.000000Z",
+                      "updated_at":  "2026-06-02T11:26:31.000000Z"
+                  },
+                  {
+                      "id":  313,
+                      "input_text":  "show debts",
+                      "translated_intent":  "query_debts",
+                      "translated_entities":  [
+
+                                              ],
+                      "reasoning":  "The user explicitly requested to see their debts using the phrase show debts, which maps directly to the query_debts intent.",
+                      "provider":  "gemini",
+                      "local_missed":  true,
+                      "reviewed":  true,
+                      "keyword":  "show",
+                      "created_at":  "2026-06-01T17:20:12.000000Z",
+                      "updated_at":  "2026-06-02T11:26:31.000000Z"
+                  },
+                  {
+                      "id":  312,
+                      "input_text":  "show wallet",
+                      "translated_intent":  "query_balance",
+                      "translated_entities":  [
+
+                                              ],
+                      "reasoning":  "The user used the command show wallet, which maps directly to the query_balance intent to display the list of wallets and their current balances.",
+                      "provider":  "gemini",
+                      "local_missed":  true,
+                      "reviewed":  true,
+                      "keyword":  "show",
+                      "created_at":  "2026-06-01T17:18:28.000000Z",
+                      "updated_at":  "2026-06-02T11:26:31.000000Z"
+                  },
+                  {
+                      "id":  311,
+                      "input_text":  "nagbayad si kyla ng utang",
+                      "translated_intent":  "pay_debt",
+                      "translated_entities":  {
+                                                  "reason":  "nagbayad ng utang",
+                                                  "wallet_name":  "unknown",
+                                                  "person":  "kyla"
+                                              },
+                      "reasoning":  "The user stated that Kyla paid her debt, which corresponds to the pay_debt action where the debt_type is owed_to_me because the user is receiving payment.",
+                      "provider":  "gemini",
+                      "local_missed":  true,
+                      "reviewed":  true,
+                      "keyword":  "nagbayad",
+                      "created_at":  "2026-06-01T17:18:00.000000Z",
+                      "updated_at":  "2026-06-02T11:26:31.000000Z"
+                  },
+                  {
+                      "id":  310,
+                      "input_text":  "show debt",
+                      "translated_intent":  "query_debts",
+                      "translated_entities":  [
+
+                                              ],
+                      "reasoning":  "The user explicitly requested to see their debts using the phrase show debt, which maps directly to the query_debts intent.",
+                      "provider":  "gemini",
+                      "local_missed":  true,
+                      "reviewed":  true,
+                      "keyword":  "show",
+                      "created_at":  "2026-06-01T17:17:44.000000Z",
+                      "updated_at":  "2026-06-02T11:26:31.000000Z"
+                  },
+                  {
+                      "id":  309,
+                      "input_text":  "i spent 50 today",
+                      "translated_intent":  "log_expense",
+                      "translated_entities":  {
+                                                  "amount":  50
+                                              },
+                      "reasoning":  "The user explicitly stated they spent an amount of 50, which maps to the log_expense action. I have identified the amount as 50 and categorized the intent as an expense.",
+                      "provider":  "gemini",
+                      "local_missed":  true,
+                      "reviewed":  true,
+                      "keyword":  "today",
+                      "created_at":  "2026-06-01T17:17:18.000000Z",
+                      "updated_at":  "2026-06-02T11:26:31.000000Z"
+                  },
+                  {
+                      "id":  308,
+                      "input_text":  "i spent 100 today",
+                      "translated_intent":  "log_expense",
+                      "translated_entities":  {
+                                                  "amount":  100
+                                              },
+                      "reasoning":  "The user stated they spent money, which maps to the log_expense action. The amount 100 was extracted, while category, reason, and wallet_name are missing and will be requested by the system.",
+                      "provider":  "gemini",
+                      "local_missed":  true,
+                      "reviewed":  true,
+                      "keyword":  "today",
+                      "created_at":  "2026-06-01T17:15:56.000000Z",
+                      "updated_at":  "2026-06-02T11:26:31.000000Z"
+                  },
+                  {
+                      "id":  307,
+                      "input_text":  "i spent 50 today",
+                      "translated_intent":  "log_expense",
+                      "translated_entities":  {
+                                                  "amount":  50
+                                              },
+                      "reasoning":  "The user explicitly stated they spent an amount, which maps to the log_expense action. I extracted the amount 50 from the input.",
+                      "provider":  "gemini",
+                      "local_missed":  true,
+                      "reviewed":  true,
+                      "keyword":  "today",
+                      "created_at":  "2026-06-01T17:12:42.000000Z",
+                      "updated_at":  "2026-06-02T11:26:31.000000Z"
+                  },
+                  {
+                      "id":  306,
+                      "input_text":  "nagbayad si kyla ng utang niya",
+                      "translated_intent":  "pay_debt",
+                      "translated_entities":  {
+                                                  "reason":  "nagbayad ng utang",
+                                                  "wallet_name":  "Cash",
+                                                  "person":  "kyla"
+                                              },
+                      "reasoning":  "The user stated \u0027nagbayad si kyla ng utang niya\u0027, which translates to \u0027Kyla paid her debt\u0027. This indicates a debt payment where the user is receiving money, mapping to the pay_debt action with debt_type as owed_to_me.",
+                      "provider":  "gemini",
+                      "local_missed":  true,
+                      "reviewed":  true,
+                      "keyword":  "nagbayad",
+                      "created_at":  "2026-06-01T17:11:47.000000Z",
+                      "updated_at":  "2026-06-02T11:26:31.000000Z"
+                  },
+                  {
+                      "id":  305,
+                      "input_text":  "nagbayad si kyla ng utang niya",
+                      "translated_intent":  "pay_debt",
+                      "translated_entities":  {
+                                                  "reason":  "nagbayad ng utang",
+                                                  "wallet_name":  "Cash",
+                                                  "person":  "kyla"
+                                              },
+                      "reasoning":  "The user stated \u0027nagbayad si kyla ng utang niya\u0027, which translates to \u0027Kyla paid her debt\u0027. This indicates a debt payment where the user is receiving money, mapping to the pay_debt action with debt_type as owed_to_me.",
+                      "provider":  "gemini",
+                      "local_missed":  true,
+                      "reviewed":  true,
+                      "keyword":  "nagbayad",
+                      "created_at":  "2026-06-01T17:01:59.000000Z",
+                      "updated_at":  "2026-06-02T11:26:31.000000Z"
+                  },
+                  {
+                      "id":  304,
+                      "input_text":  "nagbayad si kyla ng utang",
+                      "translated_intent":  "pay_debt",
+                      "translated_entities":  {
+                                                  "reason":  "nagbayad si kyla ng utang",
+                                                  "wallet_name":  "unknown",
+                                                  "person":  "kyla"
+                                              },
+                      "reasoning":  "The user stated that Kyla paid her debt, which corresponds to the pay_debt action with the debt_type set to owed_to_me as the user is receiving the payment.",
+                      "provider":  "gemini",
+                      "local_missed":  true,
+                      "reviewed":  true,
+                      "keyword":  "nagbayad",
+                      "created_at":  "2026-06-01T16:53:27.000000Z",
+                      "updated_at":  "2026-06-02T11:26:31.000000Z"
+                  },
+                  {
+                      "id":  303,
+                      "input_text":  "show debt",
+                      "translated_intent":  "query_debts",
+                      "translated_entities":  [
+
+                                              ],
+                      "reasoning":  "The user explicitly requested to see their debts using the phrase show debt, which maps directly to the query_debts action.",
+                      "provider":  "gemini",
+                      "local_missed":  true,
+                      "reviewed":  true,
+                      "keyword":  "show",
+                      "created_at":  "2026-06-01T16:53:05.000000Z",
+                      "updated_at":  "2026-06-02T11:26:31.000000Z"
+                  },
+                  {
+                      "id":  302,
+                      "input_text":  "nagbayad si alice",
+                      "translated_intent":  "pay_debt",
+                      "translated_entities":  {
+                                                  "reason":  "nagbayad si alice",
+                                                  "wallet_name":  "unknown",
+                                                  "person":  "alice"
+                                              },
+                      "reasoning":  "The user used the phrase nagbayad si which translates to someone paying a debt. I identified Alice as the person and mapped the action to pay_debt with debt_type owed_to_me.",
+                      "provider":  "gemini",
+                      "local_missed":  true,
+                      "reviewed":  true,
+                      "keyword":  "nagbayad",
+                      "created_at":  "2026-06-01T16:45:26.000000Z",
+                      "updated_at":  "2026-06-02T11:26:31.000000Z"
+                  },
+                  {
+                      "id":  301,
+                      "input_text":  "I lent again 50 to Alice",
+                      "translated_intent":  "create_debt",
+                      "translated_entities":  {
+                                                  "amount":  50,
+                                                  "reason":  "lent money",
+                                                  "wallet_name":  "Cash",
+                                                  "person":  "Alice"
+                                              },
+                      "reasoning":  "The user stated they lent money to Alice, which indicates a debt owed to the user. I mapped this to the create_debt action with the debt_type set to owed_to_me.",
+                      "provider":  "gemini",
+                      "local_missed":  true,
+                      "reviewed":  true,
+                      "keyword":  "alice",
+                      "created_at":  "2026-06-01T16:36:23.000000Z",
+                      "updated_at":  "2026-06-02T11:26:31.000000Z"
+                  },
+                  {
+                      "id":  300,
+                      "input_text":  "I lent 100 to Alice",
+                      "translated_intent":  "create_debt",
+                      "translated_entities":  {
+                                                  "amount":  100,
+                                                  "reason":  "lent money",
+                                                  "wallet_name":  "null",
+                                                  "person":  "Alice"
+                                              },
+                      "reasoning":  "The user stated they lent money to a person, which indicates a debt owed to the user. I mapped \u0027lent\u0027 to the create_debt action with debt_type \u0027owed_to_me\u0027.",
+                      "provider":  "gemini",
+                      "local_missed":  true,
+                      "reviewed":  true,
+                      "keyword":  "alice",
+                      "created_at":  "2026-06-01T16:24:54.000000Z",
+                      "updated_at":  "2026-06-02T11:26:31.000000Z"
+                  },
+                  {
+                      "id":  299,
+                      "input_text":  "I lent 50 to Alice",
+                      "translated_intent":  "create_debt",
+                      "translated_entities":  {
+                                                  "amount":  50,
+                                                  "reason":  "lent money",
+                                                  "wallet_name":  "null",
+                                                  "person":  "Alice"
+                                              },
+                      "reasoning":  "The user stated they lent money, which implies someone owes them. I mapped \u0027lent\u0027 to the create_debt action with debt_type \u0027owed_to_me\u0027, extracted the amount 50, and identified the person as Alice.",
+                      "provider":  "gemini",
+                      "local_missed":  true,
+                      "reviewed":  true,
+                      "keyword":  "alice",
+                      "created_at":  "2026-06-01T16:24:37.000000Z",
+                      "updated_at":  "2026-06-02T11:26:31.000000Z"
+                  }
+              ],
+    "Count":  50
+}

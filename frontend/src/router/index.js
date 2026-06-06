@@ -30,6 +30,11 @@ const routes = [
         component: () => import('@/views/Dashboard.vue'),
       },
       {
+        path: 'plans',
+        name: 'plans',
+        component: () => import('@/views/Plans.vue'),
+      },
+      {
         path: 'notes',
         name: 'notes',
         component: () => import('@/views/Notes.vue'),
@@ -60,9 +65,19 @@ const routes = [
         component: () => import('@/views/Settings.vue'),
       },
       {
+        path: 'archives',
+        name: 'archives',
+        component: () => import('@/views/Archives.vue'),
+      },
+      {
         path: 'guide',
         name: 'guide',
         component: () => import('@/views/Guide.vue'),
+      },
+      {
+        path: 'faq',
+        name: 'faq',
+        component: () => import('@/views/Faq.vue'),
       },
       {
         path: 'admin/api-usage',

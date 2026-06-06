@@ -3,10 +3,11 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute, useRouter, RouterLink } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.js'
 import { useDarkMode } from '@/composables/useDarkMode.js'
+import { usePushNotifications } from '@/composables/usePushNotifications.js'
 import { 
   Moon, Sun, User, LogOut, ChevronRight, Bell, Shield, 
   Banknote, BookOpen, Key, Laptop, Smartphone, Globe, RefreshCw, Trash2,
-  Camera, Loader2, Info, X
+  Camera, Loader2, Info, X, HelpCircle
 } from 'lucide-vue-next'
 import UiCard from '@/components/ui/Card.vue'
 import UiCardContent from '@/components/ui/CardContent.vue'
@@ -21,6 +22,7 @@ const route = useRoute()
 const router = useRouter()
 const { isDark, toggle } = useDarkMode()
 const toast = useToast()
+const push = usePushNotifications()
 
 const initials = computed(() => {
   const name = auth.user?.name ?? ''
@@ -246,6 +248,9 @@ async function loadSessions() {
 
 onMounted(() => {
   loadSessions()
+  if (push.isSupported.value) {
+    push.checkStatus()
+  }
 })
 
 async function handleRevoke(sessionId) {
@@ -378,7 +383,7 @@ async function handleSignOut() {
                   placeholder="0.00"
                 />
               </div>
-              <UiButton size="sm" variant="default" @click="saveSalary" :disabled="savingSalary || isSalaryInputInvalid" class="h-9 px-4 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 disabled:cursor-not-allowed">
+              <UiButton size="sm" variant="default" @click="saveSalary" :disabled="savingSalary || isSalaryInputInvalid" class="font-bold bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 disabled:cursor-not-allowed">
                 {{ savingSalary ? 'Saving...' : 'Save' }}
               </UiButton>
             </div>
@@ -425,17 +430,30 @@ async function handleSignOut() {
           </button>
 
           <!-- Notifications Row -->
-          <div class="flex items-center justify-between px-5 py-4 opacity-60">
+          <div class="flex items-center justify-between px-5 py-4">
             <div class="flex items-center gap-3">
               <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-900/30">
                 <Bell class="h-4 w-4 text-amber-600 dark:text-amber-400" />
               </div>
               <div>
-                <p class="text-sm font-medium">Notifications</p>
-                <p class="text-xs text-muted-foreground">Alerts and reminders (Coming Soon)</p>
+                <p class="text-sm font-medium">Payment Reminders</p>
+                <p class="text-xs text-muted-foreground">Receive push notifications 7 and 2 days before due</p>
               </div>
             </div>
-            <ChevronRight class="h-4 w-4 text-muted-foreground" />
+            
+            <button
+              v-if="push.isSupported.value"
+              @click="push.isSubscribed.value ? push.unsubscribe() : push.subscribe()"
+              :disabled="push.isUpdating.value"
+              class="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none disabled:opacity-50"
+              :class="push.isSubscribed.value ? 'bg-primary' : 'bg-muted'"
+            >
+              <span
+                class="inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform duration-200"
+                :class="push.isSubscribed.value ? 'translate-x-6' : 'translate-x-1'"
+              />
+            </button>
+            <p v-else class="text-xs text-muted-foreground italic">Not supported</p>
           </div>
         </UiCardContent>
       </UiCard>
@@ -488,6 +506,25 @@ async function handleSignOut() {
         </UiCardContent>
       </UiCard>
 
+      <!-- FAQ -->
+      <p class="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1 mb-2">Frequently Asked Questions</p>
+      <UiCard class="mb-6 overflow-hidden">
+        <UiCardContent class="p-0 divide-y divide-border">
+          <RouterLink to="/faq" class="flex items-center justify-between px-5 py-4 hover:bg-muted/30 transition-colors">
+            <div class="flex items-center gap-3">
+              <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-100 dark:bg-sky-900/30">
+                <HelpCircle class="h-4 w-4 text-sky-600 dark:text-sky-400" />
+              </div>
+              <div>
+                <p class="text-sm font-medium">FAQ</p>
+                <p class="text-xs text-muted-foreground">Answers to common questions</p>
+              </div>
+            </div>
+            <ChevronRight class="h-4 w-4 text-muted-foreground" />
+          </RouterLink>
+        </UiCardContent>
+      </UiCard>
+
       <!-- Sign out -->
       <UiCard class="overflow-hidden mb-8">
         <UiCardContent class="p-0">
@@ -503,7 +540,7 @@ async function handleSignOut() {
         </UiCardContent>
       </UiCard>
 
-      <p class="text-center text-xs text-muted-foreground mt-6">EleFam v1.8.9</p>
+      <p class="text-center text-xs text-muted-foreground mt-6">EleFam v1.2.1</p>
     </div>
 
     <!-- Tab 2: Privacy & Security Sub-view -->
@@ -720,7 +757,7 @@ async function handleSignOut() {
               variant="outline" 
               @click="triggerFileSelect"
               :disabled="uploadingAvatar || deletingAvatar"
-              class="rounded-xl font-semibold gap-2 border-border/80 hover:bg-muted"
+              class="font-semibold gap-2 border-border/80 hover:bg-muted"
             >
               <Camera class="h-4 w-4 text-muted-foreground" />
               Edit Photo
@@ -771,7 +808,7 @@ async function handleSignOut() {
                 variant="default" 
                 @click="saveName" 
                 :disabled="savingName || !isNameValid" 
-                class="h-9 px-4 rounded-xl font-bold bg-primary hover:bg-primary/90 text-primary-foreground shrink-0 transition-all duration-200"
+                class="font-bold bg-primary hover:bg-primary/90 text-primary-foreground shrink-0 transition-all duration-200"
               >
                 <Loader2 v-if="savingName" class="h-3.5 w-3.5 animate-spin mr-1" />
                 {{ nameSavedText }}

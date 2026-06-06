@@ -6,14 +6,18 @@ const toasts = ref([])
 export const chatOpen = ref(false)
 
 export function useToast() {
-  function addToast(title, subtitle = '', type = 'success') {
+  function addToast(title, subtitle = '', type = 'success', options = {}) {
     // Don't show toasts when the chatbot is active; the chatbot already
     // displays its own inline success messages for every action.
     if (chatOpen.value) return
 
     const id = Date.now() + Math.random().toString()
-    toasts.value.push({ id, title, subtitle, type })
-    setTimeout(() => removeToast(id), 3000)
+    toasts.value.push({ id, title, subtitle, type, ...options })
+    
+    const duration = options.duration !== undefined ? options.duration : 3000
+    if (duration > 0) {
+      setTimeout(() => removeToast(id), duration)
+    }
   }
 
   function removeToast(id) {
@@ -22,17 +26,17 @@ export function useToast() {
 
   return {
     toasts,
-    success: (title, subtitle = '') => addToast(title, subtitle, 'success'),
-    wallet: (title, subtitle = '') => addToast(title, subtitle, 'wallet'),
-    salary: (title, subtitle = '') => addToast(title, subtitle, 'salary'),
-    expense: (title, subtitle = '') => addToast(title, subtitle, 'expense'),
-    debt: (title, subtitle = '') => addToast(title, subtitle, 'debt'),
-    offline: (title, subtitle = '') => addToast(title, subtitle, 'offline'),
-    delete: (title, subtitle = '') => addToast(title, subtitle, 'delete'),
-    session: (title, subtitle = '') => addToast(title, subtitle, 'session'),
-    avatar: (title, subtitle = '') => addToast(title, subtitle, 'avatar'),
-    error: (title, subtitle = '') => addToast(title, subtitle, 'error'),
-    info: (title, subtitle = '') => addToast(title, subtitle, 'info'),
+    success: (title, subtitle = '', options = {}) => addToast(title, subtitle, 'success', options),
+    wallet: (title, subtitle = '', options = {}) => addToast(title, subtitle, 'wallet', options),
+    salary: (title, subtitle = '', options = {}) => addToast(title, subtitle, 'salary', options),
+    expense: (title, subtitle = '', options = {}) => addToast(title, subtitle, 'expense', options),
+    debt: (title, subtitle = '', options = {}) => addToast(title, subtitle, 'debt', options),
+    offline: (title, subtitle = '', options = {}) => addToast(title, subtitle, 'offline', options),
+    delete: (title, subtitle = '', options = {}) => addToast(title, subtitle, 'delete', options),
+    session: (title, subtitle = '', options = {}) => addToast(title, subtitle, 'session', options),
+    avatar: (title, subtitle = '', options = {}) => addToast(title, subtitle, 'avatar', options),
+    error: (title, subtitle = '', options = {}) => addToast(title, subtitle, 'error', options),
+    info: (title, subtitle = '', options = {}) => addToast(title, subtitle, 'info', options),
     removeToast,
   }
 }

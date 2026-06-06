@@ -7,9 +7,23 @@ use Illuminate\Database\Eloquent\Collection;
 
 class DebtRepository
 {
-    public function getByUser(int $userId): Collection
+    public function getByUser(int $userId, ?string $type = null, ?string $search = null): Collection
     {
-        return Debt::where('user_id', $userId)->latest()->get();
+        $query = Debt::where('user_id', $userId)
+            ->when($type, fn($q) => $q->where('type', $type))
+            ->orderByDesc('id');
+            
+        $allResults = $query->get();
+
+        if ($search) {
+            $searchLower = strtolower($search);
+            $allResults = $allResults->filter(function($debt) use ($searchLower) {
+                return str_contains(strtolower($debt->name ?? ''), $searchLower) ||
+                       str_contains(strtolower($debt->description ?? ''), $searchLower);
+            });
+        }
+        
+        return $allResults->values();
     }
 
     /**

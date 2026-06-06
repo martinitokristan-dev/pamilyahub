@@ -19,9 +19,9 @@ class DebtService
         private ExpenseRepository $expenseRepository,
     ) {}
 
-    public function getAll(int $userId): Collection
+    public function getAll(int $userId, ?string $type = null, ?string $search = null): Collection
     {
-        return $this->repository->getByUser($userId);
+        return $this->repository->getByUser($userId, $type, $search);
     }
 
     public function getAllPaginated(int $userId, int $perPage = 20, int $page = 1, ?string $type = null, ?string $search = null): array
@@ -33,8 +33,27 @@ class DebtService
     {
         return DB::transaction(function () use ($userId, $data) {
             $data['user_id'] = $userId;
-            // 1. Create debt record
-            $debt = $this->repository->create($data);
+
+            $activeDebts = Debt::where('user_id', $userId)
+                ->where('is_paid', false)
+                ->where('type', $data['type'])
+                ->get();
+
+            $existingDebt = $activeDebts->first(function ($debt) use ($data) {
+                return strtolower(trim($debt->name)) === strtolower(trim($data['name']));
+            });
+
+            if ($existingDebt) {
+                $existingDebt->amount += (float)$data['amount'];
+                if (!empty($data['description'])) {
+                    $existingDebt->description = $existingDebt->description . "\n- " . $data['description'];
+                }
+                $existingDebt->save();
+                $debt = $existingDebt;
+            } else {
+                // 1. Create debt record
+                $debt = $this->repository->create($data);
+            }
             
             // 2. Handle Financial Side Effects
             if ($data['type'] === 'owed_to_me') {
@@ -121,7 +140,13 @@ class DebtService
                     });
 
                 foreach ($expensesToSettle as $exp) {
-                    $exp->update(['is_settled' => true]);
+                    $exp->is_settled = true;
+                    $title = trim(strtolower($exp->title));
+                    $debtName = trim(strtolower($debt->name));
+                    if ($title === 'lent money to: ' . $debtName || $title === 'lent to ' . $debtName) {
+                        $exp->settled_amount = $exp->getAmountAsFloat();
+                    }
+                    $exp->save();
                 }
                 $this->stats->adjust($userId, 'expenses_total', -$amount);
             }
@@ -184,6 +209,23 @@ class DebtService
                     'description' => 'Partial repayment received'
                 ]);
                 $this->stats->adjust($userId, 'expenses_total', -$amount);
+
+                // Update the settled_amount of the original lending expense
+                $originalExpense = \App\Models\Expense::where('user_id', $userId)
+                    ->orderBy('created_at', 'desc')
+                    ->get()
+                    ->first(function ($e) use ($debt) {
+                        $title = trim(strtolower($e->title));
+                        $debtName = trim(strtolower($debt->name));
+                        return ($title === 'lent money to: ' . $debtName ||
+                               $title === 'lent to ' . $debtName) && 
+                               !$e->is_settled;
+                    });
+                
+                if ($originalExpense) {
+                    $originalExpense->settled_amount += $amount;
+                    $originalExpense->save();
+                }
             }
 
             return $result;

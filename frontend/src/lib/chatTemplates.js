@@ -32,13 +32,23 @@ const TEMPLATES = [
   // Debts (Owes me)
   {
     intent: 'create_debt',
-    type: 'owes_me',
+    type: 'owed_to_me',
     pattern: /^(?<person>[a-z0-9 ]+?)\s+(owes me|utang sakin|utang nako( ug)?)\s+(?<amount>(php|p)?\s*\d+(\.\d+)?(k|m)?)$/i
   },
   {
     intent: 'create_debt',
-    type: 'owes_me',
+    type: 'owed_to_me',
     pattern: /^(?<person>[a-z0-9 ]+?)\s+(borrowed|hiniram|nangutang( ug)?)\s+(?<amount>(php|p)?\s*\d+(\.\d+)?(k|m)?)\s+(from me|sakin|sa akoa)$/i
+  },
+  {
+    intent: 'create_debt',
+    type: 'owed_to_me',
+    pattern: /^(umutang|nangutang)\s+(si\s+)?(?<person>[a-z0-9 ]+?)\s+(sa\s+)?(akin|akoa)\s+(?<amount>(php|p)?\s*\d+(\.\d+)?(k|m)?)$/i
+  },
+  {
+    intent: 'create_debt',
+    type: 'owed_to_me',
+    pattern: /^(pinahiram|nagpahiram)\s+(ko\s+)?(si\s+)?(?<person>[a-z0-9 ]+?)\s+(ng\s+)?(?<amount>(php|p)?\s*\d+(\.\d+)?(k|m)?)$/i
   },
 
   // Debts (I owe)
@@ -52,23 +62,45 @@ const TEMPLATES = [
     type: 'i_owe',
     pattern: /^(i|ako|ni)?\s*(borrowed|nangutang|hiniram)\s+(?<amount>(php|p)?\s*\d+(\.\d+)?(k|m)?)\s+(from|kay|kang)\s+(?<person>[a-z0-9 ]+)$/i
   },
+  {
+    intent: 'create_debt',
+    type: 'i_owe',
+    pattern: /^(umutang|nangutang)\s+(ako\s+)?(kay|kang)\s+(?<person>[a-z0-9 ]+?)\s+(?<amount>(php|p)?\s*\d+(\.\d+)?(k|m)?)$/i
+  },
 
   // Pay Debt
+  // Pay Debt (I paid them)
   {
     intent: 'pay_debt',
-    pattern: /^(i|ako|ni)?\s*(paid|pay|bayad|paide)\s+(?<person>[a-z0-9 ]+?)\s+(?<amount>(php|p)?\s*\d+(\.\d+)?(k|m)?)$/i
+    type: 'i_owe',
+    pattern: /^(ako|ni)?\s*(bayad|nagbayad)\s+(ako\s+)?(kay|kang|sa\s+)(?<person>[a-z0-9 ]+?)\s+(ng\s+utang\s+)?(?<amount>(php|p)?\s*\d+(\.\d+)?(k|m)?)$/i
   },
   {
     intent: 'pay_debt',
-    pattern: /^(?<person>[a-z0-9 ]+?)\s+(paid|paid me|paid me back|pay|pay me|pay me back|paide|paide me back|bayad)\s+(?<amount>(php|p)?\s*\d+(\.\d+)?(k|m)?)$/i
+    type: 'i_owe',
+    pattern: /^(i)?\s*(paid|pay|paide)\s+(to\s+)?(?<person>[a-z0-9 ]+?)\s+(?<amount>(php|p)?\s*\d+(\.\d+)?(k|m)?)$/i
   },
   {
     intent: 'pay_debt',
-    pattern: /^(i|ako|ni)?\s*(paid|pay|bayad|paide)\s+(?!for\b|on\b|at\b)(?<person>[a-z0-9 ]+)$/i
+    type: 'i_owe',
+    pattern: /^(i|ako|ni)?\s*(paid|pay|bayad|nagbayad|paide)\s+(?!for\b|on\b|at\b|si\b)(?<person>[a-zA-Z]+(\s+[a-zA-Z]+)?)$/i
+  },
+
+  // Pay Debt (They paid me)
+  {
+    intent: 'pay_debt',
+    type: 'owed_to_me',
+    pattern: /^(?<person>[a-z0-9 ]+?)\s+(paid|paid me|paid me back|pay|pay me|pay me back|paide|paide me back|bayad|nagbayad)\s+(ng\s+utang\s+)?(?<amount>(php|p)?\s*\d+(\.\d+)?(k|m)?)$/i
   },
   {
     intent: 'pay_debt',
-    pattern: /^(?!for\b|on\b|at\b)(?<person>[a-z0-9 ]+?)\s+(paid|paid me|paid me back|pay|pay me|pay me back|paide|paide me back|bayad)$/i
+    type: 'owed_to_me',
+    pattern: /^(nagbayad|bayad)\s+(si\s+)?(?<person>[a-z0-9 ]+?)\s+(ng\s+utang\s+)?(?<amount>(php|p)?\s*\d+(\.\d+)?(k|m)?)$/i
+  },
+  {
+    intent: 'pay_debt',
+    type: 'owed_to_me',
+    pattern: /^(?!for\b|on\b|at\b)(?<person>[a-zA-Z]+(\s+[a-zA-Z]+)?)\s+(paid|paid me|paid me back|pay|pay me|pay me back|paide|paide me back|bayad|nagbayad)$/i
   },
   // Set Budget
   {

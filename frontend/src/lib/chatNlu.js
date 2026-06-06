@@ -20,6 +20,8 @@ const ACTION_INTENTS = new Set([
   'create_debt_i_owe',
   'create_debt_owed_to_me',
   'pay_debt',
+  'pay_plan',
+  'create_plan',
   'set_budget',
 ])
 

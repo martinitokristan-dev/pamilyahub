@@ -1,13 +1,13 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { refDebounced } from '@vueuse/core'
-import { useRegisterAddAction } from '@/composables/usePageAction.js'
+import { useRoute, useRouter } from 'vue-router'
 import { useDebtsStore } from '@/stores/debts.js'
 import { useWalletsStore } from '@/stores/wallets.js'
 import { useDashboardStore } from '@/stores/dashboard.js'
 import { useExpensesStore } from '@/stores/expenses.js'
 import { useSalaryStore } from '@/stores/salary.js'
-import { Plus, Pencil, Trash2, X, BadgeCheck, HandCoins, Search, Wallet, CheckCircle2, ChevronLeft, ChevronRight } from 'lucide-vue-next'
+import { Plus, Pencil, Trash2, X, BadgeCheck, HandCoins, Search, Wallet, CheckCircle2 } from 'lucide-vue-next'
 import UiButton from '@/components/ui/Button.vue'
 import UiInput from '@/components/ui/Input.vue'
 import UiTextarea from '@/components/ui/Textarea.vue'
@@ -19,51 +19,129 @@ import DatePicker from '@/components/ui/DatePicker.vue'
 import { SkeletonListItem } from '@/components/skeletons'
 import { formatCurrency, parseCurrency } from '@/utils/format'
 import { shouldFetchFromServer } from '@/lib/syncEngine.js'
+import { useModalsStore } from '@/stores/modals.js'
+import { getWalletIconUrl } from '@/lib/walletIcons.js'
+import ArchiveWarningBanner from '@/components/shared/ArchiveWarningBanner.vue'
+import LoadMoreButton from '@/components/shared/LoadMoreButton.vue'
+import CurrencyAmount from '@/components/shared/CurrencyAmount.vue'
+import EmptyFeedState from '@/components/shared/EmptyFeedState.vue'
+import TransactionFilterSheet from '@/components/shared/TransactionFilterSheet.vue'
+import ExpenseIcon from '@/components/shared/ExpenseIcon.vue'
 
 const store = useDebtsStore()
 const walletsStore = useWalletsStore()
 const dashboardStore = useDashboardStore()
 const expensesStore = useExpensesStore()
 const salaryStore = useSalaryStore()
-useRegisterAddAction(openCreate)
+const modals = useModalsStore()
+const route = useRoute()
+const router = useRouter()
 
 const activeTab = ref('all')
 const searchQuery = ref('')
-const currentPage = ref(1)
 const debouncedSearch = refDebounced(searchQuery, 500)
 
-// Reset to page 1 logic moved to combined watch below
+const showFilterSheet = ref(false)
+const filterFrom = ref('')
+const filterTo = ref('')
+const hasActiveFilter = computed(() => !!store.filters.dateFrom || !!store.filters.dateTo)
 
-watch([activeTab, currentPage, debouncedSearch], () => {
-  const filters = {
-    ...(activeTab.value !== 'all' ? { type: activeTab.value } : {}),
-    ...(debouncedSearch.value.trim() ? { search: debouncedSearch.value.trim() } : {})
-  }
-  store.fetchAll(false, currentPage.value, 10, filters)
-  dashboardStore.fetchStats()
-})
-
-// Reset to page 1 when search or tab changes
-watch([activeTab, searchQuery], () => {
-  currentPage.value = 1
-})
-
-watch([activeTab, currentPage], () => {
-  const main = document.querySelector('main')
-  if (main) {
-    main.scrollTop = 0
-  }
+const isArchiveRange = computed(() => {
+  if (!store.filters.dateFrom) return false
+  const limitDate = new Date()
+  limitDate.setMonth(limitDate.getMonth() - 6)
+  return new Date(store.filters.dateFrom) < limitDate
 })
 
 onMounted(() => {
-  const filters = activeTab.value === 'all' ? {} : { type: activeTab.value }
-  // Use false for force parameter to enable caching
-  store.fetchAll(false, currentPage.value, 10, filters)
   dashboardStore.fetchStats()
+  
+  if (route.query.action === 'add') {
+    openCreate()
+    router.replace({ query: { ...route.query, action: undefined } })
+  }
 })
-const showForm = ref(false)
-const editingId = ref(null)
-const form = ref({ name: '', amount: '', type: 'owed_to_me', description: '', due_date: '', wallet_id: null })
+
+watch([debouncedSearch, activeTab], () => {
+  store.fetchFeed({
+    refresh: true,
+    startDate: store.filters.dateFrom,
+    endDate: store.filters.dateTo,
+    search: debouncedSearch.value.trim() || undefined,
+    type: activeTab.value !== 'all' ? activeTab.value : undefined
+  })
+}, { immediate: true })
+
+function openFilterSheet() {
+  filterFrom.value = store.filters.dateFrom || ''
+  filterTo.value = store.filters.dateTo || ''
+  showFilterSheet.value = true
+}
+
+function applyFilters() {
+  store.applyFilters(filterFrom.value, filterTo.value)
+  showFilterSheet.value = false
+  store.fetchFeed({
+    refresh: true,
+    startDate: store.filters.dateFrom,
+    endDate: store.filters.dateTo,
+    search: debouncedSearch.value.trim() || undefined,
+    type: activeTab.value !== 'all' ? activeTab.value : undefined
+  })
+}
+
+function clearFilters() {
+  filterFrom.value = ''
+  filterTo.value = ''
+  store.clearFilters()
+  showFilterSheet.value = false
+  store.fetchFeed({
+    refresh: true,
+    search: debouncedSearch.value.trim() || undefined,
+    type: activeTab.value !== 'all' ? activeTab.value : undefined
+  })
+}
+
+function loadMoreFeed() {
+  store.fetchFeed({
+    refresh: false,
+    startDate: store.filters.dateFrom,
+    endDate: store.filters.dateTo,
+    search: debouncedSearch.value.trim() || undefined,
+    type: activeTab.value !== 'all' ? activeTab.value : undefined
+  })
+}
+
+// Display debts combines the backend cursor feed items with any local/offline pending items
+const displayDebts = computed(() => {
+  // Get pending items from store.debts that are not already in store.feedItems
+  let pending = store.debts.filter(d => d._pending)
+  
+  if (activeTab.value !== 'all') {
+    pending = pending.filter(d => d.type === activeTab.value)
+  }
+  if (debouncedSearch.value) {
+    const s = debouncedSearch.value.toLowerCase()
+    pending = pending.filter(d => (d.name || '').toLowerCase().includes(s) || (d.notes || '').toLowerCase().includes(s))
+  }
+  
+  const pendingIds = new Set(pending.map(p => String(p.id)))
+  const feedIds = new Set(store.feedItems.map(f => String(f.id)))
+  
+  // Filter out any duplicates
+  const filteredPending = pending.filter(p => !feedIds.has(String(p.id)))
+  const filteredFeed = store.feedItems.filter(f => !pendingIds.has(String(f.id)))
+  
+  const list = [...filteredPending, ...filteredFeed]
+  if (!hasActiveFilter.value) return list
+
+  return list.slice().sort((a, b) => {
+    const dA = (a.created_at || a.due_date || '').slice(0, 19)
+    const dB = (b.created_at || b.due_date || '').slice(0, 19)
+    if (dA !== dB) return dA.localeCompare(dB)
+    return String(a.id).localeCompare(String(b.id))
+  })
+})
 
 // Pay modal state
 const showPayModal = ref(false)
@@ -75,50 +153,13 @@ const partialAmount = ref('')
 const balanceError = ref('')
 
 function openCreate() {
-  editingId.value = null
-  const defaultType = activeTab.value === 'i_owe' ? 'i_owe' : 'owed_to_me'
-  form.value = { name: '', amount: '', type: defaultType, description: '', due_date: '', wallet_id: walletsStore.wallets[0]?.id ?? null }
-  showForm.value = true
+  if (isArchiveRange.value) return
+  modals.openDebtModal()
 }
 
 function openEdit(debt) {
-  editingId.value = debt.id
-  form.value = {
-    name: debt.name,
-    amount: formatCurrency(debt.amount),
-    type: debt.type,
-    description: debt.description ?? '',
-    due_date: debt.due_date ?? '',
-    wallet_id: debt.wallet_id ?? null
-  }
-  showForm.value = true
-}
-
-async function submit() {
-  balanceError.value = ''
-  const data = {
-    ...form.value,
-    amount: parseCurrency(form.value.amount)
-  }
-
-  // Balance validation for lending
-  if (!editingId.value && data.type === 'owed_to_me' && data.wallet_id) {
-    const wallet = walletsStore.wallets.find(w => w.id === data.wallet_id)
-    if (wallet && data.amount > parseFloat(wallet.balance)) {
-      balanceError.value = `Insufficient balance. ${wallet.name} only has ${formatCurrency(wallet.balance)}.`
-      return
-    }
-  }
-
-  if (editingId.value) {
-    await store.update(editingId.value, data)
-  } else {
-    await store.create(data)
-  }
-  showForm.value = false
-  if (shouldFetchFromServer()) {
-    dashboardStore.fetchStats()
-  }
+  if (isArchiveRange.value) return
+  modals.openDebtModal(debt.id)
 }
 
 function openPayModal(debt) {
@@ -190,11 +231,19 @@ function formatDueDate(str) {
   return d.toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
-const filtered = computed(() => store.debts)
-
 const totalBalance = computed(() => {
   return (dashboardStore.stats.debts_owed_to_me - dashboardStore.stats.debts_i_owe).toFixed(2)
 })
+
+async function remove(debt) {
+  if (isArchiveRange.value) return
+  await store.remove(debt.id)
+  if (shouldFetchFromServer()) {
+    dashboardStore.fetchStats()
+  }
+}
+
+
 </script>
 
 <template>
@@ -206,15 +255,10 @@ const totalBalance = computed(() => {
       <div class="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto">
         <div class="bg-card border border-border shadow-sm px-4 py-2 rounded-2xl flex flex-col items-start sm:items-end min-w-[140px] transition-all hover:shadow-md">
           <span class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest leading-none mb-1">Net Balance</span>
-          <span 
-            class="text-xl font-black tabular-nums sensitive-balance"
-            :class="parseFloat(totalBalance) >= 0 ? 'text-emerald-600' : 'text-destructive'"
-          >
-            {{ parseFloat(totalBalance) >= 0 ? '+' : '' }}{{ formatCurrency(totalBalance) }}
-          </span>
+          <CurrencyAmount :amount="totalBalance" type="balance" size="lg" class="tabular-nums sensitive-balance" />
         </div>
-        <UiButton @click="openCreate" class="hidden sm:flex h-12 px-6 rounded-2xl">
-          <Plus class="h-5 w-5 mr-1" /> Add
+        <UiButton @click="openCreate" class="hidden sm:flex shrink-0 h-10 px-5 rounded-[50px] font-semibold bg-primary text-white hover:bg-primary/90 shadow-sm" size="sm" :disabled="isArchiveRange">
+          Add Debt
         </UiButton>
       </div>
     </div>
@@ -231,240 +275,133 @@ const totalBalance = computed(() => {
       </UiButton>
     </div>
 
-    <div class="relative mb-5">
-      <Search class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-      <UiInput v-model="searchQuery" class="pl-9" placeholder="Search by name or notes…" />
+    <div class="mb-5 flex flex-col gap-2.5 bg-muted/30 p-3 rounded-2xl border border-border/50">
+      <div class="flex items-center gap-2">
+        <div class="relative flex-1 min-w-0">
+          <Search class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+          <UiInput v-model="searchQuery" class="pl-9 bg-background" placeholder="Search by name or notes…" />
+        </div>
+        <button
+          type="button"
+          class="relative h-12 w-12 rounded-2xl border border-border bg-card shadow-sm flex items-center justify-center transition-colors hover:bg-muted/40 shrink-0"
+          @click="openFilterSheet"
+          aria-label="Filter debt log by date"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            class="h-5 w-5"
+            :class="hasActiveFilter ? 'text-primary' : 'text-muted-foreground'"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M3 4h18l-7 8v5l-4 3v-8L3 4z" />
+          </svg>
+          <span
+            v-if="hasActiveFilter"
+            class="absolute top-2 right-2 h-2 w-2 rounded-full bg-primary"
+          ></span>
+        </button>
+      </div>
+      <ArchiveWarningBanner :show="isArchiveRange" class="w-fit" />
     </div>
 
+    <!-- Feed date range filter sheet -->
+    <TransactionFilterSheet 
+      v-model:show="showFilterSheet" 
+      v-model:date-from="filterFrom" 
+      v-model:date-to="filterTo"
+      title="Filter log"
+      description="Date range applies to the debt log below only. Net Balance at the top is not affected."
+      info-text="Log entries show oldest → newest within this range."
+      @apply="applyFilters"
+      @clear="clearFilters"
+    />
 
-    <div v-if="store.loading" class="space-y-2">
+
+    <div v-if="store.feedLoading && displayDebts.length === 0" class="space-y-2">
       <SkeletonListItem v-for="i in 4" :key="i" :show-icon="false" />
     </div>
 
-    <div v-else-if="filtered.length === 0" class="flex flex-col items-center justify-center py-24 text-center border rounded-xl border-dashed bg-muted/20">
-      <HandCoins class="h-10 w-10 text-muted-foreground/40 mb-3" />
-      <p class="text-sm text-muted-foreground">No debts recorded.</p>
-    </div>
+    <EmptyFeedState 
+      v-else-if="displayDebts.length === 0" 
+      :icon="HandCoins" 
+      title="No debts recorded." 
+      dashed 
+    />
 
     <div v-else class="space-y-2">
       <UiCard
-        v-for="debt in filtered"
+        v-for="debt in displayDebts"
         :key="debt._clientKey || debt.id"
-        class="px-4 py-3 transition-all duration-200 cursor-pointer sm:cursor-default"
-        @click="openEdit(debt)"
+        class="px-4 py-3 transition-all duration-200"
+        :class="isArchiveRange ? 'opacity-80' : 'cursor-pointer sm:cursor-default'"
+        @click="!isArchiveRange && openEdit(debt)"
       >
-        <!-- Row 1: name + type + amount -->
-        <div class="flex items-start justify-between gap-3">
-          <div class="flex flex-col gap-0.5 flex-1 min-w-0">
-            <div class="flex items-center gap-2 text-sm leading-snug truncate">
-              <span class="font-bold uppercase">{{ debt.name }}</span>
-              <span class="text-foreground font-black">·</span>
-              <span class="text-xs font-black uppercase" :class="debt.type === 'owed_to_me' ? 'text-emerald-600' : 'text-amber-600'">
-                {{ debt.type === 'owed_to_me' ? 'Owes me' : 'I owe' }}
-              </span>
-            </div>
-          </div>
+        <div class="flex items-start gap-3">
+          <ExpenseIcon :title="debt.name" size="lg" class="mt-0.5" />
           
-          <div class="flex flex-col items-end gap-1 shrink-0">
-            <span
-              class="font-bold tabular-nums text-sm"
-              :class="debt.is_paid ? 'text-muted-foreground' : (debt.type === 'owed_to_me' ? 'text-emerald-600 dark:text-emerald-400' : 'text-destructive')"
-            >
-              <template v-if="debt.type === 'owed_to_me'">
-                {{ debt.is_paid ? '+' : '' }}{{ formatCurrency(debt.amount) }}
-              </template>
-              <template v-else>
-                {{ debt.is_paid ? '' : '-' }}{{ formatCurrency(debt.amount) }}
-              </template>
-            </span>
-            <span v-if="debt.is_paid" class="mt-1.5 inline-flex items-center gap-1 text-[9px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider bg-emerald-50 dark:bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-200/50 dark:border-emerald-500/20">
-              <CheckCircle2 class="h-2.5 w-2.5" />
-              Paid
-            </span>
-          </div>
-        </div>
+          <div class="flex-1 min-w-0">
+            <!-- Row 1: name + type + amount -->
+            <div class="flex items-start justify-between gap-3">
+              <div class="flex flex-col gap-0.5 flex-1 min-w-0">
+                <div class="flex items-center gap-2 text-sm leading-snug truncate">
+                  <span class="font-bold uppercase">{{ debt.name }}</span>
+                  <span class="text-foreground font-black">·</span>
+                  <span class="text-xs font-black uppercase" :class="debt.type === 'owed_to_me' ? 'text-emerald-600' : 'text-amber-600'">
+                    {{ debt.type === 'owed_to_me' ? 'Owes me' : 'I owe' }}
+                  </span>
+                </div>
+              </div>
+              
+              <div class="flex flex-col items-end gap-1 shrink-0">
+                  <template v-if="debt.type === 'owed_to_me'">
+                    <CurrencyAmount :amount="debt.amount" :type="debt.is_paid ? 'muted' : 'income'" :prefix="debt.is_paid ? '+' : ''" size="md" class="tabular-nums" />
+                  </template>
+                  <template v-else>
+                    <CurrencyAmount :amount="debt.amount" :type="debt.is_paid ? 'muted' : 'debt'" :prefix="debt.is_paid ? '' : '-'" size="md" class="tabular-nums" />
+                  </template>
+                <span v-if="debt.is_paid" class="mt-1.5 inline-flex items-center gap-1 text-[9px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider bg-emerald-50 dark:bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-200/50 dark:border-emerald-500/20">
+                  <CheckCircle2 class="h-2.5 w-2.5" />
+                  Paid
+                </span>
+              </div>
+            </div>
 
-        <!-- Row 2: due date + actions -->
-        <div class="flex items-center justify-between gap-2 mt-2">
-          <p v-if="debt.due_date" class="text-xs text-muted-foreground shrink-0">
-            Due {{ formatDueDate(debt.due_date) }}
-          </p>
-          <div v-else></div> <!-- Spacer if no due date -->
+            <!-- Row 2: due date + actions -->
+            <div class="flex items-center justify-between gap-2 mt-2">
+              <p v-if="debt.due_date" class="text-xs text-muted-foreground shrink-0">
+                Due {{ formatDueDate(debt.due_date) }}
+              </p>
+              <div v-else></div> <!-- Spacer if no due date -->
 
-          <!-- Action buttons -->
-          <div class="flex items-center gap-0.5 shrink-0" @click.stop>
-            <UiButton
-              v-if="!debt.is_paid"
-              variant="outline" size="sm" class="h-8 px-3 text-emerald-600 border-emerald-200 hover:border-emerald-300 hover:text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800/60 dark:hover:bg-emerald-900/30 font-semibold shadow-sm"
-              title="Mark as paid"
-              @click="openPayModal(debt)"
-            >
-              Mark as Paid
-            </UiButton>
-            <UiButton variant="ghost" size="icon" class="h-8 w-8 hidden sm:flex" @click="openEdit(debt)">
-              <Pencil class="h-4 w-4" />
-            </UiButton>
-            <UiButton variant="ghost" size="icon" class="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10 hidden sm:flex" @click="store.remove(debt.id)">
-              <Trash2 class="h-4 w-4" />
-            </UiButton>
+              <!-- Action buttons -->
+              <div v-if="!isArchiveRange" class="flex items-center gap-0.5 shrink-0" @click.stop>
+                <UiButton
+                  v-if="!debt.is_paid"
+                  variant="outline" size="sm" class="h-8 px-3 text-emerald-600 border-emerald-200 hover:border-emerald-300 hover:text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800/60 dark:hover:bg-emerald-900/30 font-semibold shadow-sm"
+                  title="Mark as paid"
+                  @click="openPayModal(debt)"
+                >
+                  Mark as Paid
+                </UiButton>
+                <UiButton variant="ghost" size="icon" class="h-8 w-8 hidden xl:flex" @click="openEdit(debt)">
+                  <Pencil class="h-4 w-4" />
+                </UiButton>
+                <UiButton variant="ghost" size="icon" class="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10 hidden xl:flex" @click="remove(debt)">
+                  <Trash2 class="h-4 w-4" />
+                </UiButton>
+              </div>
+            </div>
           </div>
         </div>
       </UiCard>
     </div>
 
-    <!-- Pagination Controls -->
-    <div v-if="store.pagination.total > 10" class="flex items-center justify-center mt-6">
-      <div class="flex items-center bg-card border border-border shadow-sm rounded-full p-1 gap-1">
-        <button 
-          class="h-11 w-11 flex items-center justify-center rounded-full transition-all duration-200 hover:bg-muted active:scale-90 disabled:opacity-30 disabled:pointer-events-none"
-          :disabled="currentPage <= 1"
-          @click="currentPage--"
-          @mouseenter="currentPage > 1 && store.fetchAll(false, currentPage - 1, 10, { ...(activeTab !== 'all' ? { type: activeTab } : {}), ...(debouncedSearch.trim() ? { search: debouncedSearch.trim() } : {}) })"
-        >
-          <ChevronLeft class="h-5 w-5" />
-        </button>
-        
-        <div class="px-4 py-1 text-xs font-bold tracking-tight text-foreground flex items-center gap-1.5 border-x border-border/50">
-          <span class="text-primary">{{ currentPage }}</span>
-          <span class="text-muted-foreground/50">/</span>
-          <span>{{ store.pagination.last_page }}</span>
-        </div>
-
-        <button 
-          class="h-11 w-11 flex items-center justify-center rounded-full transition-all duration-200 hover:bg-muted active:scale-90 disabled:opacity-30 disabled:pointer-events-none"
-          :disabled="currentPage >= store.pagination.last_page"
-          @click="currentPage++"
-          @mouseenter="currentPage < store.pagination.last_page && store.fetchAll(false, currentPage + 1, 10, { ...(activeTab !== 'all' ? { type: activeTab } : {}), ...(debouncedSearch.trim() ? { search: debouncedSearch.trim() } : {}) })"
-        >
-          <ChevronRight class="h-5 w-5" />
-        </button>
-      </div>
-    </div>
-
-    <Teleport to="body">
-      <div v-if="showForm" class="fixed inset-0 z-[80] flex items-stretch justify-center bg-black/60 backdrop-blur-sm p-0 sm:items-center sm:p-4" @mousedown.self="showForm = false">
-        <UiCard class="flex w-full max-w-none flex-col overflow-hidden bg-card shadow-2xl animate-in fade-in zoom-in duration-200
-          max-sm:h-[100dvh] max-sm:max-h-[100dvh] max-sm:min-h-0 max-sm:rounded-none max-sm:pt-[env(safe-area-inset-top)]
-          sm:max-h-[90vh] sm:min-h-0 sm:max-w-lg sm:rounded-2xl" @mousedown.stop>
-          
-          <div class="shrink-0 p-6 border-b border-border bg-gradient-to-r from-primary/10 to-transparent flex items-center justify-between">
-            <h2 class="text-xl font-bold tracking-tight">{{ editingId ? 'Edit Debt' : 'New Debt' }}</h2>
-            <UiButton variant="ghost" size="icon" @click="showForm = false" class="rounded-full h-8 w-8">
-              <X class="h-4 w-4" />
-            </UiButton>
-          </div>
-
-          <div class="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
-            <UiCardContent class="p-6">
-              <form id="debt-form" @submit.prevent="submit" class="space-y-6">
-                <div class="grid grid-cols-2 gap-4">
-                  <div class="space-y-1.5 col-span-2">
-                    <UiLabel>Name</UiLabel>
-                    <UiInput v-model="form.name" placeholder="Person's name" required />
-                  </div>
-                  <div class="space-y-1.5">
-                    <UiLabel>Amount (₱)</UiLabel>
-                    <UiInput v-model="form.amount" type="number" min="0" step="0.01" placeholder="0.00" required />
-                  </div>
-                  <div class="space-y-1.5">
-                    <UiLabel>Due Date</UiLabel>
-                    <DatePicker v-model="form.due_date" placeholder="Optional due date" />
-                  </div>
-                  <div class="space-y-2 col-span-2">
-                    <UiLabel>Type</UiLabel>
-                    <div class="flex p-1 bg-muted rounded-xl border border-border">
-                      <button
-                        type="button"
-                        @click="form.type = 'owed_to_me'"
-                        class="flex-1 py-2 px-3 text-sm font-semibold rounded-lg transition-all duration-200"
-                        :class="form.type === 'owed_to_me' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
-                      >
-                        They owe me
-                      </button>
-                      <button
-                        type="button"
-                        @click="form.type = 'i_owe'"
-                        class="flex-1 py-2 px-3 text-sm font-semibold rounded-lg transition-all duration-200"
-                        :class="form.type === 'i_owe' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
-                      >
-                        I owe them
-                      </button>
-                    </div>
-                  </div>
-
-                  <!-- Wallet Picker (Only for Lending) -->
-                  <div class="space-y-2 col-span-2" v-if="form.type === 'owed_to_me'">
-                    <UiLabel>Lend from Wallet</UiLabel>
-                    <div v-if="walletsStore.wallets.length === 0" class="text-sm text-muted-foreground rounded-xl border border-dashed p-4 text-center">
-                      No wallets yet — add one in the <strong>Wallets</strong> tab.
-                    </div>
-                    <div v-else class="max-h-[160px] overflow-y-auto pr-1 py-1 -mr-1">
-                      <div class="grid grid-cols-2 gap-2">
-                        <button
-                          v-for="wallet in walletsStore.wallets"
-                          :key="wallet.id"
-                          type="button"
-                          @click="form.wallet_id = wallet.id"
-                          class="flex items-center gap-2.5 rounded-xl border-2 p-3 text-left transition-all duration-150"
-                          :class="form.wallet_id === wallet.id
-                            ? 'border-primary bg-primary/5 scale-[1.02]'
-                            : 'border-border hover:border-muted-foreground/40'"
-                        >
-                          <div class="h-8 w-8 shrink-0 flex items-center justify-center rounded-lg bg-white/20">
-                            <img 
-                              :src="wallet.icon_url || `/icons/wallets/${wallet.type === 'metrobank' ? 'metrobank.jpg' : wallet.type + '.png'}`" 
-                              class="w-full h-full object-contain rounded" 
-                              @error="$event.target.style.display='none'; $event.target.nextElementSibling.style.display='block'"
-                            />
-                            <Wallet class="h-4 w-4 text-muted-foreground" style="display:none" />
-                          </div>
-                          <div class="min-w-0">
-                            <p class="text-xs font-semibold truncate">{{ wallet.name }}</p>
-                            <p class="text-[10px] text-muted-foreground sensitive-balance">{{ formatCurrency(wallet.balance) }}</p>
-                          </div>
-                        </button>
-                        <button
-                          type="button"
-                          @click="form.wallet_id = null"
-                          class="flex items-center gap-2.5 rounded-xl border-2 p-3 text-left transition-all duration-150"
-                          :class="form.wallet_id === null
-                            ? 'border-primary bg-primary/5 scale-[1.02]'
-                            : 'border-border hover:border-muted-foreground/40'"
-                        >
-                          <span class="text-xl leading-none">💰</span>
-                          <div><p class="text-xs font-semibold">No wallet</p></div>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div class="space-y-1.5 col-span-2">
-                    <UiLabel>Notes</UiLabel>
-                    <UiTextarea v-model="form.description" placeholder="Optional notes…" />
-                  </div>
-                </div>
-
-                <p v-if="balanceError" class="text-sm text-destructive font-medium rounded-xl bg-destructive/10 px-3 py-2">
-                  {{ balanceError }}
-                </p>
-              </form>
-            </UiCardContent>
-          </div>
-
-          <div class="shrink-0 border-t border-border bg-muted/20 p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] flex flex-col gap-3 sm:flex-row-reverse">
-            <UiButton type="submit" form="debt-form" :disabled="store.loading" class="rounded-xl h-11 px-8 bg-primary text-primary-foreground font-bold">
-              {{ store.loading ? (editingId ? 'Saving…' : 'Adding…') : (editingId ? 'Save changes' : 'Add debt') }}
-            </UiButton>
-            <UiButton variant="outline" @click="showForm = false" class="rounded-xl h-11 px-6">
-              Cancel
-            </UiButton>
-            <UiButton v-if="editingId" type="button" variant="destructive" @click="store.remove(editingId); showForm = false" class="rounded-xl h-11 px-4 sm:mr-auto">
-              <Trash2 class="h-4 w-4 mr-2" /> Delete
-            </UiButton>
-          </div>
-        </UiCard>
-      </div>
-    </Teleport>
+    <!-- Load More Control -->
+    <LoadMoreButton :is-loading="store.feedLoading" :has-more="store.feedHasMore" @load-more="loadMoreFeed" />
 
     <!-- Pay with wallet modal — now with Full/Partial tabs -->
     <Teleport to="body">
@@ -479,7 +416,7 @@ const totalBalance = computed(() => {
               <p class="text-xs text-muted-foreground mt-0.5">
                 <span class="font-semibold text-foreground">{{ payingDebt?.name }}</span>
                 <span class="mx-1">·</span>
-                <span class="font-semibold text-foreground">{{ formatCurrency(payingDebt?.amount ?? 0) }}</span>
+                <CurrencyAmount :amount="payingDebt?.amount ?? 0" type="neutral" size="md" class="font-semibold text-foreground" />
               </p>
             </div>
             <UiButton variant="ghost" size="icon" @click="showPayModal = false" class="rounded-full h-8 w-8">
@@ -523,14 +460,14 @@ const totalBalance = computed(() => {
                 />
                 <p v-if="partialAmountError" class="text-xs text-destructive mt-1">{{ partialAmountError }}</p>
                 <p v-else-if="partialAmount && !partialAmountError" class="text-xs text-muted-foreground mt-1">
-                  Remaining after payment: <span class="font-semibold text-foreground">{{ formatCurrency(parseFloat(payingDebt?.amount ?? 0) - (parseFloat(partialAmount) || 0)) }}</span>
+                  Remaining after payment: <CurrencyAmount :amount="parseFloat(payingDebt?.amount ?? 0) - (parseFloat(partialAmount) || 0)" type="neutral" size="md" class="font-semibold text-foreground" />
                 </p>
               </div>
 
               <!-- Full pay info -->
               <div v-if="payMode === 'full'" class="rounded-2xl border-2 border-emerald-500/20 bg-emerald-500/5 p-4 text-center">
                 <p class="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1">Total to Pay</p>
-                <p class="text-2xl font-black text-emerald-600 dark:text-emerald-400">{{ formatCurrency(payingDebt?.amount ?? 0) }}</p>
+                <CurrencyAmount :amount="payingDebt?.amount ?? 0" type="income" size="lg" class="font-black" />
                 <p class="text-[10px] text-muted-foreground mt-1 font-medium italic">This will mark the debt as fully paid</p>
               </div>
 
@@ -554,7 +491,7 @@ const totalBalance = computed(() => {
                     >
                       <div class="h-10 w-10 shrink-0 flex items-center justify-center rounded-xl bg-background border border-border shadow-sm overflow-hidden">
                         <img 
-                          :src="wallet.icon_url || `/icons/wallets/${wallet.type === 'metrobank' ? 'metrobank.jpg' : wallet.type + '.png'}`" 
+                          :src="getWalletIconUrl(wallet)" 
                           class="w-full h-full object-contain rounded" 
                           @error="$event.target.style.display='none'; $event.target.nextElementSibling.style.display='block'"
                         />
@@ -562,7 +499,7 @@ const totalBalance = computed(() => {
                       </div>
                       <div class="flex-1 min-w-0">
                         <p class="text-sm font-bold truncate">{{ wallet.name }}</p>
-                        <p class="text-xs text-muted-foreground font-medium tabular-nums sensitive-balance">{{ formatCurrency(wallet.balance) }}</p>
+                        <CurrencyAmount :amount="wallet.balance" type="muted" size="sm" class="tabular-nums sensitive-balance" />
                       </div>
                       <div v-if="payWalletId === wallet.id" class="h-5 w-5 rounded-full bg-primary flex items-center justify-center shrink-0 shadow-sm shadow-primary/20">
                         <CheckCircle2 class="h-3 w-3 text-white" />
@@ -591,11 +528,12 @@ const totalBalance = computed(() => {
             <UiButton
               @click="confirmPay"
               :disabled="store.loading || (payMode === 'partial' && !!partialAmountError)"
-              class="rounded-xl h-11 px-8 bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+              size="lg"
+              class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
             >
               {{ store.loading ? 'Paying…' : (payMode === 'full' ? 'Confirm paid' : `Pay ${formatCurrency(effectivePayAmount)}`) }}
             </UiButton>
-            <UiButton variant="outline" @click="showPayModal = false" class="rounded-xl h-11 px-6">
+            <UiButton variant="secondary" @click="showPayModal = false" size="lg">
               Cancel
             </UiButton>
           </div>

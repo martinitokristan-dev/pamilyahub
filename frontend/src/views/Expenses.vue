@@ -1,111 +1,98 @@
 <script setup>
 defineOptions({ name: 'Expenses' })
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { refDebounced } from '@vueuse/core'
-import { useRegisterAddAction } from '@/composables/usePageAction.js'
+import { useRoute, useRouter } from 'vue-router'
 import { useExpensesStore } from '@/stores/expenses.js'
-import { useWalletsStore } from '@/stores/wallets.js'
 import { useDashboardStore } from '@/stores/dashboard.js'
-import { Plus, Pencil, Trash2, X, Receipt, Search, TrendingUp, Calendar, ChevronDown, Wallet, ChevronLeft, ChevronRight } from 'lucide-vue-next'
-import { useAuthStore } from '@/stores/auth.js'
+import { useWalletsStore } from '@/stores/wallets.js'
+import { Plus, Pencil, Trash2, X, Receipt, Search, TrendingUp, Wallet, Calendar, ChevronDown, ArrowRightLeft, ArrowRight } from 'lucide-vue-next'
 import UiButton from '@/components/ui/Button.vue'
 import UiInput from '@/components/ui/Input.vue'
-import UiLabel from '@/components/ui/Label.vue'
 import UiCard from '@/components/ui/Card.vue'
-import UiCardContent from '@/components/ui/CardContent.vue'
 import UiBadge from '@/components/ui/Badge.vue'
 import DatePicker from '@/components/ui/DatePicker.vue'
 import { SkeletonListItem, SkeletonTable } from '@/components/skeletons'
-import { formatCurrency, parseCurrency } from '@/utils/format'
+import { formatCurrency, formatDateTime } from '@/utils/format'
 import { shouldFetchFromServer } from '@/lib/syncEngine.js'
+import { useModalsStore } from '@/stores/modals.js'
+import { getWalletIconUrl } from '@/lib/walletIcons.js'
+import ArchiveWarningBanner from '@/components/shared/ArchiveWarningBanner.vue'
+import LoadMoreButton from '@/components/shared/LoadMoreButton.vue'
+import EmptyFeedState from '@/components/shared/EmptyFeedState.vue'
+import TransactionFilterSheet from '@/components/shared/TransactionFilterSheet.vue'
+import CurrencyAmount from '@/components/shared/CurrencyAmount.vue'
+import TransactionDetailsModal from '@/components/modals/TransactionDetailsModal.vue'
+import ExpenseIcon from '@/components/shared/ExpenseIcon.vue'
 
 const store = useExpensesStore()
-const walletsStore = useWalletsStore()
-const authStore = useAuthStore()
 const dashboard = useDashboardStore()
-useRegisterAddAction(openCreate)
+const walletsStore = useWalletsStore()
+const modals = useModalsStore()
+const route = useRoute()
+const router = useRouter()
 
 const selectedMonth = ref(new Date().getMonth() + 1)
 const selectedYear = ref(new Date().getFullYear())
 const showMonthPicker = ref(false)
 const showYearPicker = ref(false)
+const showTransactionDetails = ref(false)
+const selectedTransaction = ref(null)
+
+onMounted(() => {
+  dashboard.fetchStats({ month: selectedMonth.value, year: selectedYear.value })
+  if (!walletsStore.fetched) walletsStore.fetchAll()
+  if (route.query.action === 'add') {
+    modals.openExpenseModal(null, route.query.wallet_id)
+    router.replace({ query: { ...route.query, action: undefined, wallet_id: undefined } })
+  }
+})
+
+watch([selectedMonth, selectedYear], () => {
+  dashboard.fetchStats({ month: selectedMonth.value, year: selectedYear.value })
+})
+
+const showFilterSheet = ref(false)
+const filterFrom = ref('')
+const filterTo = ref('')
 
 const months = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'
 ]
 
-// Generate years dynamically based on data or default range
 const availableYears = computed(() => {
   const currentYear = new Date().getFullYear()
-  if (store.expenses.length === 0) {
-    // Default range if no data: currentYear - 2 to currentYear + 1
-    const years = []
-    for (let y = currentYear - 2; y <= currentYear + 1; y++) {
-      years.push(y)
-    }
-    return years
+  const years = []
+  for (let y = currentYear - 2; y <= currentYear + 1; y++) {
+    years.push(y)
   }
-  
-  // Find earliest and latest years from expense dates
-  const years = new Set()
-  store.expenses.forEach(expense => {
-    const date = new Date(expense.date)
-    years.add(date.getFullYear())
-  })
-  
-  const minYear = Math.min(...years)
-  const maxYear = Math.max(...years, currentYear)
-  
-  const yearList = []
-  for (let y = minYear; y <= maxYear + 1; y++) {
-    yearList.push(y)
-  }
-  return yearList.sort((a, b) => b - a) // Sort descending
+  return years.sort((a, b) => b - a)
 })
 
-const currentPage = ref(1)
+const hasActiveFilter = computed(() => !!store.filters.dateFrom || !!store.filters.dateTo)
+
+const isArchiveRange = computed(() => {
+  if (!store.filters.dateFrom) return false
+  const limitDate = new Date()
+  limitDate.setMonth(limitDate.getMonth() - 6)
+  return new Date(store.filters.dateFrom) < limitDate
+})
 
 const total = computed(() => parseFloat(dashboard.stats.monthly_expenses || 0))
-
-const showForm = ref(false)
-const editingId = ref(null)
 const search = ref('')
-const form = ref({ title: '', amount: '', description: '', date: '', wallet_id: null })
-
 const debouncedSearch = refDebounced(search, 500)
 
-// Reset to page 1 when filter or search changes
-watch([selectedMonth, selectedYear, search], () => {
-  currentPage.value = 1
+// Spending power: wallet balances count as available funds (initial balance, not just deposits).
+const monthlyIncome = computed(() => parseFloat(dashboard.stats.monthly_income ?? 0))
+const fundsLeft = computed(() => parseFloat(walletsStore.totalBalance ?? 0))
+const effectiveLimit = computed(() => {
+  const spent = total.value
+  const walletBasedBudget = fundsLeft.value + spent
+  return Math.max(monthlyIncome.value, walletBasedBudget)
 })
 
-watch(currentPage, () => {
-  const main = document.querySelector('main')
-  if (main) {
-    main.scrollTop = 0
-  }
-})
-
-watch([selectedMonth, selectedYear], () => {
-  dashboard.fetchStats({ month: selectedMonth.value, year: selectedYear.value })
-}, { immediate: true })
-
-watch([selectedMonth, selectedYear, currentPage, debouncedSearch], () => {
-  store.fetchAll(currentPage.value, { 
-    month: selectedMonth.value, 
-    year: selectedYear.value,
-    search: debouncedSearch.value.trim() || undefined
-  })
-}, { immediate: true })
-
-// total is now computed from dashboard stats
-
-const effectiveLimit = computed(() => parseFloat(dashboard.stats.monthly_income ?? 0))
-
-const remainingSalary = computed(() => {
-  return effectiveLimit.value - parseFloat(total.value)
-})
+const remainingSalary = computed(() => fundsLeft.value)
 
 const spendingPercentage = computed(() => {
   if (effectiveLimit.value <= 0) {
@@ -114,24 +101,39 @@ const spendingPercentage = computed(() => {
   return (parseFloat(total.value) / effectiveLimit.value) * 100
 })
 
-// Wallet type → emoji + color
-// Balance validation error
-const balanceError = ref('')
-
-function formatDateTime(dateStr, createdAt) {
-  const datePart = new Date(dateStr + 'T00:00:00').toLocaleDateString('en-PH', {
-    year: 'numeric', month: 'long', day: 'numeric',
+// Fetch feed on search changes (filters are applied explicitly)
+watch(debouncedSearch, () => {
+  store.fetchFeed({
+    refresh: true,
+    startDate: store.filters.dateFrom,
+    endDate: store.filters.dateTo,
+    search: debouncedSearch.value.trim() || undefined,
   })
-  if (!createdAt) return datePart
-  const timePart = new Date(createdAt).toLocaleTimeString('en-PH', {
-    hour: 'numeric', minute: '2-digit', hour12: true,
+}, { immediate: true })
+
+// Display expenses combines the backend cursor feed items with any local/offline pending items
+const displayExpenses = computed(() => {
+  // Get pending items from store.expenses that are not already in store.feedItems
+  const pending = store.expenses.filter(e => e._pending && !e.title?.toLowerCase().startsWith('debt repayment:'))
+  const pendingIds = new Set(pending.map(p => String(p.id)))
+  const feedIds = new Set(store.feedItems.map(f => String(f.id)))
+  
+  // Filter out any duplicates
+  const filteredPending = pending.filter(p => !feedIds.has(String(p.id)))
+  const filteredFeed = store.feedItems.filter(f => !pendingIds.has(String(f.id)))
+  
+  const list = [...filteredPending, ...filteredFeed]
+  if (!hasActiveFilter.value) return list
+
+  return list.slice().sort((a, b) => {
+    const dA = (a.date || '').slice(0, 10)
+    const dB = (b.date || '').slice(0, 10)
+    if (dA !== dB) return dA.localeCompare(dB)
+    return String(a.id).localeCompare(String(b.id))
   })
-  return `${datePart} · ${timePart}`
-}
+})
 
-const filteredExpenses = computed(() => store.expenses)
-
-const isLendingExpense = (expense) => {
+function isLendingExpense(expense) {
   if (!expense) return false
   const title = (expense.title || '').toLowerCase()
   const desc = (expense.description || '').toLowerCase()
@@ -139,65 +141,77 @@ const isLendingExpense = (expense) => {
 }
 
 function openCreate() {
-  editingId.value = null
-  const firstWallet = walletsStore.wallets[0]
-  form.value = {
-    title: '', amount: '', description: '',
-    date: new Date().toISOString().slice(0, 10),
-    wallet_id: firstWallet?.id ?? null,
-  }
-  showForm.value = true
+  if (isArchiveRange.value) return
+  modals.openExpenseModal()
 }
 
 function openEdit(expense) {
-  editingId.value = expense.id
-  form.value = {
-    title: expense.title,
-    amount: formatCurrency(expense.amount),
-    description: expense.description ?? '',
-    date: typeof expense.date === 'string' ? expense.date.slice(0, 10) : expense.date,
-    wallet_id: expense.wallet_id ?? null,
-  }
-  showForm.value = true
+  if (isArchiveRange.value) return
+  modals.openExpenseModal(expense.id)
 }
 
-async function submit() {
-  balanceError.value = ''
-  const oldExpense = editingId.value ? store.expenses.find(e => e.id === editingId.value) : null
-  const oldWalletId = oldExpense?.wallet_id ?? null
-  const oldAmount = oldExpense ? parseFloat(oldExpense.amount) : 0
-  const newWalletId = form.value.wallet_id
-  const newAmount = parseCurrency(form.value.amount)
-
-  // Balance validation
-  if (newWalletId) {
-    const wallet = walletsStore.wallets.find(w => String(w.id) === String(newWalletId))
-    if (wallet) {
-      const available = parseFloat(wallet.balance) + (String(oldWalletId) === String(newWalletId) ? oldAmount : 0)
-      if (newAmount > available) {
-        balanceError.value = `Insufficient balance. ${wallet.name} only has ${formatCurrency(wallet.balance)}.`
-        return
-      }
-    }
-  }
-
-  const data = { ...form.value, amount: newAmount }
-  if (editingId.value) {
-    await store.update(editingId.value, data)
+function openTransaction(expense) {
+  if (expense.type === 'transfer' || expense.type === 'deposit') {
+    selectedTransaction.value = expense
+    showTransactionDetails.value = true
   } else {
-    await store.create(data)
-  }
-  showForm.value = false
-  if (shouldFetchFromServer()) {
-    dashboard.fetchStats({ month: selectedMonth.value, year: selectedYear.value })
+    openEdit(expense)
   }
 }
 
 async function remove(expense) {
+  if (isArchiveRange.value) return
   await store.remove(expense.id)
   if (shouldFetchFromServer()) {
     dashboard.fetchStats({ month: selectedMonth.value, year: selectedYear.value })
   }
+}
+
+function openFilterSheet() {
+  filterFrom.value = store.filters.dateFrom || ''
+  filterTo.value = store.filters.dateTo || ''
+  showFilterSheet.value = true
+}
+
+function applyFilters() {
+  store.applyFilters(filterFrom.value, filterTo.value)
+  showFilterSheet.value = false
+  store.fetchFeed({
+    refresh: true,
+    startDate: store.filters.dateFrom,
+    endDate: store.filters.dateTo,
+    search: debouncedSearch.value.trim() || undefined,
+  })
+}
+
+function clearFilters() {
+  filterFrom.value = ''
+  filterTo.value = ''
+  store.clearFilters()
+  showFilterSheet.value = false
+  store.fetchFeed({
+    refresh: true,
+    search: debouncedSearch.value.trim() || undefined,
+  })
+}
+
+function changeTab(tabId) {
+  store.applyFilters(store.filters.dateFrom, store.filters.dateTo, tabId)
+  store.fetchFeed({
+    refresh: true,
+    startDate: store.filters.dateFrom,
+    endDate: store.filters.dateTo,
+    search: debouncedSearch.value.trim() || undefined,
+  })
+}
+
+function loadMoreFeed() {
+  store.fetchFeed({
+    refresh: false,
+    startDate: store.filters.dateFrom,
+    endDate: store.filters.dateTo,
+    search: debouncedSearch.value.trim() || undefined,
+  })
 }
 </script>
 
@@ -211,12 +225,13 @@ async function remove(expense) {
         <div class="bg-card border border-border shadow-sm px-3 sm:px-4 py-2 rounded-2xl flex flex-col items-center sm:items-end flex-1 sm:flex-none sm:min-w-[140px] transition-all hover:shadow-md min-w-0">
           <span class="text-[9px] sm:text-[10px] font-bold text-muted-foreground uppercase tracking-widest leading-none mb-1 truncate w-full text-center sm:text-right">Total Expenses</span>
           <span v-if="dashboard.loading" class="text-base sm:text-xl font-black text-muted-foreground animate-pulse truncate w-full text-center sm:text-right">...</span>
-          <span v-else class="text-base sm:text-xl font-black text-foreground tabular-nums truncate w-full text-center sm:text-right sensitive-stat">{{ formatCurrency(total) }}</span>
+          <span v-else class="tabular-nums truncate w-full text-center sm:text-right sensitive-stat"><CurrencyAmount :amount="total" type="balance" size="lg" /></span>
         </div>
 
-        <!-- iOS-style Date Filter -->
+        <!-- Month / Year selector (summary stats only) -->
         <div class="flex items-center gap-1 sm:gap-2 bg-card border border-border shadow-sm rounded-2xl px-1 py-1 shrink-0">
           <button
+            type="button"
             @click="showMonthPicker = true"
             class="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-2.5 rounded-xl bg-muted hover:bg-muted/80 transition-colors min-h-[40px] sm:min-h-[44px]"
           >
@@ -225,6 +240,7 @@ async function remove(expense) {
             <ChevronDown class="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground" />
           </button>
           <button
+            type="button"
             @click="showYearPicker = true"
             class="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-2.5 rounded-xl bg-muted hover:bg-muted/80 transition-colors min-h-[40px] sm:min-h-[44px]"
           >
@@ -233,36 +249,43 @@ async function remove(expense) {
           </button>
         </div>
 
-        <UiButton @click="openCreate" class="hidden sm:flex h-12 px-6 rounded-2xl">
-          <Plus class="h-5 w-5 mr-1" /> Add
+        <UiButton @click="openCreate" class="hidden sm:flex shrink-0 h-10 px-5 rounded-[50px] font-semibold bg-primary text-white hover:bg-primary/90 shadow-sm" size="sm" :disabled="isArchiveRange">
+          Add Expense
         </UiButton>
       </div>
     </div>
 
     <!-- Salary / Budget Tracking Card -->
-    <UiCard class="mb-5 overflow-hidden border-primary/10 shadow-sm rounded-2xl bg-gradient-to-br from-card to-muted/20">
+    <UiCard v-if="!isArchiveRange" class="mb-5 overflow-hidden border-primary/10 shadow-sm rounded-2xl bg-gradient-to-br from-card to-muted/20">
       <div class="p-4 sm:p-5">
         <div class="flex items-center justify-between mb-4">
-          <div class="flex items-center gap-2">
-            <div class="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+          <div class="flex items-center gap-2 min-w-0">
+            <div class="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
               <TrendingUp class="h-4 w-4 text-primary" />
             </div>
-            <h3 class="text-sm font-bold">Spending Power ({{ months[selectedMonth - 1] }})</h3>
+            <h3 class="text-sm font-bold truncate">Spending Power ({{ months[selectedMonth - 1] }})</h3>
           </div>
-          <p v-if="dashboard.loading" class="text-xs font-bold text-muted-foreground animate-pulse">
+          <p v-if="dashboard.loading" class="text-xs font-bold text-muted-foreground animate-pulse shrink-0 ml-2">
             ...
           </p>
-          <p v-else class="text-xs font-bold" :class="remainingSalary < 0 ? 'text-destructive' : 'text-emerald-600'">
-            <span class="sensitive-stat">{{ formatCurrency(Math.abs(remainingSalary)) }}</span> {{ remainingSalary < 0 ? 'over budget' : 'left' }}
+          <p v-else class="shrink-0 ml-2 flex items-baseline" :class="remainingSalary < 0 ? 'text-destructive' : 'text-emerald-600'">
+            <CurrencyAmount size="sm" :amount="Math.abs(remainingSalary)" :type="remainingSalary < 0 ? 'expense' : 'income'" class="sensitive-stat" /> 
+            <span class="uppercase tracking-wider ml-1 text-[10px] font-bold">{{ remainingSalary < 0 ? 'over budget' : 'left' }}</span>
           </p>
         </div>
         
         <div class="space-y-2.5">
-          <div class="flex items-center justify-between text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-            <span v-if="dashboard.loading" class="animate-pulse">Spent: ...</span>
-            <span v-else>Spent: <span class="sensitive-stat">{{ formatCurrency(total) }}</span></span>
-            <span v-if="dashboard.loading" class="animate-pulse">Budget: ...</span>
-            <span v-else>Budget: <span class="sensitive-stat">{{ formatCurrency(effectiveLimit) }}</span></span>
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-1.5">
+              <span class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Spent:</span>
+              <span v-if="dashboard.loading" class="animate-pulse text-[13px] font-bold">...</span>
+              <CurrencyAmount v-else size="xs" :amount="total" type="muted" class="sensitive-stat text-foreground" />
+            </div>
+            <div class="flex items-center gap-1.5">
+              <span class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Budget:</span>
+              <span v-if="dashboard.loading" class="animate-pulse text-[13px] font-bold">...</span>
+              <CurrencyAmount v-else size="xs" :amount="effectiveLimit" type="muted" class="sensitive-stat text-foreground" />
+            </div>
           </div>
           <div class="h-2 w-full bg-muted rounded-full overflow-hidden flex">
              <div 
@@ -285,15 +308,78 @@ async function remove(expense) {
       </div>
     </UiCard>
 
-    <!-- Search bar -->
-    <div class="relative mb-4">
-      <Search class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-      <UiInput v-model="search" placeholder="Search expenses…" class="pl-9" />
+    <!-- Filter Tabs -->
+    <div class="mb-5 flex overflow-x-auto hide-scrollbar md:justify-center">
+      <div class="flex items-center gap-2 px-1 w-max pb-1">
+        <button
+          v-for="tab in [
+            { id: 'all', label: 'All' },
+            { id: 'expense', label: 'Expenses' },
+            { id: 'transfer', label: 'Transfer' },
+            { id: 'deposit', label: 'Deposit' }
+          ]"
+          :key="tab.id"
+          @click="changeTab(tab.id)"
+          :class="[
+            'px-5 py-2.5 text-[14px] font-bold rounded-full transition-all border shadow-sm',
+            store.filters.type === tab.id 
+              ? 'bg-primary border-primary text-primary-foreground' 
+              : 'bg-card border-border text-slate-800 hover:text-slate-900 hover:bg-muted dark:text-slate-200 dark:hover:bg-slate-800'
+          ]"
+        >
+          {{ tab.label }}
+        </button>
+      </div>
     </div>
 
+    <!-- Search bar & feed date filter -->
+    <div class="mb-5 flex flex-col gap-2.5">
+      <div class="flex items-center gap-2">
+        <div class="relative flex-1 min-w-0">
+          <Search class="absolute left-3.5 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
+          <UiInput v-model="search" placeholder="Search expenses…" class="pl-11 h-12 bg-card border-border shadow-sm rounded-2xl text-[15px]" />
+        </div>
+        <button
+          type="button"
+          class="relative h-12 w-12 rounded-2xl border border-border bg-card shadow-sm flex items-center justify-center transition-colors hover:bg-muted shrink-0"
+          @click="openFilterSheet"
+          aria-label="Filter expense log by date"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            class="h-5 w-5"
+            :class="hasActiveFilter ? 'text-primary' : 'text-muted-foreground'"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M3 4h18l-7 8v5l-4 3v-8L3 4z" />
+          </svg>
+          <span
+            v-if="hasActiveFilter"
+            class="absolute top-2 right-2 h-2 w-2 rounded-full bg-primary"
+          ></span>
+        </button>
+      </div>
+      <ArchiveWarningBanner :show="isArchiveRange" class="w-fit" />
+    </div>
 
-    <!-- Skeletons / No Data -->
-    <template v-if="store.loading && !store.fetched">
+    <!-- Feed date range filter sheet -->
+    <TransactionFilterSheet 
+      v-model:show="showFilterSheet" 
+      v-model:date-from="filterFrom" 
+      v-model:date-to="filterTo"
+      title="Filter log"
+      description="Date range applies to the expense log below only. Total Expenses, Spending Power, and the budget bar use the month and year selectors above."
+      info-text="Log entries show oldest → newest within this range."
+      @apply="applyFilters"
+      @clear="clearFilters"
+    />
+
+    <!-- Skeletons -->
+    <template v-if="store.feedLoading && displayExpenses.length === 0">
       <!-- Mobile Skeletons -->
       <div class="flex flex-col gap-2 md:hidden">
         <SkeletonListItem v-for="i in 5" :key="i" />
@@ -304,76 +390,88 @@ async function remove(expense) {
       </div>
     </template>
 
-    <div v-else-if="store.expenses.length === 0" class="flex flex-col items-center justify-center py-24 text-center border rounded-xl border-dashed bg-muted/20">
-      <Receipt class="h-10 w-10 text-muted-foreground/40 mb-3" />
-      <p class="text-sm text-muted-foreground">No expenses for {{ months[selectedMonth - 1] }} {{ selectedYear }}</p>
-      <p class="text-xs text-muted-foreground mt-1">Try selecting a different month or add a new expense</p>
-    </div>
+    <!-- No Data State -->
+    <EmptyFeedState 
+      v-else-if="displayExpenses.length === 0" 
+      :icon="Receipt" 
+      title="No expenses found for the selected range" 
+      description="Try selecting a different range or add a new expense" 
+      dashed 
+    />
 
-    <!-- Mobile card list -->
-    <div v-else class="flex flex-col gap-2 md:hidden">
+    <!-- Mobile/Tablet card list -->
+    <div v-else class="flex flex-col gap-2 xl:hidden p-0.5">
       <div
-        v-for="expense in filteredExpenses"
-        :key="expense._clientKey || expense.id"
-        class="rounded-2xl border border-border bg-card p-4 flex items-center gap-3 overflow-hidden cursor-pointer sm:cursor-default"
-        @click="openEdit(expense)"
+        v-for="expense in displayExpenses"
+        :key="`${expense.type || 'expense'}-${expense.id}`"
+        class="flex items-center gap-3 p-4 bg-card hover:bg-muted/30 transition-colors border border-border shadow-sm rounded-2xl cursor-pointer"
+        @click="openTransaction(expense)"
       >
-        <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl overflow-hidden bg-muted/50 border border-border shadow-sm">
-          <template v-if="isLendingExpense(expense)">
+        <template v-if="expense.type === 'transfer'">
+          <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-muted/50 border border-border shadow-sm">
+            <ArrowRightLeft class="h-6 w-6 text-muted-foreground" />
+          </div>
+        </template>
+        <template v-else-if="expense.type === 'deposit'">
+          <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-muted/50 border border-border shadow-sm">
+             <TrendingUp class="h-6 w-6 text-emerald-600" />
+          </div>
+        </template>
+        <template v-else-if="isLendingExpense(expense)">
+          <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl overflow-hidden bg-muted/50 border border-border shadow-sm">
             <img 
               src="/icons/wallets/lending.png" 
               class="w-full h-full object-contain rounded dark:invert" 
             />
-          </template>
-          <template v-else-if="expense.wallet">
-            <img 
-              :src="expense.wallet.icon_url || `/icons/wallets/${expense.wallet.type === 'metrobank' ? 'metrobank.jpg' : expense.wallet.type + '.png'}`" 
-              class="w-full h-full object-contain rounded" 
-              @error="$event.target.style.display='none'; $event.target.nextElementSibling.style.display='block'"
-            />
-            <Wallet class="h-5 w-5 text-muted-foreground" style="display:none" />
-          </template>
-          <span v-else class="text-xl">📦</span>
-        </div>
+          </div>
+        </template>
+        <template v-else>
+          <ExpenseIcon :title="expense.title" size="lg" />
+        </template>
         <div class="min-w-0 flex-1">
           <div class="flex items-center gap-1.5 min-w-0">
             <span class="font-semibold text-sm truncate" :class="{ 'line-through text-muted-foreground/70': expense.is_settled }">
-              {{ expense.title }}
+              <template v-if="expense.type === 'transfer'">
+                Transfer
+              </template>
+              <template v-else>
+                {{ expense.title }}
+              </template>
             </span>
           </div>
           <div class="flex flex-wrap items-center gap-1.5 mt-0.5">
-            <!-- Category badge removed -->
-            <span v-if="expense.wallet" class="text-[10px] text-muted-foreground font-medium">{{ expense.wallet.name }}</span>
+            <template v-if="expense.type === 'transfer'">
+               <span class="text-[10px] text-muted-foreground font-medium">{{ expense.wallet?.name }}</span>
+               <ArrowRight class="h-3 w-3 text-muted-foreground" />
+               <span class="text-[10px] text-muted-foreground font-medium">{{ expense.to_wallet?.name }}</span>
+            </template>
           </div>
           <p class="text-[11px] text-muted-foreground mt-0.5">{{ formatDateTime(expense.date, expense.created_at) }}</p>
         </div>
         <div class="shrink-0 text-right">
-          <p 
-            class="font-bold text-sm" 
-            :class="[
-              expense.is_settled ? 'line-through text-muted-foreground/50' : '',
-              parseFloat(expense.amount) < 0 ? 'text-emerald-600' : 'text-destructive'
-            ]"
-          >
-            {{ parseFloat(expense.amount) < 0 ? '+' : '-' }}{{ formatCurrency(Math.abs(parseFloat(expense.amount))) }}
-          </p>
+          <CurrencyAmount
+            :amount="expense.type === 'deposit' ? parseFloat(expense.amount) : -parseFloat(expense.amount)"
+            :type="expense.type === 'transfer' ? 'muted' : 'auto'"
+            :prefix="expense.type === 'deposit' ? '+' : (expense.type === 'transfer' ? '' : '-')"
+            :strikethrough="expense.is_settled"
+            size="md"
+            class="text-sm font-bold"
+          />
+          <span v-if="expense.type !== 'transfer' && expense.wallet" class="text-[10px] font-semibold text-muted-foreground/60 mt-0.5 block">
+            via {{ expense.wallet.name }}
+          </span>
           <div v-if="expense.is_settled" class="mt-1 flex justify-end">
             <UiBadge variant="outline" class="text-[9px] uppercase tracking-wider py-0 px-1 border-emerald-500/30 bg-emerald-500/10 text-emerald-600">PAID</UiBadge>
           </div>
-          <div class="hidden sm:flex gap-1 mt-1 justify-end" @click.stop>
-            <button class="h-8 w-8 flex items-center justify-center rounded-md hover:bg-muted transition-colors" @click="openEdit(expense)">
-              <Pencil class="h-4 w-4 text-muted-foreground" />
-            </button>
-            <button class="h-8 w-8 flex items-center justify-center rounded-md hover:bg-destructive/10 transition-colors" @click="remove(expense)">
-              <Trash2 class="h-4 w-4 text-destructive" />
-            </button>
+          <div v-else-if="parseFloat(expense.settled_amount || 0) > 0" class="mt-1 flex justify-end">
+            <UiBadge variant="outline" class="text-[9px] uppercase tracking-wider py-0 px-1 border-amber-500/30 bg-amber-500/10 text-amber-600">PARTIAL +<span class="font-bold">{{ formatCurrency(expense.settled_amount).replace(/^[₱\s\xa0]+/g, '') }}</span></UiBadge>
           </div>
         </div>
       </div>
     </div>
 
     <!-- Desktop table -->
-    <UiCard v-if="store.expenses.length > 0" class="overflow-hidden hidden md:block">
+    <UiCard v-if="displayExpenses.length > 0" class="overflow-hidden hidden xl:block">
       <table class="w-full text-sm">
         <thead class="border-b bg-muted/40">
           <tr>
@@ -381,18 +479,29 @@ async function remove(expense) {
             <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Wallet</th>
             <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Date &amp; Time</th>
             <th class="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">Amount</th>
-            <th class="px-4 py-3 w-20"></th>
+            <th class="px-4 py-3 w-20" v-if="!isArchiveRange"></th>
           </tr>
         </thead>
         <tbody class="divide-y divide-border">
-          <tr
-            v-for="expense in filteredExpenses"
-            :key="expense._clientKey || expense.id"
-            class="hover:bg-muted/30 transition-colors"
+          <tr 
+            v-for="expense in displayExpenses" 
+            :key="`${expense.type || 'expense'}-${expense.id}`" 
+            class="hover:bg-muted/30 transition-colors cursor-pointer"
+            @click="openTransaction(expense)"
           >
             <td class="px-4 py-3 font-medium">
               <div class="flex items-center gap-2.5">
-                <template v-if="isLendingExpense(expense)">
+                <template v-if="expense.type === 'transfer'">
+                  <div class="w-8 h-8 flex items-center justify-center rounded-lg overflow-hidden bg-muted/50 border border-border shadow-sm">
+                    <ArrowRightLeft class="h-4 w-4 text-muted-foreground" />
+                  </div>
+                </template>
+                <template v-else-if="expense.type === 'deposit'">
+                  <div class="w-8 h-8 flex items-center justify-center rounded-lg overflow-hidden bg-muted/50 border border-border shadow-sm">
+                    <TrendingUp class="h-4 w-4 text-emerald-600" />
+                  </div>
+                </template>
+                <template v-else-if="isLendingExpense(expense)">
                   <div class="w-8 h-8 flex items-center justify-center rounded-lg overflow-hidden bg-muted/50 border border-border shadow-sm">
                     <img 
                       src="/icons/wallets/lending.png" 
@@ -400,28 +509,31 @@ async function remove(expense) {
                     />
                   </div>
                 </template>
-                <template v-else-if="expense.wallet">
-                  <div class="w-8 h-8 flex items-center justify-center rounded-lg overflow-hidden bg-muted/50 border border-border shadow-sm">
-                    <img 
-                      :src="expense.wallet.icon_url || `/icons/wallets/${expense.wallet.type === 'metrobank' ? 'metrobank.jpg' : expense.wallet.type + '.png'}`" 
-                      class="w-full h-full object-contain rounded" 
-                      @error="$event.target.style.display='none'; $event.target.nextElementSibling.style.display='block'"
-                    />
-                    <Wallet class="h-4 w-4 text-muted-foreground" style="display:none" />
-                  </div>
+                <template v-else>
+                  <ExpenseIcon :title="expense.title" size="sm" />
                 </template>
-                <span v-else class="text-xl w-8 h-8 flex items-center justify-center">📦</span>
                 <span :class="{ 'line-through text-muted-foreground/70': expense.is_settled }">
-                  {{ expense.title }}
+                  <template v-if="expense.type === 'transfer'">
+                    Transfer
+                  </template>
+                  <template v-else>
+                    {{ expense.title }}
+                  </template>
                 </span>
                 <UiBadge v-if="expense.is_settled" variant="outline" class="shrink-0 ml-1.5 text-[9px] uppercase tracking-wider py-0 px-1 border-emerald-500/30 bg-emerald-500/10 text-emerald-600">PAID</UiBadge>
+                <UiBadge v-else-if="parseFloat(expense.settled_amount || 0) > 0" variant="outline" class="shrink-0 ml-1.5 text-[9px] uppercase tracking-wider py-0 px-1 border-amber-500/30 bg-amber-500/10 text-amber-600">PARTIAL +<span class="font-bold">{{ formatCurrency(expense.settled_amount).replace(/^[₱\s\xa0]+/g, '') }}</span></UiBadge>
               </div>
             </td>
             <td class="px-4 py-3">
-              <span v-if="expense.wallet" class="inline-flex items-center gap-2 text-sm">
+              <span v-if="expense.type === 'transfer'" class="inline-flex items-center gap-2 text-sm">
+                 <span class="text-muted-foreground">{{ expense.wallet?.name }}</span>
+                 <ArrowRight class="h-3 w-3 text-muted-foreground" />
+                 <span class="text-muted-foreground">{{ expense.to_wallet?.name }}</span>
+              </span>
+              <span v-else-if="expense.wallet" class="inline-flex items-center gap-2 text-sm">
                 <div class="w-6 h-6 flex items-center justify-center rounded-md overflow-hidden bg-muted/50 border border-border">
                   <img 
-                    :src="expense.wallet.icon_url || `/icons/wallets/${expense.wallet.type === 'metrobank' ? 'metrobank.jpg' : expense.wallet.type + '.png'}`" 
+                    :src="getWalletIconUrl(expense.wallet)" 
                     class="w-full h-full object-contain rounded" 
                     @error="$event.target.style.display='none'; $event.target.nextElementSibling.style.display='block'"
                   />
@@ -431,20 +543,20 @@ async function remove(expense) {
               </span>
               <span v-else class="text-muted-foreground">—</span>
             </td>
-            <!-- Category cell removed -->
             <td class="px-4 py-3 text-muted-foreground text-xs">{{ formatDateTime(expense.date, expense.created_at) }}</td>
-            <td 
-              class="px-4 py-3 text-right font-semibold tabular-nums"
-              :class="[
-                expense.is_settled ? 'line-through text-muted-foreground/50' : '',
-                parseFloat(expense.amount) < 0 ? 'text-emerald-600' : 'text-destructive'
-              ]"
-            >
-              {{ parseFloat(expense.amount) < 0 ? '+' : '-' }}{{ formatCurrency(Math.abs(parseFloat(expense.amount))) }}
+            <td class="px-4 py-3 text-right tabular-nums">
+              <CurrencyAmount
+                :amount="expense.type === 'deposit' ? parseFloat(expense.amount) : -parseFloat(expense.amount)"
+                :type="expense.type === 'transfer' ? 'muted' : 'auto'"
+                :prefix="expense.type === 'deposit' ? '+' : (expense.type === 'transfer' ? '' : '-')"
+                :strikethrough="expense.is_settled"
+                size="md"
+                class="font-semibold"
+              />
             </td>
-            <td class="px-4 py-3">
-              <div class="flex justify-end gap-1">
-                <UiButton variant="ghost" size="icon" class="h-8 w-8" @click="openEdit(expense)">
+            <td class="px-4 py-3" v-if="!isArchiveRange">
+              <div class="flex justify-end gap-1" @click.stop>
+                <UiButton variant="ghost" size="icon" class="h-8 w-8" @click="openEdit(expense)" :disabled="expense.type === 'transfer' || expense.type === 'deposit'">
                   <Pencil class="h-4 w-4" />
                 </UiButton>
                 <UiButton variant="ghost" size="icon" class="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10" @click="remove(expense)">
@@ -457,137 +569,8 @@ async function remove(expense) {
       </table>
     </UiCard>
 
-    <!-- Pagination Controls -->
-    <div v-if="store.pagination.total > 10" class="flex items-center justify-center mt-6">
-      <div class="flex items-center bg-card border border-border shadow-sm rounded-full p-1 gap-1">
-        <button 
-          class="h-11 w-11 flex items-center justify-center rounded-full transition-all duration-200 hover:bg-muted active:scale-90 disabled:opacity-30 disabled:pointer-events-none"
-          :disabled="currentPage <= 1"
-          @click="currentPage--"
-          @mouseenter="currentPage > 1 && store.fetchAll(currentPage - 1, { month: selectedMonth, year: selectedYear, search: debouncedSearch })"
-        >
-          <ChevronLeft class="h-5 w-5" />
-        </button>
-        
-        <div class="px-4 py-1 text-xs font-bold tracking-tight text-foreground flex items-center gap-1.5 border-x border-border/50">
-          <span class="text-primary">{{ currentPage }}</span>
-          <span class="text-muted-foreground/50">/</span>
-          <span>{{ store.pagination.last_page }}</span>
-        </div>
-
-        <button 
-          class="h-11 w-11 flex items-center justify-center rounded-full transition-all duration-200 hover:bg-muted active:scale-90 disabled:opacity-30 disabled:pointer-events-none"
-          :disabled="currentPage >= store.pagination.last_page"
-          @click="currentPage++"
-          @mouseenter="currentPage < store.pagination.last_page && store.fetchAll(currentPage + 1, { month: selectedMonth, year: selectedYear, search: debouncedSearch })"
-        >
-          <ChevronRight class="h-5 w-5" />
-        </button>
-      </div>
-    </div>
-
-    <!-- Form Modal -->
-    <Teleport to="body">
-      <div v-if="showForm" class="fixed inset-0 z-[80] flex items-stretch justify-center bg-black/60 backdrop-blur-sm p-0 sm:items-center sm:p-4" @mousedown.self="showForm = false">
-        <UiCard class="flex w-full max-w-none flex-col overflow-hidden bg-card shadow-2xl animate-in fade-in zoom-in duration-200
-          max-sm:h-[100dvh] max-sm:max-h-[100dvh] max-sm:min-h-0 max-sm:rounded-none max-sm:pt-[env(safe-area-inset-top)]
-          sm:max-h-[90vh] sm:min-h-0 sm:max-w-lg sm:rounded-2xl" @mousedown.stop>
-          
-          <div class="shrink-0 p-6 border-b border-border bg-gradient-to-r from-destructive/10 to-transparent flex items-center justify-between">
-            <h2 class="text-xl font-bold tracking-tight">{{ editingId ? 'Edit Expense' : 'New Expense' }}</h2>
-            <UiButton variant="ghost" size="icon" @click="showForm = false" class="rounded-full h-8 w-8">
-              <X class="h-4 w-4" />
-            </UiButton>
-          </div>
-
-          <div class="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
-            <UiCardContent class="p-6">
-              <form id="expense-form" @submit.prevent="submit" class="space-y-5">
-                <div class="space-y-1.5">
-                  <UiLabel>Title</UiLabel>
-                  <UiInput v-model="form.title" placeholder="Groceries, Utilities…" required />
-                </div>
-
-                <div class="grid grid-cols-2 gap-4">
-                  <div class="space-y-1.5">
-                    <UiLabel>Amount (₱)</UiLabel>
-                    <UiInput v-model="form.amount" type="number" min="0" step="0.01" placeholder="0.00" required />
-                  </div>
-                  <div class="space-y-1.5">
-                    <UiLabel>Date</UiLabel>
-                    <DatePicker v-model="form.date" placeholder="Pick a date" />
-                  </div>
-                </div>
-
-                <!-- Category field removed -->
-
-                <!-- Wallet Picker -->
-                <div class="space-y-2">
-                  <UiLabel>Pay from Wallet</UiLabel>
-                  <div v-if="walletsStore.wallets.length === 0" class="text-sm text-muted-foreground rounded-xl border border-dashed p-4 text-center">
-                    No wallets yet — add one in the <strong>Wallets</strong> tab.
-                  </div>
-                  <div v-else class="max-h-[160px] overflow-y-auto pr-1 py-1 -mr-1">
-                    <div class="grid grid-cols-2 gap-2">
-                      <button
-                        v-for="wallet in walletsStore.wallets"
-                        :key="wallet.id"
-                        type="button"
-                        @click="form.wallet_id = wallet.id"
-                        class="flex items-center gap-2.5 rounded-xl border-2 p-3 text-left transition-all duration-150"
-                        :class="form.wallet_id === wallet.id
-                          ? 'border-primary bg-primary/5 scale-[1.02]'
-                          : 'border-border hover:border-muted-foreground/40'"
-                      >
-                        <div class="h-8 w-8 shrink-0 flex items-center justify-center rounded-lg bg-white/20">
-                          <img 
-                            :src="wallet.icon_url || `/icons/wallets/${wallet.type === 'metrobank' ? 'metrobank.jpg' : wallet.type + '.png'}`" 
-                            class="w-full h-full object-contain rounded" 
-                            @error="$event.target.style.display='none'; $event.target.nextElementSibling.style.display='block'"
-                          />
-                          <Wallet class="h-4 w-4 text-muted-foreground" style="display:none" />
-                        </div>
-                        <div class="min-w-0">
-                          <p class="text-xs font-semibold truncate">{{ wallet.name }}</p>
-                          <p class="text-[10px] text-muted-foreground sensitive-balance">{{ formatCurrency(wallet.balance) }}</p>
-                        </div>
-                      </button>
-                      <button
-                        type="button"
-                        @click="form.wallet_id = null"
-                        class="flex items-center gap-2.5 rounded-xl border-2 p-3 text-left transition-all duration-150"
-                        :class="form.wallet_id === null
-                          ? 'border-primary bg-primary/5 scale-[1.02]'
-                          : 'border-border hover:border-muted-foreground/40'"
-                      >
-                        <span class="text-xl leading-none">💰</span>
-                        <div><p class="text-xs font-semibold">No wallet</p></div>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                <p v-if="balanceError" class="text-sm text-destructive font-medium rounded-xl bg-destructive/10 px-3 py-2">
-                  {{ balanceError }}
-                </p>
-              </form>
-            </UiCardContent>
-          </div>
-
-          <div class="shrink-0 border-t border-border bg-muted/20 p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] flex flex-col gap-3 sm:flex-row-reverse">
-            <UiButton type="submit" form="expense-form" :disabled="store.loading" class="rounded-xl h-11 px-8 bg-primary text-primary-foreground font-bold">
-              {{ store.loading ? (editingId ? 'Saving…' : 'Adding…') : (editingId ? 'Save changes' : 'Add expense') }}
-            </UiButton>
-            <UiButton variant="outline" @click="showForm = false" class="rounded-xl h-11 px-6">
-              Cancel
-            </UiButton>
-            <UiButton v-if="editingId" type="button" variant="destructive" @click="remove({ id: editingId, amount: form.amount, wallet_id: form.wallet_id }); showForm = false" class="rounded-xl h-11 px-4 sm:mr-auto">
-              <Trash2 class="h-4 w-4 mr-2" /> Delete
-            </UiButton>
-          </div>
-        </UiCard>
-      </div>
-    </Teleport>
+    <!-- Load More Control -->
+    <LoadMoreButton :is-loading="store.feedLoading" :has-more="store.feedHasMore" @load-more="loadMoreFeed" />
 
     <!-- Month Picker Bottom Sheet -->
     <Teleport to="body">
@@ -600,6 +583,7 @@ async function remove(expense) {
             <button
               v-for="(m, i) in months"
               :key="m"
+              type="button"
               @click="selectedMonth = i + 1; showMonthPicker = false"
               class="w-full px-6 py-4 text-left transition-colors min-h-[44px] flex items-center"
               :class="selectedMonth === i + 1 ? 'bg-primary text-white font-semibold' : 'hover:bg-muted'"
@@ -614,23 +598,33 @@ async function remove(expense) {
     <!-- Year Picker Bottom Sheet -->
     <Teleport to="body">
       <div v-if="showYearPicker" class="fixed inset-0 z-[80] flex items-end justify-center bg-black/50 backdrop-blur-sm" @click.self="showYearPicker = false">
-        <div class="w-full max-w-md bg-card rounded-t-2xl sm:rounded-2xl shadow-xl animate-slide-up">
+        <div class="w-full max-w-sm bg-card rounded-t-2xl sm:rounded-2xl shadow-xl animate-slide-up">
           <div class="p-4 border-b border-border">
             <h3 class="text-lg font-semibold text-center">Select Year</h3>
           </div>
           <div class="max-h-[50vh] overflow-y-auto">
             <button
-              v-for="y in availableYears"
-              :key="y"
-              @click="selectedYear = y; showYearPicker = false"
+              v-for="year in availableYears"
+              :key="year"
+              type="button"
+              @click="selectedYear = year; showYearPicker = false"
               class="w-full px-6 py-4 text-left transition-colors min-h-[44px] flex items-center"
-              :class="selectedYear === y ? 'bg-primary text-white font-semibold' : 'hover:bg-muted'"
+              :class="selectedYear === year ? 'bg-primary text-white font-semibold' : 'hover:bg-muted'"
             >
-              {{ y }}
+              {{ year }}
             </button>
           </div>
         </div>
       </div>
     </Teleport>
+
+    <!-- Transaction Details Modal -->
+    <TransactionDetailsModal 
+      :show="showTransactionDetails" 
+      :transaction="selectedTransaction" 
+      @close="showTransactionDetails = false"
+      @edit="showTransactionDetails = false; openEdit(selectedTransaction)"
+      @delete="showTransactionDetails = false; remove(selectedTransaction)"
+    />
   </div>
 </template>

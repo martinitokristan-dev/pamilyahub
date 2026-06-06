@@ -1,49 +1,60 @@
-import { defineStore } from 'pinia'
-import { ref } from 'vue'
-import dashboardService from '@/services/dashboardService.js'
+import { defineStore } from "pinia";
+import { ref } from "vue";
+import dashboardService from "@/services/dashboardService.js";
 
-import { performSilentFetch } from '@/utils/storeHelper.js'
-import { cacheSingleSet, cacheSingleGet, cacheSingleRemove, isNetworkError } from '@/lib/offlineDb.js'
-import { pendingCount } from '@/lib/syncEngine.js'
+import { performSilentFetch } from "@/utils/storeHelper.js";
+import {
+  cacheSingleSet,
+  cacheSingleGet,
+  cacheSingleRemove,
+  isNetworkError,
+} from "@/lib/offlineDb.js";
 
-export const useDashboardStore = defineStore('dashboard', () => {
-  const createDefaultStats = () => ({
+export const useDashboardStore = defineStore("dashboard", () => {
+  const stats = ref({
     notes_count: 0,
-    monthly_income: 0,
-    monthly_expenses: 0,
-    remaining_salary: 0,
+    expenses_total: 0,
     debts_owed_to_me: 0,
     debts_i_owe: 0,
-    files_count: 0
-  })
-
-  const stats = ref(createDefaultStats())
-  const loading = ref(false)
-  const fetched = ref(false)
-  const error = ref(null)
-  const cacheTime = ref(0)
-  const lastCacheKey = ref(null)
+    files_count: 0,
+  });
+  const loading = ref(false);
+  const fetched = ref(false);
+  const error = ref(null);
+  const cacheTime = ref(0);
+  const currentCacheKey = ref("");
 
   async function fetchStats(filters = {}, force = false) {
-    const m = filters.month ?? new Date().getMonth() + 1
-    const y = filters.year ?? new Date().getFullYear()
-    const cacheKey = `dashboard_${y}_${m}`
-    const isNewRequest = lastCacheKey.value !== cacheKey
+    const m = filters.month ?? new Date().getMonth() + 1;
+    const y = filters.year ?? new Date().getFullYear();
+    const cacheKey = `dashboard_${y}_${m}`;
 
-    if (isNewRequest) {
-      fetched.value = false
-      lastCacheKey.value = cacheKey
+    const isFiltersChanged =
+      currentCacheKey.value && currentCacheKey.value !== cacheKey;
+    if (isFiltersChanged) {
+      stats.value = {
+        notes_count: 0,
+        expenses_total: 0,
+        debts_owed_to_me: 0,
+        debts_i_owe: 0,
+        files_count: 0,
+        monthly_expenses: 0,
+        monthly_income: 0,
+        remaining_salary: 0,
+      };
+      cacheTime.value = 0;
+    }
+    currentCacheKey.value = cacheKey;
 
-      // Hydrate from IndexedDB first — avoid wiping in-memory optimistic stats with zeros
+    // Hydrate from IndexedDB if we have no data yet (offline cold start)
+    if (!fetched.value && !stats.value.expenses_total) {
       try {
-        const cached = await cacheSingleGet('dashboard', cacheKey)
-        stats.value = cached ?? createDefaultStats()
+        const cached = await cacheSingleGet("dashboard", cacheKey);
+        if (cached) stats.value = cached;
       } catch {
-        stats.value = createDefaultStats()
+        /* ignore */
       }
     }
-
-    const useLocalStatsOnly = !navigator.onLine || pendingCount.value > 0
 
     await performSilentFetch({
       loading,
@@ -51,60 +62,55 @@ export const useDashboardStore = defineStore('dashboard', () => {
       cacheTime,
       currentData: stats.value,
       cacheKey,
-      force: force && !useLocalStatsOnly,
+      force,
       fetchFn: async () => {
-        if (useLocalStatsOnly) return
-
         try {
-          const res = await dashboardService.getStats(filters)
-          stats.value = res.data.data
-          await cacheSingleSet('dashboard', res.data.data, cacheKey)
+          const res = await dashboardService.getStats(filters);
+          stats.value = res.data.data;
+          await cacheSingleSet("dashboard", res.data.data, cacheKey);
         } catch (e) {
-          if (isNetworkError(e)) return // keep cached value
-          throw e
+          if (isNetworkError(e)) return; // keep cached value
+          throw e;
         }
-      }
-    }).catch(e => {
+      },
+    }).catch((e) => {
       if (!isNetworkError(e)) {
-        error.value = e.response?.data?.message ?? 'Failed to load stats'
+        error.value = e.response?.data?.message ?? "Failed to load stats";
       }
-    })
+    });
   }
 
-  async function adjustStat(key, delta) {
-    const current = parseFloat(stats.value[key] ?? 0)
-    stats.value[key] = current + delta
-    if (key === 'monthly_expenses' && stats.value.remaining_salary !== undefined) {
-      stats.value.remaining_salary = parseFloat(stats.value.remaining_salary ?? 0) - delta
+  function adjustStat(key, delta) {
+    const current = parseFloat(stats.value[key] ?? 0);
+    stats.value[key] = current + delta;
+    if (stats.value.remaining_salary === undefined) return;
+    if (key === "monthly_expenses") {
+      stats.value.remaining_salary =
+        parseFloat(stats.value.remaining_salary ?? 0) - delta;
     }
-    if (key === 'monthly_income' && stats.value.remaining_salary !== undefined) {
-      stats.value.remaining_salary = parseFloat(stats.value.remaining_salary ?? 0) + delta
-    }
-    const cacheKey = lastCacheKey.value || `dashboard_${new Date().getFullYear()}_${new Date().getMonth() + 1}`
-    try {
-      await cacheSingleSet('dashboard', stats.value, cacheKey)
-    } catch (e) {
-      console.error('Failed to update cached dashboard stats', e)
+    if (key === "monthly_income") {
+      stats.value.remaining_salary =
+        parseFloat(stats.value.remaining_salary ?? 0) + delta;
     }
   }
 
   function invalidate(filters = {}) {
-    const m = filters.month ?? new Date().getMonth() + 1
-    const y = filters.year ?? new Date().getFullYear()
-    const cacheKey = `dashboard_${y}_${m}`
-    
-    fetched.value = false
-    lastCacheKey.value = null
-    cacheSingleRemove('dashboard', cacheKey)
+    const m = filters.month ?? new Date().getMonth() + 1;
+    const y = filters.year ?? new Date().getFullYear();
+    const cacheKey = `dashboard_${y}_${m}`;
+
+    fetched.value = false;
+    cacheSingleRemove("dashboard", cacheKey);
   }
 
-  if (typeof window !== 'undefined') {
-    window.addEventListener('pamilya:drain-complete', () => {
-      fetched.value = false
-      lastCacheKey.value = null
-    })
-  }
-
-  return { stats, loading, fetched, error, cacheTime, lastCacheKey, fetchStats, adjustStat, invalidate }
-
-})
+  return {
+    stats,
+    loading,
+    fetched,
+    error,
+    cacheTime,
+    fetchStats,
+    adjustStat,
+    invalidate,
+  };
+});

@@ -2,15 +2,24 @@
 import { ref, onMounted, computed, watch, nextTick } from 'vue'
 import { RouterView, RouterLink, useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.js'
+import { useSwipeNavigation } from '@/composables/useSwipeNavigation.js'
 import { useNotesStore } from '@/stores/notes.js'
 import { useExpensesStore } from '@/stores/expenses.js'
 import { useDebtsStore } from '@/stores/debts.js'
 import { useFilesStore } from '@/stores/files.js'
 import { useWalletsStore } from '@/stores/wallets.js'
 import { useDarkMode } from '@/composables/useDarkMode.js'
-import { pageAddAction } from '@/composables/usePageAction.js'
 import { useRegisterSW } from 'virtual:pwa-register/vue'
 import { useSalaryStore } from '@/stores/salary.js'
+import { useModalsStore } from '@/stores/modals.js'
+
+import WalletModal from '@/components/modals/WalletModal.vue'
+import ExpenseModal from '@/components/modals/ExpenseModal.vue'
+import DebtModal from '@/components/modals/DebtModal.vue'
+import NoteModal from '@/components/modals/NoteModal.vue'
+import FileModal from '@/components/modals/FileModal.vue'
+import DepositSalaryModal from '@/components/financial/DepositSalaryModal.vue'
+import TransferModal from '@/components/modals/TransferModal.vue'
 
 import {
   LayoutDashboard,
@@ -22,9 +31,13 @@ import {
   Home,
   Settings,
   Plus,
+  X,
   Wallet,
   Activity,
   BrainCircuit,
+  Archive,
+  ArrowRightLeft,
+  Calendar,
 } from 'lucide-vue-next'
 
 import { useDashboardStore } from '@/stores/dashboard.js'
@@ -39,9 +52,13 @@ const debts = useDebtsStore()
 const files = useFilesStore()
 const wallets = useWalletsStore()
 const salary = useSalaryStore()
+const modals = useModalsStore()
 const route = useRoute()
 const router = useRouter()
 const { isDark } = useDarkMode()
+const appRootRef = ref(null)
+
+useSwipeNavigation(appRootRef)
 
 watch(() => route.fullPath, async () => {
   await nextTick()
@@ -155,14 +172,32 @@ onMounted(async () => {
 })
 
 const showMoreMenu = ref(false)
+const showSpeedDial = ref(false)
+
+const speedDialActions = computed(() => {
+  const actions = [
+    { name: 'Transfer', icon: ArrowRightLeft, action: () => modals.openTransferModal(), color: 'text-zinc-500 dark:text-zinc-400', bg: 'bg-zinc-100 dark:bg-zinc-800' },
+    { name: 'Deposit', icon: HandCoins, action: () => modals.openDepositModal(), color: 'text-zinc-500 dark:text-zinc-400', bg: 'bg-zinc-100 dark:bg-zinc-800' },
+    { name: 'Expense', icon: Receipt, action: () => modals.openExpenseModal(), color: 'text-zinc-500 dark:text-zinc-400', bg: 'bg-zinc-100 dark:bg-zinc-800' },
+    { name: 'Wallet', icon: Wallet, action: () => modals.openWalletModal(), color: 'text-zinc-500 dark:text-zinc-400', bg: 'bg-zinc-100 dark:bg-zinc-800' },
+    { name: 'Debt', icon: HandCoins, action: () => modals.openDebtModal(), color: 'text-zinc-500 dark:text-zinc-400', bg: 'bg-zinc-100 dark:bg-zinc-800' },
+    { name: 'Note', icon: NotebookPen, action: () => modals.openNoteModal(), color: 'text-zinc-500 dark:text-zinc-400', bg: 'bg-zinc-100 dark:bg-zinc-800' },
+  ]
+  if (auth.user?.email === 'martinitokristan@gmail.com') {
+    actions.push({ name: 'File', icon: FolderOpen, action: () => modals.openFileModal(), color: 'text-zinc-500 dark:text-zinc-400', bg: 'bg-zinc-100 dark:bg-zinc-800' })
+  }
+  return actions
+})
 const nav = [
-  { name: 'Dashboard', to: '/', icon: LayoutDashboard },
+  { name: 'Home', to: '/', icon: Home },
+  { name: 'Plan', to: '/plans', icon: Calendar },
   { name: 'API Usage', to: '/admin/api-usage', icon: Activity },
   { name: 'AI Logs',  to: '/admin/ai-logs', icon: BrainCircuit },
   { name: 'Notes', to: '/notes', icon: NotebookPen },
   { name: 'Expenses', to: '/expenses', icon: Receipt },
   { name: 'Wallets', to: '/wallets', icon: Wallet },
   { name: 'Debts', to: '/debts', icon: HandCoins },
+  { name: 'Archives', to: '/archives', icon: Archive },
   { name: 'Files', to: '/files', icon: FolderOpen },
   { name: 'Settings', to: '/settings', icon: Settings },
 ]
@@ -178,19 +213,20 @@ const filteredNav = computed(() => {
 
 // Main tabs for the bottom dock (2 on each side of the center button)
 const mainBottomNav = [
-  { name: 'Home',     to: '/',         icon: LayoutDashboard },
+  { name: 'Home',     to: '/',         icon: Home },
+  { name: 'Plan',     to: '/plans',    icon: Calendar },
   { name: 'Expenses', to: '/expenses', icon: Receipt },
-  { name: 'Debts',    to: '/debts',    icon: HandCoins },
 ]
 
 // Secondary items for the "More" menu
 const moreNav = [
   { name: 'Wallets',  to: '/wallets',  icon: Wallet },
+  { name: 'Debts',    to: '/debts',    icon: HandCoins },
+  { name: 'Archives', to: '/archives', icon: Archive },
   { name: 'Notes',    to: '/notes',    icon: NotebookPen },
   { name: 'Files',    to: '/files',    icon: FolderOpen },
   { name: 'API Usage',to: '/admin/api-usage', icon: Activity },
   { name: 'AI Logs',  to: '/admin/ai-logs', icon: BrainCircuit },
-  { name: 'Settings', to: '/settings', icon: Settings },
 ]
 
 const filteredMoreNav = computed(() => {
@@ -202,12 +238,14 @@ const filteredMoreNav = computed(() => {
   })
 })
 
+const isAdminMoreNav = computed(() => auth.user?.email === 'martinitokristan@gmail.com')
+
 const initials = computed(() => {
   const name = auth.user?.name ?? ''
   return name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
 })
 
-const isGuidePage = computed(() => route.path === '/guide')
+const isGuidePage = computed(() => route.path === '/guide' || route.path === '/faq')
 const isSubSettings = computed(() => {
   return route.path === '/settings' && route.query.tab && route.query.tab !== 'main'
 })
@@ -224,10 +262,10 @@ function isActive(path) {
 </script>
 
 <template>
-  <div class="flex h-screen overflow-hidden bg-background font-sans">
+  <div ref="appRootRef" class="flex h-screen overflow-hidden bg-background font-sans">
 
     <!-- Desktop Sidebar -->
-    <aside v-if="!hideNavigationAndAi" class="hidden lg:flex w-[240px] shrink-0 flex-col border-r border-sidebar-border bg-sidebar shadow-sm">
+    <aside v-if="!hideNavigationAndAi" class="hidden xl:flex w-[240px] shrink-0 flex-col border-r border-sidebar-border bg-sidebar shadow-sm">
       <div class="flex h-16 shrink-0 items-center gap-3 border-b border-sidebar-border px-6">
         <div class="h-9 w-9 rounded-xl bg-primary flex items-center justify-center shrink-0 shadow-lg shadow-primary/20">
           <span class="text-white font-black text-xl leading-none">E</span>
@@ -283,9 +321,9 @@ function isActive(path) {
 
       <!-- Page content -->
       <main 
-        class="flex-1 overflow-y-auto bg-[#e9eff6] dark:bg-zinc-950"
+        class="flex-1 overflow-y-auto bg-background dark:bg-zinc-950"
         :class="[
-          hideNavigationAndAi ? 'pb-6' : 'pb-32 lg:pb-0',
+          hideNavigationAndAi ? 'pb-6' : 'pb-32 xl:pb-0',
           {
             'hide-balances-active': auth.user?.hide_balances,
             'hide-stats-active': auth.user?.hide_stats
@@ -300,12 +338,12 @@ function isActive(path) {
       </main>
 
       <!-- Mobile Bottom Navigation -->
-      <nav v-if="!hideNavigationAndAi" class="fixed bottom-0 inset-x-0 z-[60] lg:hidden pb-safe px-4 mb-6">
-        <!-- Backdrop to close More Menu -->
+      <nav v-if="!hideNavigationAndAi" class="fixed bottom-0 inset-x-0 z-[60] xl:hidden pb-safe flex justify-center px-4 mb-6">
+        <!-- Backdrop to close Menus -->
         <div 
-          v-if="showMoreMenu" 
+          v-if="showMoreMenu || showSpeedDial" 
           class="fixed inset-0 z-40 bg-black/5 backdrop-blur-[2px]" 
-          @click="showMoreMenu = false"
+          @click="showMoreMenu = false; showSpeedDial = false"
         ></div>
 
         <!-- More Menu Overlay -->
@@ -317,19 +355,28 @@ function isActive(path) {
           leave-from-class="opacity-100 translate-y-0 scale-100"
           leave-to-class="opacity-0 translate-y-10 scale-95"
         >
-          <div v-if="showMoreMenu" class="absolute bottom-[calc(100%+12px)] inset-x-0 z-50">
-            <div class="bg-card/95 backdrop-blur-2xl border border-border/50 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.2)] p-3 overflow-hidden">
-              <div class="flex justify-around items-center">
+          <div v-if="showMoreMenu" class="absolute bottom-[calc(100%+12px)] left-1/2 -translate-x-1/2 w-full max-w-sm z-50 px-2">
+            <div
+              class="relative h-20 bg-card/80 backdrop-blur-2xl border border-border/40 rounded-[50px] shadow-[0_10px_40px_rgba(0,0,0,0.15)] flex items-center transition-all duration-500"
+              :class="isAdminMoreNav ? 'overflow-hidden px-1' : 'px-2 overflow-visible'"
+            >
+              <div
+                class="flex items-center h-full"
+                :class="isAdminMoreNav ? 'w-full overflow-x-auto hide-scrollbar gap-1 px-1 snap-x snap-mandatory' : 'flex-1 justify-around'"
+              >
                 <RouterLink
                   v-for="item in filteredMoreNav"
                   :key="item.to"
                   :to="item.to"
                   @click="showMoreMenu = false"
-                  class="relative flex flex-col items-center justify-center w-14 py-3 transition-all group active:scale-90"
-                  :class="isActive(item.to) ? 'text-primary' : 'text-muted-foreground/60 hover:text-foreground'"
+                  class="relative flex flex-col items-center justify-center w-[72px] h-[64px] rounded-[50px] transition-all group active:scale-90 shrink-0"
+                  :class="[
+                    isActive(item.to) ? 'text-primary bg-zinc-200/80 dark:bg-zinc-800' : 'text-foreground/70 dark:text-zinc-400 hover:text-foreground',
+                    isAdminMoreNav ? 'snap-center' : ''
+                  ]"
                 >
                   <component :is="item.icon" class="h-6 w-6 transition-transform duration-300 group-active:scale-90" :class="{ 'scale-110 drop-shadow-[0_0_8px_rgba(var(--primary-rgb),0.3)]': isActive(item.to) }" />
-                  <span class="text-[9px] font-black mt-1 uppercase tracking-tighter">{{ item.name }}</span>
+                  <span class="text-[10px] font-sans font-bold mt-1.5 uppercase tracking-wide text-center leading-tight px-0.5">{{ item.name }}</span>
                   <span 
                     v-if="item.name === 'Settings' && needRefresh" 
                     class="absolute top-2 right-0 h-2.5 w-2.5 rounded-full bg-destructive border-2 border-card animate-pulse"
@@ -340,124 +387,102 @@ function isActive(path) {
           </div>
         </Transition>
 
+        <!-- Speed Dial Bottom Sheet -->
+        <Transition
+          enter-active-class="transition duration-300 cubic-bezier(0.2, 0.8, 0.2, 1)"
+          enter-from-class="opacity-0 translate-y-[120%]"
+          enter-to-class="opacity-100 translate-y-0"
+          leave-active-class="transition duration-250 ease-in"
+          leave-from-class="opacity-100 translate-y-0"
+          leave-to-class="opacity-0 translate-y-[120%]"
+        >
+          <div v-if="showSpeedDial" class="fixed bottom-0 inset-x-0 z-50 flex justify-center">
+            <div class="w-full max-w-sm rounded-t-[2rem] bg-card/95 backdrop-blur-3xl border-t border-border/50 shadow-[0_-20px_60px_rgba(0,0,0,0.3)] pb-[calc(env(safe-area-inset-bottom)+1.5rem)] pt-6 px-6 max-h-[80vh] overflow-y-auto origin-bottom">
+              <div class="flex justify-between items-center mb-6">
+                 <h3 class="font-black text-xl tracking-tight text-foreground">Create New</h3>
+                 <button @click="showSpeedDial = false" class="p-2 rounded-full bg-muted/60 hover:bg-muted text-muted-foreground transition-colors active:scale-90">
+                   <X class="h-5 w-5 stroke-[2.5px]" />
+                 </button>
+              </div>
+              
+              <div class="grid grid-cols-3 gap-x-4 gap-y-6 mb-2">
+                <button
+                  v-for="action in speedDialActions"
+                  :key="action.name"
+                  @click="action.action(); showSpeedDial = false"
+                  class="flex flex-col items-center gap-3 transition-all active:scale-90 group"
+                >
+                  <div class="h-14 w-14 rounded-2xl flex items-center justify-center shadow-sm transition-transform group-hover:scale-110" :class="[action.color, action.bg]">
+                    <component :is="action.icon" class="h-6 w-6 stroke-[2.5px]" />
+                  </div>
+                  <span class="text-xs font-bold text-foreground/80 text-center uppercase tracking-wider">{{ action.name }}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </Transition>
+
         <!-- The Dock Container -->
-        <div class="relative h-20 bg-card/80 backdrop-blur-2xl border border-border/40 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.15)] flex items-center px-2 overflow-visible transition-all duration-500">
+        <div class="relative w-full max-w-sm mx-auto h-20 bg-card/80 backdrop-blur-2xl border border-border/40 rounded-[50px] shadow-[0_10px_40px_rgba(0,0,0,0.15)] flex items-center px-2 overflow-visible transition-all duration-500">
           
-          <!-- Case 1: With FAB (2-FAB-2 Layout) -->
-          <template v-if="pageAddAction">
-            <!-- Left Side Tabs -->
-            <div class="flex flex-1 justify-around items-center h-full">
-              <RouterLink
-                v-for="item in mainBottomNav.slice(0, 2)"
-                :key="item.to"
-                :to="item.to"
-                @click="showMoreMenu = false"
-                class="relative flex flex-col items-center justify-center w-14 h-full transition-all group"
-                :class="isActive(item.to) ? 'text-primary' : 'text-muted-foreground/60 hover:text-foreground'"
-              >
-                <component :is="item.icon" class="h-6 w-6 transition-transform duration-300 group-active:scale-90" :class="{ 'scale-110 drop-shadow-[0_0_8px_rgba(var(--primary-rgb),0.3)]': isActive(item.to) }" />
-                <span class="text-[9px] font-black mt-1 uppercase tracking-tighter">{{ item.name }}</span>
-              </RouterLink>
-            </div>
+          <!-- Left Side Tabs -->
+          <div class="flex flex-1 justify-around items-center h-full">
+            <RouterLink
+              v-for="item in mainBottomNav.slice(0, 2)"
+              :key="item.to"
+              :to="item.to"
+              @click="showMoreMenu = false; showSpeedDial = false"
+              class="relative flex flex-col items-center justify-center w-[72px] h-[64px] rounded-[50px] transition-all group"
+              :class="isActive(item.to) ? 'text-primary bg-zinc-200/80 dark:bg-zinc-800' : 'text-foreground/70 dark:text-zinc-400 hover:text-foreground'"
+            >
+              <component :is="item.icon" class="h-6 w-6 transition-transform duration-300 group-active:scale-90" :class="{ 'scale-110 drop-shadow-[0_0_8px_rgba(var(--primary-rgb),0.3)]': isActive(item.to) }" />
+              <span class="text-[10px] font-sans font-bold mt-1.5 uppercase tracking-wide">{{ item.name }}</span>
+            </RouterLink>
+          </div>
 
-            <!-- Centered FAB -->
-            <div class="relative w-20 flex justify-center -mt-10">
-              <div class="absolute inset-0 bg-background rounded-full scale-125 blur-xl opacity-50 -z-10"></div>
-              <button
-                @click="pageAddAction(); showMoreMenu = false"
-                class="h-16 w-16 rounded-full bg-primary text-primary-foreground shadow-[0_8px_25px_rgba(var(--primary-rgb),0.5)] flex items-center justify-center active:scale-90 transition-all duration-300 hover:rotate-90 group border-4 border-background"
-              >
-                <Plus class="h-8 w-8 stroke-[3px] transition-transform group-hover:scale-110" />
-              </button>
-            </div>
+          <!-- Centered FAB -->
+          <div class="relative w-20 flex justify-center -mt-10">
+            <div class="absolute inset-0 bg-background rounded-full scale-125 blur-xl opacity-50 -z-10"></div>
+            <button
+              @click="showSpeedDial = !showSpeedDial; showMoreMenu = false"
+              class="h-16 w-16 rounded-full bg-primary text-primary-foreground shadow-[0_8px_25px_rgba(var(--primary-rgb),0.5)] flex items-center justify-center active:scale-90 transition-all duration-300 hover:scale-105 group border-4 border-background"
+              :class="{ 'rotate-45': showSpeedDial }"
+            >
+              <Plus class="h-8 w-8 stroke-[3px] transition-transform" />
+            </button>
+          </div>
 
-            <!-- Right Side Tabs -->
-            <div class="flex flex-1 justify-around items-center h-full">
-              <RouterLink
-                :to="mainBottomNav[2].to"
-                @click="showMoreMenu = false"
-                class="relative flex flex-col items-center justify-center w-14 h-full transition-all group"
-                :class="isActive(mainBottomNav[2].to) ? 'text-primary' : 'text-muted-foreground/60 hover:text-foreground'"
-              >
-                <component :is="mainBottomNav[2].icon" class="h-6 w-6 transition-transform duration-300 group-active:scale-90" :class="{ 'scale-110 drop-shadow-[0_0_8px_rgba(var(--primary-rgb),0.3)]': isActive(mainBottomNav[2].to) }" />
-                <span class="text-[9px] font-black mt-1 uppercase tracking-tighter">{{ mainBottomNav[2].name }}</span>
-              </RouterLink>
+          <!-- Right Side Tabs -->
+          <div class="flex flex-1 justify-around items-center h-full">
+            <RouterLink
+              :to="mainBottomNav[2].to"
+              @click="showMoreMenu = false; showSpeedDial = false"
+              class="relative flex flex-col items-center justify-center w-[72px] h-[64px] rounded-[50px] transition-all group"
+              :class="isActive(mainBottomNav[2].to) ? 'text-primary bg-zinc-200/80 dark:bg-zinc-800' : 'text-foreground/70 dark:text-zinc-400 hover:text-foreground'"
+            >
+              <component :is="mainBottomNav[2].icon" class="h-6 w-6 transition-transform duration-300 group-active:scale-90" :class="{ 'scale-110 drop-shadow-[0_0_8px_rgba(var(--primary-rgb),0.3)]': isActive(mainBottomNav[2].to) }" />
+              <span class="text-[10px] font-sans font-bold mt-1.5 uppercase tracking-wide">{{ mainBottomNav[2].name }}</span>
+            </RouterLink>
 
-              <!-- More Trigger -->
-              <button
-                @click="showMoreMenu = !showMoreMenu"
-                class="relative flex flex-col items-center justify-center w-14 h-full transition-all group"
-                :class="showMoreMenu ? 'text-primary' : 'text-muted-foreground/60 hover:text-foreground'"
-              >
-                <div class="flex flex-col gap-0.5 items-center justify-center h-6 w-6 transition-transform duration-300 group-active:scale-90 relative">
-                  <div class="w-1.5 h-1.5 rounded-full bg-current transition-all" :class="{ 'scale-125': showMoreMenu }" />
-                  <div class="w-1.5 h-1.5 rounded-full bg-current transition-all" :class="{ 'scale-125': showMoreMenu }" />
-                  <div class="w-1.5 h-1.5 rounded-full bg-current transition-all" :class="{ 'scale-125': showMoreMenu }" />
-                  <span 
-                    v-if="needRefresh" 
-                    class="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-destructive border-2 border-background animate-pulse"
-                  ></span>
-                </div>
-                <span class="text-[9px] font-black mt-1 uppercase tracking-tighter">More</span>
-              </button>
-            </div>
-          </template>
+            <!-- More Trigger -->
+            <button
+              @click="showMoreMenu = !showMoreMenu; showSpeedDial = false"
+              class="relative flex flex-col items-center justify-center w-[72px] h-[64px] rounded-[50px] transition-all group"
+              :class="showMoreMenu ? 'text-primary bg-zinc-200/80 dark:bg-zinc-800' : 'text-foreground/70 dark:text-zinc-400 hover:text-foreground'"
+            >
+              <div class="flex flex-col gap-0.5 items-center justify-center h-6 w-6 transition-transform duration-300 group-active:scale-90 relative">
+                <div class="w-1.5 h-1.5 rounded-full bg-current transition-all" :class="{ 'scale-125': showMoreMenu }" />
+                <div class="w-1.5 h-1.5 rounded-full bg-current transition-all" :class="{ 'scale-125': showMoreMenu }" />
+                <div class="w-1.5 h-1.5 rounded-full bg-current transition-all" :class="{ 'scale-125': showMoreMenu }" />
+                <span 
+                  v-if="needRefresh" 
+                  class="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-destructive border-2 border-background animate-pulse"
+                ></span>
+              </div>
+              <span class="text-[10px] font-sans font-bold mt-1.5 uppercase tracking-wide">More</span>
+            </button>
+          </div>
 
-          <!-- Case 2: Without FAB (Balanced 4-item Layout) -->
-          <template v-else>
-            <div class="flex w-full justify-around items-center h-full">
-              <!-- Home -->
-              <RouterLink
-                :to="mainBottomNav[0].to"
-                @click="showMoreMenu = false"
-                class="relative flex flex-col items-center justify-center flex-1 h-full transition-all group"
-                :class="isActive(mainBottomNav[0].to) ? 'text-primary' : 'text-muted-foreground/60 hover:text-foreground'"
-              >
-                <component :is="mainBottomNav[0].icon" class="h-6 w-6 transition-transform duration-300 group-active:scale-90" :class="{ 'scale-110 drop-shadow-[0_0_8px_rgba(var(--primary-rgb),0.3)]': isActive(mainBottomNav[0].to) }" />
-                <span class="text-[9px] font-black mt-1 uppercase tracking-tighter">{{ mainBottomNav[0].name }}</span>
-              </RouterLink>
-
-              <!-- Expenses -->
-              <RouterLink
-                :to="mainBottomNav[1].to"
-                @click="showMoreMenu = false"
-                class="relative flex flex-col items-center justify-center flex-1 h-full transition-all group"
-                :class="isActive(mainBottomNav[1].to) ? 'text-primary' : 'text-muted-foreground/60 hover:text-foreground'"
-              >
-                <component :is="mainBottomNav[1].icon" class="h-6 w-6 transition-transform duration-300 group-active:scale-90" :class="{ 'scale-110 drop-shadow-[0_0_8px_rgba(var(--primary-rgb),0.3)]': isActive(mainBottomNav[1].to) }" />
-                <span class="text-[9px] font-black mt-1 uppercase tracking-tighter">{{ mainBottomNav[1].name }}</span>
-              </RouterLink>
-
-              <!-- Debts -->
-              <RouterLink
-                :to="mainBottomNav[2].to"
-                @click="showMoreMenu = false"
-                class="relative flex flex-col items-center justify-center flex-1 h-full transition-all group"
-                :class="isActive(mainBottomNav[2].to) ? 'text-primary' : 'text-muted-foreground/60 hover:text-foreground'"
-              >
-                <component :is="mainBottomNav[2].icon" class="h-6 w-6 transition-transform duration-300 group-active:scale-90" :class="{ 'scale-110 drop-shadow-[0_0_8px_rgba(var(--primary-rgb),0.3)]': isActive(mainBottomNav[2].to) }" />
-                <span class="text-[9px] font-black mt-1 uppercase tracking-tighter">{{ mainBottomNav[2].name }}</span>
-              </RouterLink>
-
-              <!-- More -->
-              <button
-                @click="showMoreMenu = !showMoreMenu"
-                class="relative flex flex-col items-center justify-center flex-1 h-full transition-all group"
-                :class="showMoreMenu ? 'text-primary' : 'text-muted-foreground/60 hover:text-foreground'"
-              >
-                <div class="flex flex-col gap-0.5 items-center justify-center h-6 w-6 transition-transform duration-300 group-active:scale-90 relative">
-                  <div class="w-1.5 h-1.5 rounded-full bg-current transition-all" :class="{ 'scale-125': showMoreMenu }" />
-                  <div class="w-1.5 h-1.5 rounded-full bg-current transition-all" :class="{ 'scale-125': showMoreMenu }" />
-                  <div class="w-1.5 h-1.5 rounded-full bg-current transition-all" :class="{ 'scale-125': showMoreMenu }" />
-                  <span 
-                    v-if="needRefresh" 
-                    class="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-destructive border-2 border-background animate-pulse"
-                  ></span>
-                </div>
-                <span class="text-[9px] font-black mt-1 uppercase tracking-tighter">More</span>
-              </button>
-            </div>
-          </template>
 
         </div>
       </nav>
@@ -504,6 +529,45 @@ function isActive(path) {
         </div>
       </Transition>
 
+      <!-- Global Modals -->
+      <WalletModal 
+        :show="modals.isWalletModalOpen" 
+        :walletId="modals.walletId" 
+        @close="modals.closeWalletModal()" 
+      />
+      <ExpenseModal 
+        :show="modals.isExpenseModalOpen" 
+        :expenseId="modals.expenseId" 
+        :preselectedWalletId="modals.expensePreselectedWalletId"
+        @close="modals.closeExpenseModal()" 
+      />
+      <DebtModal 
+        :show="modals.isDebtModalOpen" 
+        :debtId="modals.debtId" 
+        @close="modals.closeDebtModal()" 
+      />
+      <NoteModal 
+        :show="modals.isNoteModalOpen" 
+        :noteId="modals.noteId" 
+        :defaultFolderId="modals.noteFolderId"
+        @close="modals.closeNoteModal()" 
+      />
+      <FileModal 
+        :show="modals.isFileModalOpen" 
+        :defaultAlbum="modals.fileDefaultAlbum"
+        @close="modals.closeFileModal()" 
+      />
+      <DepositSalaryModal
+        :show="modals.isDepositModalOpen"
+        :walletId="modals.depositWalletId"
+        :isAddMore="modals.depositIsAddMore"
+        @close="modals.closeDepositModal()"
+        @success="() => { dashboard.fetchStats({}, true); salary.fetchCurrentMonth(); }"
+      />
+      <TransferModal 
+        :show="modals.isTransferModalOpen" 
+        @close="modals.closeTransferModal()" 
+      />
     </div>
   </div>
 </template>

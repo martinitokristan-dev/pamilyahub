@@ -4,11 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Models\Expense;
 use App\Models\Income;
+use App\Models\IncomeArchive;
 use App\Services\UserStatsService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Schema;
 
 class DashboardController extends Controller
 {
@@ -21,14 +23,21 @@ class DashboardController extends Controller
         $userId = $request->user()->id;
         $month = $request->query('month', now()->month);
         $year = $request->query('year', now()->year);
+        $startDateParam = $request->query('start_date');
+        $endDateParam = $request->query('end_date');
 
-        $cacheKey = "dashboard_stats_{$userId}_{$year}_{$month}";
-
-        $data = Cache::remember($cacheKey, 120, function () use ($userId, $month, $year, $request) {
-            $stats = $this->stats->get($userId);
-
+        if ($startDateParam && $endDateParam) {
+            $startDate = $startDateParam;
+            $endDate = $endDateParam;
+            $cacheKey = "dashboard_stats_{$userId}_{$startDate}_{$endDate}";
+        } else {
             $startDate = sprintf('%04d-%02d-01', $year, $month);
             $endDate = date('Y-m-t', strtotime($startDate));
+            $cacheKey = "dashboard_stats_{$userId}_{$year}_{$month}";
+        }
+
+        $data = Cache::remember($cacheKey, 120, function () use ($userId, $startDate, $endDate, $request) {
+            $stats = $this->stats->get($userId);
 
             // Fetch and aggregate Expenses in PHP
             $expenses = Expense::where('user_id', $userId)
@@ -41,11 +50,20 @@ class DashboardController extends Controller
                 ->whereNull('wallet_id')
                 ->sum(fn($e) => (float) $e->amount);
 
-            // Fetch and aggregate Income in PHP (Income is single source of truth)
-            $totalIncome = Income::where('user_id', $userId)
-                ->whereBetween('date', [$startDate, $endDate])
-                ->get()
-                ->sum(fn($i) => (float) $i->amount);
+            // Sum active incomes and archives for the selected range (deposits write to `incomes`)
+            $totalIncome = 0.0;
+            if (Schema::hasTable('incomes')) {
+                $totalIncome += (float) Income::where('user_id', $userId)
+                    ->whereBetween('date', [$startDate, $endDate])
+                    ->get()
+                    ->sum(fn ($i) => (float) $i->amount);
+            }
+            if (Schema::hasTable('income_archives')) {
+                $totalIncome += (float) IncomeArchive::where('user_id', $userId)
+                    ->whereBetween('date', [$startDate, $endDate])
+                    ->get()
+                    ->sum(fn ($i) => (float) $i->amount);
+            }
 
             $stats->monthly_expenses = $expensesTotal;
             $stats->monthly_income   = $totalIncome;

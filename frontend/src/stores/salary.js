@@ -14,6 +14,7 @@ import {
 } from '@/lib/offlineDb.js'
 import { refreshPendingCount, isSyncing } from '@/lib/syncEngine.js'
 import { performSilentFetch } from '@/utils/storeHelper.js'
+import { notifyFinanceActivity } from '@/lib/financeEvents.js'
 
 export const useSalaryStore = defineStore('salary', () => {
   const status   = ref(null)   // 'pending' | 'received'
@@ -113,8 +114,20 @@ export const useSalaryStore = defineStore('salary', () => {
       await useDashboardStore().fetchStats({ month: month.value, year: year.value }, true)
       walletsStore.invalidate()
       const { useExpensesStore } = await import('./expenses.js')
-      useExpensesStore().invalidate()
+      const expStore = useExpensesStore()
+      expStore.invalidate()
+      const depositItem = {
+        id: `deposit_${Date.now()}`,
+        type: 'deposit',
+        amount: String(payload.total_amount),
+        date: new Date().toISOString().split('T')[0],
+        description: payload.notes || 'Salary Deposit',
+        created_at: new Date().toISOString()
+      }
+      expStore.expenses.unshift(depositItem)
+      expStore.injectOptimisticFeedItem(depositItem)
       useToast().salary('Salary deposited', '₱' + parseFloat(payload.total_amount).toLocaleString())
+      notifyFinanceActivity({ type: 'deposit', action: 'create' })
       return { offline: false }
     } catch (e) {
       if (isNetworkError(e)) return _depositOffline(payload)
@@ -169,6 +182,22 @@ export const useSalaryStore = defineStore('salary', () => {
     const dbStore = useDashboardStore()
     const totalAmount = parseFloat(payload.total_amount || 0)
     dbStore.adjustStat('monthly_income', totalAmount)
+    
+    const { useExpensesStore } = await import("./expenses.js")
+    const expStore = useExpensesStore()
+    const nowStr = new Date().toISOString()
+    
+    const depositItem = {
+      id: tempId,
+      type: 'deposit',
+      amount: String(payload.total_amount),
+      date: nowStr.split('T')[0],
+      description: payload.notes || 'Salary Deposit',
+      created_at: nowStr,
+      _pending: true
+    }
+    expStore.expenses.unshift(depositItem)
+    expStore.injectOptimisticFeedItem(depositItem)
 
     const alreadySpent = parseFloat(payload.already_spent || 0)
     if (alreadySpent > 0) {
@@ -194,6 +223,7 @@ export const useSalaryStore = defineStore('salary', () => {
     }
 
     useToast().offline('Deposit saved offline', 'Will sync when connected')
+    notifyFinanceActivity({ type: 'deposit', action: 'create', offline: true })
     return { offline: true }
   }
 

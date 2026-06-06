@@ -24,12 +24,6 @@ export const useDebtsStore = defineStore("debts", () => {
   const error = ref(null);
   const fetched = ref(false);
   const cacheTime = ref(null);
-  const pagination = ref({
-    page: 1,
-    per_page: 10,
-    total: 0,
-    last_page: 1,
-  });
   const lastCacheKey = ref(null);
 
   // ── Sync event listeners ────────────────────────────────────────────────────
@@ -58,8 +52,8 @@ export const useDebtsStore = defineStore("debts", () => {
   }
 
   // ── fetchAll ────────────────────────────────────────────────────────────────
-  async function fetchAll(force = false, page = 1, perPage = 10, filters = {}) {
-    const cacheKey = `debts_p${page}_${JSON.stringify(filters)}`
+  async function fetchAll(force = false, filters = {}) {
+    const cacheKey = `debts_all_${JSON.stringify(filters)}`
     lastCacheKey.value = cacheKey
 
     return performSilentFetch({
@@ -83,26 +77,12 @@ export const useDebtsStore = defineStore("debts", () => {
         if (isSyncing.value) return
 
         try {
-          const res = await debtService.getAll(page, perPage, filters)
+          const res = await debtService.getAll(filters)
           const pendingItems = debts.value.filter((d) => d._pending)
           let serverItems = []
 
-          if (res.data.data && res.data.data.data) {
-            serverItems = res.data.data.data
-            pagination.value = {
-              page: res.data.data.page,
-              per_page: res.data.data.per_page,
-              total: res.data.data.total,
-              last_page: res.data.data.last_page,
-            }
-          } else {
-            serverItems = res.data.data || []
-            pagination.value = {
-              page: 1,
-              per_page: serverItems.length,
-              total: serverItems.length,
-              last_page: 1,
-            }
+          if (res.data && res.data.data && Array.isArray(res.data.data)) {
+            serverItems = res.data.data
           }
 
           const serverIds = new Set(serverItems.map((s) => String(s.id)))
@@ -120,15 +100,50 @@ export const useDebtsStore = defineStore("debts", () => {
     })
   }
 
-  async function loadMore(page) {
+  // ── Feed (Cursor Pagination) ──────────────────────────────────────────────
+  const feedItems = ref([]);
+  const feedLoading = ref(false);
+  const feedHasMore = ref(false);
+  const feedNextCursor = ref(null);
+  const filters = ref({ dateFrom: null, dateTo: null });
+
+  async function fetchFeed(options = {}) {
+    const { refresh = false, limit = 10, startDate = null, endDate = null, search = '', type = '' } = options;
+
+    if (refresh) {
+      feedNextCursor.value = null;
+      feedHasMore.value = false;
+      feedItems.value = [];
+    }
+
+    feedLoading.value = true;
     try {
-      const res = await debtService.getAll(page, pagination.value.per_page);
-      if (res.data.data && res.data.data.data) {
-        debts.value.push(...res.data.data.data);
-        pagination.value.page = page;
+      const params = { limit };
+      if (feedNextCursor.value && !refresh) {
+        params.cursor = feedNextCursor.value;
+      }
+      if (startDate) params.start_date = startDate;
+      if (endDate) params.end_date = endDate;
+      if (search) params.search = search;
+      if (type) params.type = type;
+
+      const res = await debtService.getFeed(params);
+      const newItems = res.data.data || [];
+
+      feedNextCursor.value = res.data.meta?.next_cursor || null;
+      feedHasMore.value = !!res.data.meta?.has_more;
+
+      if (refresh) {
+        feedItems.value = newItems;
+      } else {
+        const existingIds = new Set(feedItems.value.map(item => String(item.id)));
+        const filteredNew = newItems.filter(item => !existingIds.has(String(item.id)));
+        feedItems.value = [...feedItems.value, ...filteredNew];
       }
     } catch (e) {
-      error.value = e.response?.data?.message ?? "Failed to load more debts";
+      error.value = e.response?.data?.message ?? "Failed to load feed";
+    } finally {
+      feedLoading.value = false;
     }
   }
 
@@ -138,7 +153,12 @@ export const useDebtsStore = defineStore("debts", () => {
     loading.value = true;
     try {
       const res = await debtService.create(data);
-      debts.value.unshift(res.data.data);
+      const existingIdx = debts.value.findIndex(d => d.id === res.data.data.id);
+      if (existingIdx !== -1) {
+        debts.value[existingIdx] = res.data.data;
+      } else {
+        debts.value.unshift(res.data.data);
+      }
       await cacheUpsert("debts", res.data.data);
       if (data.type === "owed_to_me" && data.wallet_id) {
         await useWalletsStore().adjustBalance(data.wallet_id, -Math.abs(parseFloat(data.amount || 0)));
@@ -620,6 +640,24 @@ export const useDebtsStore = defineStore("debts", () => {
     }
   }
 
+  // ── archive ─────────────────────────────────────────────────────────────────
+  async function archive(id) {
+    if (!navigator.onLine) throw new Error("Cannot archive while offline");
+    loading.value = true;
+    try {
+      await debtService.archive(id);
+      debts.value = debts.value.filter((d) => d.id !== id);
+      await cacheRemove("debts", id);
+      useDashboardStore().invalidate({ month: new Date().getMonth() + 1, year: new Date().getFullYear() });
+      invalidate();
+      useToast().success('Debt archived', 'Moved to archives successfully');
+    } catch (e) {
+      throw e;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   async function _removeOffline(id) {
     const toRemove = debts.value.find((d) => d.id === id);
     debts.value = debts.value.filter((d) => d.id !== id);
@@ -645,19 +683,37 @@ export const useDebtsStore = defineStore("debts", () => {
     lastCacheKey.value = null;
   }
 
+  function applyFilters(dateFrom, dateTo) {
+    filters.value = {
+      dateFrom: dateFrom || null,
+      dateTo: dateTo || null,
+    };
+  }
+
+  function clearFilters() {
+    filters.value = { dateFrom: null, dateTo: null };
+  }
+
   return {
     debts,
     loading,
     error,
     fetched,
-    pagination,
     fetchAll,
-    loadMore,
     create,
     update,
     markPaid,
     partialPay,
     remove,
-    invalidate,
+    archive,
+    applyFilters,
+    clearFilters,
+    feedItems,
+    feedLoading,
+    feedHasMore,
+    feedNextCursor,
+    fetchFeed,
+    filters,
+    clearFilters,
   };
 });

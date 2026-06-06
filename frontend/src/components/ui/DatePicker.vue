@@ -5,6 +5,8 @@ import { ChevronLeft, ChevronRight, CalendarDays } from 'lucide-vue-next'
 const props = defineProps({
   modelValue: { type: String, default: '' },
   placeholder: { type: String, default: 'Select date' },
+  /** Taller trigger styled for filter bottom sheets */
+  sheetStyle: { type: Boolean, default: false },
 })
 const emit = defineEmits(['update:modelValue'])
 
@@ -135,8 +137,13 @@ function open() {
     <button
       type="button"
       @click="open"
-      class="flex h-9 w-full items-center gap-2 rounded-md border border-input bg-transparent px-3 text-sm shadow-sm text-left transition-colors hover:border-ring focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-      :class="displayValue ? 'text-foreground' : 'text-muted-foreground'"
+      class="flex w-full items-center gap-2.5 border text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+      :class="[
+        sheetStyle
+          ? 'h-12 rounded-xl border-border bg-background px-3.5 text-sm shadow-sm hover:bg-muted/30'
+          : 'h-9 rounded-md border-input bg-transparent px-3 text-sm shadow-sm hover:border-ring',
+        displayValue ? 'text-foreground font-medium' : 'text-muted-foreground',
+      ]"
     >
       <CalendarDays class="h-4 w-4 shrink-0 text-muted-foreground" />
       <span class="flex-1 truncate">{{ displayValue || placeholder }}</span>

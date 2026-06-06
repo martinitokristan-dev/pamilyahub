@@ -201,7 +201,11 @@ async function sendMessage(rawText = input.value) {
       pushMessage('assistant', result.reminder, 'question')
     }
   } catch (_err) {
-    pushMessage('assistant', 'I encountered an error while processing that command. Please try again.', 'guard')
+    let errMsg = 'I encountered an error while processing that command. Please try again.'
+    if (_err?.response?.status === 422 && _err?.response?.data?.message) {
+      errMsg = `I'm sorry, but your transaction could not be processed: ${_err.response.data.message}`
+    }
+    pushMessage('assistant', errMsg, 'guard')
   } finally {
     isThinking.value = false
     await persistHistory()
@@ -223,7 +227,6 @@ function closeChat() {
   isOpen.value = false
   chatOpen.value = false
   handleUserActivity()
-  clearPendingContext()
 }
 
 function onChatTouchStart(event) {

@@ -8,6 +8,9 @@ import {
   extractAmount,
   detectCategory,
   extractExpenseReason,
+  sanitizeExpenseReason,
+  sanitizePlanReason,
+  isBarePlanTrigger,
   matchWallet,
   extractPersonName,
   extractWalletNameForCreate,
@@ -20,12 +23,14 @@ import {
   CATEGORY_MAP, // FIXED: category keyword map for query filtering
   CATEGORY_LABELS, // FIXED: category labels for query replies
 } from "@/lib/chatEntities.js";
+import { resolveWalletIconType } from "@/lib/walletIcons.js";
 
 import { useExpensesStore } from "@/stores/expenses.js";
 import { useWalletsStore } from "@/stores/wallets.js";
 import { useDebtsStore } from "@/stores/debts.js";
 import { useSalaryStore } from "@/stores/salary.js";
 import { useDashboardStore } from "@/stores/dashboard.js";
+import { usePlansStore } from "@/stores/plans.js";
 import { shouldFetchFromServer } from "@/lib/syncEngine.js";
 import {
   detectSmallTalk,
@@ -38,11 +43,16 @@ import {
   clearLastBotAction,
   matchContextualInference,
   getCommandStartPrefix,
+  APP_COMMANDS_HELP,
 } from "@/lib/chatKnowledge.js";
 
 import { advancedClassify } from "@/lib/chatNlu.js";
 import { generateSmartFallback } from "@/lib/chatSmartFallback.js";
 import { detectHowToFlowQuestion } from "@/lib/chatQuestion.js";
+import { transferService } from "@/services/transferService.js";
+import { outboxAdd } from "@/lib/offlineDb.js";
+import { refreshPendingCount } from "@/lib/syncEngine.js";
+import { notifyFinanceActivity } from "@/lib/financeEvents.js";
 import api from "@/lib/axios.js";
 import chatRules from "@/lib/chatRules.json";
 import { ENGLISH_LEXICON } from "@/lib/knowledge/index.js";
@@ -106,6 +116,13 @@ const _chatBudgetByMonth = new Map();
 const _chatBudgetUndoByMonth = new Map();
 const CHAT_BUDGET_STORAGE_KEY = "elefam_chat_budget_by_month";
 const _sessionLastAction = new Map();
+
+/** Disambiguation picker (pay_plan / pay_debt) — separate from slot-filling pending context */
+let pendingAction = null;
+
+function clearPendingAction() {
+  pendingAction = null;
+}
 
 function rememberSessionAction(sessionId = "default", intent = "", entities = {}) {
   _sessionLastAction.set(sessionId, {
@@ -430,6 +447,8 @@ const REQUIRED_FIELDS = {
   transfer: ["amount", "fromWallet", "toWallet"],
   create_debt: ["amount", "person", "type"],
   pay_debt: ["debtId", "amount", "walletId"],
+  create_plan: ["reason", "amount", "date"],
+  pay_plan: ["reason", "amount", "wallet"],
   set_budget: ["amount"],
 };
 
@@ -463,6 +482,34 @@ async function planAction(intent, entities, sessionId, rawText = "") {
   const walletsStore = useWalletsStore();
   const normalized = normalizeText(rawText);
 
+  if (intent === "pay_plan" && entities._resolvedPlan) {
+    const planAmount = parseFloat(entities._resolvedPlan.amount);
+    if (!entities.amount || entities.amount <= 0) {
+      entities.amount = planAmount;
+    }
+  }
+
+  if (intent === "log_expense") {
+    entities.reason = sanitizeExpenseReason(entities.reason);
+  }
+
+  if (intent === "create_plan") {
+    if (!entities.date) {
+      const parsedDate = extractDueDateFromText(rawText);
+      if (parsedDate) entities.date = parsedDate;
+    }
+    if (!entities.recurrence) {
+      entities.recurrence = detectRecurrenceFromText(rawText);
+    }
+    if (!entities.reason && rawText && !isBarePlanTrigger(rawText)) {
+      const inferredReason = sanitizePlanReason(
+        extractExpenseReason(rawText, walletsStore.wallets),
+        rawText,
+      );
+      if (inferredReason) entities.reason = inferredReason;
+    }
+  }
+
   // ── STAGE 1: VALIDATE REQUIRED FIELDS ───────────────────────────────
   const required = getRequiredFields(intent, entities);
   const missing = required.filter((field) => {
@@ -483,7 +530,7 @@ async function planAction(intent, entities, sessionId, rawText = "") {
   // ── STAGE 2: PLAN NEXT ACTION ────────────────────────────────────────
   if (missing.length > 0) {
     // Missing fields → ask follow-up
-    const nextField = missing[0];
+    let nextField = missing[0];
 
     // Check for ambiguous debt matches when debtId is missing in pay_debt
     let ambiguousDebts = undefined;
@@ -491,7 +538,21 @@ async function planAction(intent, entities, sessionId, rawText = "") {
       const debtsStore = useDebtsStore();
       if (debtsStore.debts.length === 0) await debtsStore.fetchAll();
       const debtsResult = findDebtByName(rawText, debtsStore.debts);
-      if (debtsResult.ambiguous) {
+      if (debtsResult.match) {
+        entities.debtId = debtsResult.match.id;
+        // Re-evaluate missing fields now that debtId is resolved
+        const newMissing = getRequiredFields(intent, entities).filter((field) => {
+          const val = entities[field];
+          if (val === null || val === undefined) return true;
+          if (typeof val === "string" && val.trim() === "") return true;
+          return false;
+        });
+        if (newMissing.length === 0) {
+          clearPendingContext(sessionId);
+          return executeIntent(intent, entities, sessionId);
+        }
+        nextField = newMissing[0];
+      } else if (debtsResult.ambiguous) {
         ambiguousDebts = debtsResult.ambiguous;
       }
     }
@@ -521,6 +582,7 @@ async function planAction(intent, entities, sessionId, rawText = "") {
 
   // ── STAGE 3: EXECUTE (all fields present) ────────────────────────────
   clearPendingContext(sessionId);
+  if (rawText) entities._sourceText = rawText;
   return executeIntent(intent, entities, sessionId);
 }
 
@@ -607,6 +669,16 @@ function getPendingReminder(ctx) {
       return `I'm still waiting for how much you want to set your budget to.`;
     }
   }
+  if (intentName === "create_plan") {
+    if (!entities.reason) return `I'm still waiting for the name of the plan or bill.`;
+    if (!entities.amount) return `I'm still waiting for the amount of the plan.`;
+    if (!entities.date) return `I'm still waiting for the due date of the plan.`;
+  }
+  if (intentName === "pay_plan") {
+    if (!entities.reason) return `I'm still waiting for which plan you want to pay.`;
+    if (!entities.amount) return `I'm still waiting for how much you paid.`;
+    if (!entities.wallet) return `I'm still waiting for which wallet to deduct the payment from.`;
+  }
   return "";
 }
 
@@ -616,6 +688,12 @@ export function clearPendingContext(sessionId = "default") {
 }
 
 function askForMissingField(field, pendingCtx) {
+  if (!field) {
+    if (pendingCtx?.intent === "create_wallet") {
+      return `What's the starting balance for your ${pendingCtx.walletName} wallet? Reply with an amount, or say "0" if it's empty right now.`;
+    }
+    return "Can you give me a bit more detail?";
+  }
   const intent = pendingCtx.intent;
   const walletsStore = useWalletsStore();
   const walletList = walletsStore.wallets.map((w) => w.name).join(", ");
@@ -625,26 +703,44 @@ function askForMissingField(field, pendingCtx) {
     if (intent === "log_expense") return "How much did you spend?";
     if (intent === "transfer") return "How much do you want to transfer?";
     if (intent === "create_debt") return "How much is the debt amount?";
+    if (intent === "create_plan" || intent === "pay_plan") return "How much is the plan amount?";
     if (intent === "pay_debt") {
       const debtsStore = useDebtsStore();
       const debt = debtsStore.debts.find(
         (d) => String(d.id) === String(pendingCtx.entities.debtId),
       );
-      if (debt && debt.type === "owed_to_me") {
-        return `How much did ${debt.name} pay you?`;
+      if (debt) {
+        if (debt.type === "owed_to_me") {
+          return `How much did ${debt.name} pay you?`;
+        } else if (debt.type === "i_owe") {
+          return `How much did you pay ${debt.name}?`;
+        }
       }
       return "How much did you pay?";
     }
     if (intent === "set_budget") return "How much limit would you like to set? (e.g. 12000)";
+    if (intent === "create_wallet") {
+      return `What's the starting balance for your ${pendingCtx.walletName} wallet? Just type a number like "500" or "0" if it's empty.`;
+    }
     return "How much did you spend?";
   }
   if (field === "wallet") {
     const suffix = walletList ? `\n(${walletList})` : "";
     if (intent === "deposit") return `Which wallet are you depositing to?${suffix}`;
     if (intent === "log_expense") return `Which wallet did you use?${suffix}`;
+    if (intent === "pay_plan") return `Which wallet did you use to pay the plan?${suffix}`;
     return `Which wallet?${suffix}`;
   }
+  if (field === "reason") {
+    if (intent === "create_plan") return "What is the name of the bill or plan?";
+    if (intent === "pay_plan") return "Which bill or plan are you paying?";
+    return "What is the reason?";
+  }
+  if (field === "date") {
+    return "When is the due date? (e.g., June 30 or next Friday)";
+  }
   if (field === "category") {
+    if (intent === "log_expense") return "What is it for? (e.g. food, transpo)";
     return "What was it for? (e.g. food, transpo)";
   }
   if (field === "fromWallet") {
@@ -702,6 +798,7 @@ async function executeIntent(intent, entities, sessionId) {
   const debtsStore = useDebtsStore();
   const salaryStore = useSalaryStore();
   const expensesStore = useExpensesStore();
+  const plansStore = usePlansStore();
 
   if (intent === "deposit") {
     const result = await _executeDeposit(
@@ -709,6 +806,7 @@ async function executeIntent(intent, entities, sessionId) {
       entities.wallet,
       salaryStore,
       dashboardStore,
+      entities._sourceText || "",
     );
     if (result?.ok) rememberSessionAction(sessionId, intent, entities);
     return result;
@@ -765,6 +863,32 @@ async function executeIntent(intent, entities, sessionId) {
     if (result?.ok) rememberSessionAction(sessionId, intent, entities);
     return result;
   }
+  if (intent === "create_plan") {
+    const result = await _executeCreatePlan(
+      entities.reason,
+      entities.amount,
+      entities.date,
+      entities.recurrence,
+      plansStore,
+      dashboardStore,
+    );
+    if (result?.ok) rememberSessionAction(sessionId, intent, entities);
+    return result;
+  }
+  if (intent === "pay_plan") {
+    const result = await executePayPlan(
+      entities._resolvedPlan || null,
+      entities.amount,
+      entities.wallet,
+      sessionId,
+      entities.reason,
+    );
+    if (result?.ok) rememberSessionAction(sessionId, intent, entities);
+    return result;
+  }
+  if (intent === "view_plans") {
+    return _executeViewPlans(plansStore);
+  }
   return { ok: false, message: `Unknown intent: ${intent}` };
 }
 
@@ -797,7 +921,18 @@ export async function resolvePendingContext(
   const newEntities = {};
 
   let required = getRequiredFields(pendingCtx.intent, pendingCtx.entities);
-  const missingBefore = required.filter((field) => !pendingCtx.entities[field]);
+  const missingBefore = required.filter((field) => {
+    const val = pendingCtx.entities[field];
+    if (!val) return true;
+    // Match the same special case as the final validation check
+    if (
+      pendingCtx.intent === "log_expense" &&
+      field === "category" &&
+      val === "expense" &&
+      !pendingCtx.entities.reason
+    ) return true;
+    return false;
+  });
 
   const inferredFromContext = inferFollowupEntitiesFromContext(
     text,
@@ -809,13 +944,40 @@ export async function resolvePendingContext(
   Object.assign(newEntities, inferredFromContext);
 
   const extractedAmount = extractAmount(text);
-  if (extractedAmount && extractedAmount > 0)
+  if (
+    extractedAmount &&
+    extractedAmount > 0 &&
+    pendingCtx.intent !== "create_plan"
+  ) {
     newEntities.amount = extractedAmount;
+  }
 
   const matchedWallet = matchWallet(text, walletsStore.wallets);
 
-  if (pendingCtx.intent === "deposit" || pendingCtx.intent === "log_expense") {
+  if (pendingCtx.intent === "deposit" || pendingCtx.intent === "log_expense" || pendingCtx.intent === "pay_plan") {
     if (matchedWallet) newEntities.wallet = matchedWallet;
+  }
+
+  if (pendingCtx.intent === "pay_plan") {
+    if (!pendingCtx.entities._resolvedPlan) {
+      const plansStore = usePlansStore();
+      if (!plansStore.fetched) await plansStore.fetchAll(true);
+      const unpaid = plansStore.plans.filter((p) => !p.is_paid);
+      const planResult = findPlanByName(text, unpaid);
+      if (planResult.match) {
+        newEntities.reason = planResult.match.title;
+        newEntities._resolvedPlan = planResult.match;
+      } else if (planResult.ambiguous) {
+        pendingCtx.ambiguousPlans = planResult.ambiguous;
+      } else {
+        const extractedReason = extractExpenseReason(text, walletsStore.wallets);
+        if (extractedReason) newEntities.reason = extractedReason;
+      }
+    }
+    const resolved = pendingCtx.entities._resolvedPlan || newEntities._resolvedPlan;
+    if (resolved && (!pendingCtx.entities.amount || pendingCtx.entities.amount <= 0)) {
+      newEntities.amount = parseFloat(resolved.amount);
+    }
   }
 
   if (pendingCtx.intent === "transfer") {
@@ -862,50 +1024,60 @@ export async function resolvePendingContext(
     if (matchedWallet) newEntities.walletId = matchedWallet.id;
   }
 
-  if (pendingCtx.intent === "log_expense") {
-    const extractedCategory = detectCategory(text);
-    const extractedReason = extractExpenseReason(text, walletsStore.wallets);
-    const weakReasons = [
-      "expense",
-      "today",
-      "yesterday",
-      "now",
-      "ngayon",
-      "karon",
-      "kanina",
-      "on",
-      "from",
-      "sa",
-      "via",
-      "using",
-      "wallet",
-      "account",
-      "po",
-      "opo",
-      "pls",
-      "please",
-      "log",
-    ];
-    const reason = weakReasons.includes(
-      String(extractedReason || "").toLowerCase(),
-    )
-      ? null
-      : extractedReason;
-
-    if (reason) {
-      newEntities.reason = reason;
+  if (pendingCtx.intent === "create_plan") {
+    if (missingBefore.includes("reason")) {
+      const inferredReason = sanitizePlanReason(
+        extractExpenseReason(text, walletsStore.wallets),
+        text,
+      );
+      if (inferredReason) {
+        newEntities.reason = inferredReason;
+      } else if (
+        text.trim().length >= 2 &&
+        !/^(what|how|where|who|when|why|show|list|can you|help)\b/i.test(normalizeText(text)) &&
+        extractAmount(text) === null &&
+        !parseDueDate(text) &&
+        !extractDueDateFromText(text)
+      ) {
+        const name = text.trim();
+        newEntities.reason = name.charAt(0).toUpperCase() + name.slice(1);
+      }
     }
+    if (missingBefore.includes("amount")) {
+      const amt = extractAmount(text);
+      if (amt && amt > 0) newEntities.amount = amt;
+    }
+    if (missingBefore.includes("date")) {
+      const parsedDate = parseDueDate(text) || extractDueDateFromText(text);
+      if (parsedDate) newEntities.date = parsedDate;
+      const recurrence = detectRecurrenceFromText(text);
+      if (recurrence) newEntities.recurrence = recurrence;
+    }
+  }
 
-    if (extractedCategory && extractedCategory !== "expense") {
-      newEntities.category = extractedCategory;
-    } else if (reason) {
-      newEntities.category = "expense";
-    } else if (
-      normalized.includes("general") ||
-      normalized.includes("none") ||
-      normalized.includes("skip")
-    ) {
-      newEntities.category = "expense"; // Explicitly set to break the loop
+  if (pendingCtx.intent === "log_expense") {
+    const answeringWallet = missingBefore.includes("wallet") && matchedWallet;
+    if (!answeringWallet) {
+      const extractedCategory = detectCategory(text);
+      const reason = sanitizeExpenseReason(
+        extractExpenseReason(text, walletsStore.wallets),
+      );
+
+      if (reason) {
+        newEntities.reason = reason;
+      }
+
+      if (extractedCategory && extractedCategory !== "expense") {
+        newEntities.category = extractedCategory;
+      } else if (reason) {
+        newEntities.category = "expense";
+      } else if (
+        normalized.includes("general") ||
+        normalized.includes("none") ||
+        normalized.includes("skip")
+      ) {
+        newEntities.category = "expense";
+      }
     }
   }
 
@@ -945,7 +1117,7 @@ export async function resolvePendingContext(
 export const eleFamProfile = {
   name: "Marti",
   greeting:
-    'Hi! I\'m Marti. I can help you with finance flows in this app like wallets, deposits, transfers, expenses, debts, and budget. Type "/help" to see detailed commands.',
+    'Hi! I\'m Marti, your finance assistant. Type "/help" to see what you can do, or just tell me what you need — like "spent 500 on food" or "add a new plan".',
   guardReply:
     'I can only help with finance flows in this app: add wallet, deposit, transfer, log expense, debt tracking, and budget checks. You can type "/help" for commands.',
 };
@@ -956,35 +1128,32 @@ const TECHNICAL_GUARD_REPLY =
 const FLOW_ONLY_FALLBACK =
   'I can help with finance flows only. Try asking: "how to add wallet", "how to deposit", "how to transfer", "how to log expense", "how to track debt", or "how to check budget".';
 
-const HELP_MESSAGE = [
-  "Here are some things you can say to me directly:",
-  "",
-  "Wallets & Balances",
-  '• "See my wallets."',
-  '• "How much is in my GCash?"',
-  '• "New wallet Travel Fund 1000."',
-  "",
-  "Expenses",
-  '• "Spent 500 on food from GCash."',
-  '• "How much did I spend today?"',
-  "",
-  "Deposits",
-  '• "Deposit 2000 to Maya."',
-  "",
-  "Debts & Payments",
-  '• "I owe Ana 800."',
-  '• "Mark owes me 400."',
-  '• "Pay Ana 300 from GCash."',
-  "",
-  "Commands",
-  '• "/help" - Show this list of suggestions',
-  '• "/clear" - Clear the conversation history',
-].join("\n");
+const HELP_MESSAGE = APP_COMMANDS_HELP;
 
 const SYSTEM_WALLET_TYPES = WALLET_DEFINITIONS;
 
 function formatMoney(value) {
   return `₱${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function stripMarkdownFormatting(text = "") {
+  return String(text || "")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/\*([^*]+)\*/g, "$1")
+    .replace(/__([^_]+)__/g, "$1")
+    .replace(/_([^_]+)_/g, "$1");
+}
+
+function normalizeHelpReply(message = "") {
+  const cleaned = stripMarkdownFormatting(message);
+  const n = normalizeText(cleaned);
+  if (
+    /welcome to elefam/.test(n) &&
+    (/new wallet|manage your finances|these commands/.test(n))
+  ) {
+    return APP_COMMANDS_HELP;
+  }
+  return cleaned;
 }
 
 // FIXED: detects if text is asking about a specific category
@@ -1138,10 +1307,22 @@ function findDebtByName(inputText, debts = [], candidates = null) {
   // E.g. "pay jane smith" contains "jane smith"
   const fullMatches = searchPool.filter((d) => {
     const name = normalizeText(d.name);
-    return name && normalizedInput.includes(name);
+    if (!name) return false;
+    const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`\\b${escapedName}\\b`, 'i');
+    return regex.test(normalizedInput);
   });
   if (fullMatches.length === 1) return { match: fullMatches[0] };
-  if (fullMatches.length > 1) return { ambiguous: fullMatches };
+  if (fullMatches.length > 1) {
+    // If all matches have the exact same lowercase name, just pick the first one 
+    // to avoid asking "Which kyla do you mean? kyla or Kyla?"
+    const firstLower = normalizeText(fullMatches[0].name);
+    const allSameName = fullMatches.every(d => normalizeText(d.name) === firstLower);
+    if (allSameName) {
+      return { match: fullMatches[0] };
+    }
+    return { ambiguous: fullMatches };
+  }
 
   // 2. Partial name match (first name or last name check)
   const excludeWords = new Set([
@@ -1167,7 +1348,14 @@ function findDebtByName(inputText, debts = [], candidates = null) {
   });
 
   if (partialMatches.length === 1) return { match: partialMatches[0] };
-  if (partialMatches.length > 1) return { ambiguous: partialMatches };
+  if (partialMatches.length > 1) {
+    const firstLower = normalizeText(partialMatches[0].name);
+    const allSameName = partialMatches.every(d => normalizeText(d.name) === firstLower);
+    if (allSameName) {
+      return { match: partialMatches[0] };
+    }
+    return { ambiguous: partialMatches };
+  }
 
   // 3. Ordinal matches (e.g. "first one", "second", "1st") if a candidate list is active
   if (candidates && candidates.length > 0) {
@@ -1185,12 +1373,198 @@ function findDebtByName(inputText, debts = [], candidates = null) {
   return { match: null };
 }
 
+function findPlanByName(inputText, plans = [], candidates = null) {
+  const normalizedInput = normalizeText(inputText);
+  if (!normalizedInput) return { match: null };
+
+  const searchPool =
+    candidates && candidates.length > 0
+      ? candidates
+      : plans.filter((p) => !p.is_paid);
+
+  if (searchPool.length === 0) return { match: null };
+
+  const fullMatches = searchPool.filter((p) => {
+    const title = normalizeText(p.title || "");
+    if (!title) return false;
+    const escaped = title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`\\b${escaped}\\b`, "i").test(normalizedInput);
+  });
+  if (fullMatches.length === 1) return { match: fullMatches[0] };
+  if (fullMatches.length > 1) {
+    const firstLower = normalizeText(fullMatches[0].title);
+    if (fullMatches.every((p) => normalizeText(p.title) === firstLower)) {
+      return { match: fullMatches[0] };
+    }
+    return { ambiguous: fullMatches };
+  }
+
+  const excludeWords = new Set([
+    "pay", "paid", "bayad", "nagbayad", "plan", "bill", "bills",
+    "upcoming", "subscription", "monthly", "on", "in", "at", "for",
+    "with", "from", "to", "the", "a", "i", "me", "my", "please",
+    "cash", "wallet", "gcash", "maya", "bpi", "bdo", "coins",
+  ]);
+
+  const inputWords = normalizedInput
+    .split(/\s+/)
+    .map((w) => w.replace(/[^a-z0-9]/g, ""))
+    .filter((w) => w && !excludeWords.has(w));
+
+  const partialMatches = searchPool.filter((p) => {
+    const title = normalizeText(p.title || "");
+    if (!title) return false;
+    const titleParts = title.split(/\s+/);
+    return inputWords.some(
+      (word) =>
+        titleParts.some((part) => part.includes(word) || word.includes(part)) ||
+        title.includes(word),
+    );
+  });
+
+  if (partialMatches.length === 1) return { match: partialMatches[0] };
+  if (partialMatches.length > 1) {
+    const firstLower = normalizeText(partialMatches[0].title);
+    if (partialMatches.every((p) => normalizeText(p.title) === firstLower)) {
+      return { match: partialMatches[0] };
+    }
+    return { ambiguous: partialMatches };
+  }
+
+  if (candidates && candidates.length > 0) {
+    const choiceIdx = parseDisambiguationChoice(inputText, candidates.length);
+    if (choiceIdx !== null && searchPool[choiceIdx]) {
+      return { match: searchPool[choiceIdx] };
+    }
+  }
+
+  return { match: null };
+}
+
+function parseDisambiguationChoice(inputText, count) {
+  const normalized = normalizeText(inputText).trim();
+  const digitMatch = normalized.match(/^(\d+)$/);
+  if (digitMatch) {
+    const idx = parseInt(digitMatch[1], 10) - 1;
+    if (idx >= 0 && idx < count) return idx;
+  }
+  const words = normalized.split(/\s+/).filter(Boolean);
+  const ordinalWords = [
+    ["first", "1st", "one", "unang", "uno"],
+    ["second", "2nd", "two", "pangalawa", "dos"],
+    ["third", "3rd", "three", "pangatlo", "tres"],
+  ];
+  for (let i = 0; i < Math.min(ordinalWords.length, count); i++) {
+    if (words.some((w) => ordinalWords[i].includes(w))) return i;
+  }
+  return null;
+}
+
+function buildDisambiguationPrompt(candidates, labelFn) {
+  const lines = candidates
+    .map((item, i) => `${i + 1}. ${labelFn(item)}`)
+    .join("\n");
+  return `I found multiple matches. Which one?\n${lines}\n\nReply with the number (e.g. 1 or 2).`;
+}
+
+const MONTH_NAME_TO_NUMBER = {
+  january: 1, jan: 1, february: 2, feb: 2, march: 3, mar: 3,
+  april: 4, apr: 4, may: 5, june: 6, jun: 6, july: 7, jul: 7,
+  august: 8, aug: 8, september: 9, sept: 9, sep: 9,
+  october: 10, oct: 10, november: 11, nov: 11, december: 12, dec: 12,
+};
+
+function detectRecurrenceFromText(text = "") {
+  const raw = String(text || "").toLowerCase();
+  if (!raw) return null;
+  if (/\bevery\s+week\b|\bweekly\b|\b kada linggo\b/.test(raw)) return "weekly";
+  if (/\bevery\s+year\b|\byearly\b|\bannually\b/.test(raw)) return "yearly";
+  if (/\bevery\b|\bmonthly\b|\b kada buwan\b/.test(raw)) return "monthly";
+  return null;
+}
+
+function nextCalendarDay(dayOfMonth) {
+  const now = new Date();
+  let year = now.getFullYear();
+  let month = now.getMonth();
+  let candidate = new Date(year, month, dayOfMonth);
+  candidate.setHours(0, 0, 0, 0);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  if (candidate < today) {
+    month += 1;
+    if (month > 11) {
+      month = 0;
+      year += 1;
+    }
+    candidate = new Date(year, month, dayOfMonth);
+  }
+  if (candidate.getDate() !== dayOfMonth) return null;
+  return `${candidate.getFullYear()}-${String(candidate.getMonth() + 1).padStart(2, "0")}-${String(candidate.getDate()).padStart(2, "0")}`;
+}
+
+function parseDueDate(text) {
+  const raw = String(text || "").trim();
+  if (!raw) return null;
+
+  const iso = raw.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
+  if (iso) return iso[0];
+
+  const slash = raw.match(/\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/);
+  if (slash) {
+    const [, mm, dd, yyyy] = slash;
+    return `${yyyy}-${mm.padStart(2, "0")}-${dd.padStart(2, "0")}`;
+  }
+
+  const ordinalDay = raw.match(/\b(?:every\s+)?(\d{1,2})(?:st|nd|rd|th)?\b/i);
+  if (ordinalDay) {
+    const day = parseInt(ordinalDay[1], 10);
+    if (day >= 1 && day <= 31) {
+      const next = nextCalendarDay(day);
+      if (next) return next;
+    }
+  }
+
+  const defaultYear = new Date().getFullYear();
+  for (const [name, monthNum] of Object.entries(MONTH_NAME_TO_NUMBER)) {
+    const patterns = [
+      new RegExp(`\\b${name}\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s*(\\d{4}))?\\b`, "i"),
+      new RegExp(`\\b(\\d{1,2})(?:st|nd|rd|th)?\\s+${name}(?:,?\\s*(\\d{4}))?\\b`, "i"),
+    ];
+    for (const re of patterns) {
+      const m = raw.match(re);
+      if (!m) continue;
+      const day = parseInt(m[1], 10);
+      const year = m[2] ? parseInt(m[2], 10) : defaultYear;
+      if (day >= 1 && day <= 31) {
+        const candidate = new Date(year, monthNum - 1, day);
+        if (candidate.getMonth() === monthNum - 1 && candidate.getDate() === day) {
+          return `${year}-${String(monthNum).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+function extractDueDateFromText(text) {
+  const raw = String(text || "").trim();
+  if (!raw) return null;
+  const duePhrase = raw.match(/\bdue\s+(.+?)(?:\s+every|\s+monthly|$)/i);
+  if (duePhrase) {
+    const parsed = parseDueDate(duePhrase[1].trim());
+    if (parsed) return parsed;
+  }
+  return parseDueDate(raw);
+}
+
 function financeTipFromStats(stats = {}) {
   const expensesStore = useExpensesStore();
   const walletsStore = useWalletsStore();
 
   const expenses = parseFloat(stats.monthly_expenses || 0);
-  const left = parseFloat(stats.remaining_salary || 0);
+  const left = walletsStore.totalBalance;
   const debt = parseFloat(stats.debts_i_owe || 0);
 
   // 1. Check for critical budget state
@@ -1264,33 +1638,9 @@ async function handleLogExpense(text, sessionId = "default") {
   const amount = extractAmount(text);
   const wallet = matchWallet(text, walletsStore.wallets);
   const categoryKey = detectCategory(text);
-  const extractedReason = extractExpenseReason(text, walletsStore.wallets);
-  const weakReasons = [
-    "expense",
-    "today",
-    "yesterday",
-    "now",
-    "ngayon",
-    "karon",
-    "kanina",
-    "on",
-    "from",
-    "sa",
-    "via",
-    "using",
-    "wallet",
-    "account",
-    "po",
-    "opo",
-    "pls",
-    "please",
-    "log",
-  ];
-  const reason = weakReasons.includes(
-    String(extractedReason || "").toLowerCase(),
-  )
-    ? null
-    : extractedReason;
+  const reason = sanitizeExpenseReason(
+    extractExpenseReason(text, walletsStore.wallets),
+  );
   const hasCategory = categoryKey && categoryKey !== "expense";
   return planAction(
     "log_expense",
@@ -1321,6 +1671,8 @@ async function _executeLogExpense(payload, expensesStore, dashboardStore) {
     date: new Date().toISOString().slice(0, 10),
     wallet_id: payload.wallet.id,
   });
+
+
   if (shouldFetchFromServer()) {
     dashboardStore.fetchStats().catch(() => { });
   }
@@ -1338,7 +1690,7 @@ async function _executeLogExpense(payload, expensesStore, dashboardStore) {
     ok: true,
     message: pickRandom(wittyDone, "log_expense"),
     kind: "action",
-    walletType: isLending ? "lending" : payload.wallet.type,
+    walletType: isLending ? "lending" : resolveWalletIconType(payload.wallet),
   };
 }
 
@@ -1396,7 +1748,7 @@ async function handleDeposit(text, sessionId = "default") {
 }
 
 // FIXED: private deposit executor used by both handleDeposit and resolveDeposit
-async function _executeDeposit(amount, wallet, salaryStore, dashboardStore) {
+async function _executeDeposit(amount, wallet, salaryStore, dashboardStore, sourceText = "") {
   await salaryStore.deposit({
     total_amount: amount,
     already_spent: 0,
@@ -1413,7 +1765,7 @@ async function _executeDeposit(amount, wallet, salaryStore, dashboardStore) {
     ok: true,
     message: pickRandom(wittyDone, "deposit"),
     kind: "action",
-    walletType: wallet.type,
+    walletType: resolveWalletIconType(wallet, sourceText),
   };
 }
 
@@ -1581,6 +1933,7 @@ async function resolveCreateWallet(text, ctx, sessionId = "default") {
   }
 
   const { walletName, walletType } = ctx;
+  const normalizedType = resolveWalletIconType({ type: walletType, name: walletName });
   const existing = walletsStore.wallets.find(
     (w) => String(w.name || "").toLowerCase() === walletName.toLowerCase(),
   );
@@ -1594,7 +1947,7 @@ async function resolveCreateWallet(text, ctx, sessionId = "default") {
 
   await walletsStore.create({
     name: walletName,
-    type: walletType,
+    type: normalizedType,
     balance: amount,
     color: "",
     icon_url: "",
@@ -1609,7 +1962,7 @@ async function resolveCreateWallet(text, ctx, sessionId = "default") {
     ok: true,
     message: pickRandom(wittyDone, "create_wallet_followup"),
     kind: "action",
-    walletType,
+    walletType: normalizedType,
   };
 }
 
@@ -1638,7 +1991,10 @@ async function handleCreateWallet(text, sessionId = "default", entities = {}) {
     };
   }
 
-  const walletType = detectedType || inferWalletType(walletName);
+  const walletType = resolveWalletIconType({
+    type: detectedType || inferWalletType(walletName),
+    name: walletName,
+  });
   const rawAmount = entities.balance !== undefined ? entities.balance : extractAmount(text);
 
   if (rawAmount === null) {
@@ -1689,7 +2045,7 @@ function handleQueryBalance(text) {
       ok: true,
       message: pickRandom(witty, "query_balance_wallet"),
       kind: "query",
-      walletType: wallet.type,
+      walletType: resolveWalletIconType(wallet),
     };
   }
 
@@ -1788,10 +2144,20 @@ async function handleQueryExpenses(text = "") {
   ) {
     range = "yesterday";
   } else if (
+    normalized.includes("last week") ||
+    normalized.includes("nakaraang linggo")
+  ) {
+    range = "last_week";
+  } else if (
     normalized.includes("this week") ||
     normalized.includes("ngayong linggo")
   ) {
     range = "week";
+  } else if (
+    normalized.includes("last month") ||
+    normalized.includes("nakaraang buwan")
+  ) {
+    range = "last_month";
   }
 
   // ── 3. Detect category filter (NEW) ───────────────────────────────────
@@ -1813,14 +2179,40 @@ async function handleQueryExpenses(text = "") {
 
     let thisMonthTotal = 0;
     let lastMonthTotal = 0;
+    let usedExact = false;
 
-    for (const expense of expensesStore.expenses) {
-      const d = parseExpenseDate(expense);
-      if (!d) continue;
-      if (d >= thisMonthStart) {
-        thisMonthTotal += parseFloat(expense.amount || 0);
-      } else if (d >= lastMonthStart && d < thisMonthStart) {
-        lastMonthTotal += parseFloat(expense.amount || 0);
+    if (typeof window !== "undefined" && navigator.onLine) {
+      try {
+        const tmStartStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+        const tmEndStr = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
+        
+        const lmStartStr = `${lastMonthStart.getFullYear()}-${String(lastMonthStart.getMonth() + 1).padStart(2, '0')}-01`;
+        const lmEndStr = new Date(lastMonthStart.getFullYear(), lastMonthStart.getMonth() + 1, 0).toISOString().slice(0, 10);
+
+        const [resTm, resLm] = await Promise.all([
+          api.get('/dashboard/stats', { params: { start_date: tmStartStr, end_date: tmEndStr } }),
+          api.get('/dashboard/stats', { params: { start_date: lmStartStr, end_date: lmEndStr } })
+        ]);
+
+        if (resTm?.data?.data && resLm?.data?.data) {
+          thisMonthTotal = parseFloat(resTm.data.data.monthly_expenses || 0);
+          lastMonthTotal = parseFloat(resLm.data.data.monthly_expenses || 0);
+          usedExact = true;
+        }
+      } catch (e) {
+        // Silently fallback to local paginated calculation
+      }
+    }
+
+    if (!usedExact) {
+      for (const expense of expensesStore.expenses) {
+        const d = parseExpenseDate(expense);
+        if (!d) continue;
+        if (d >= thisMonthStart) {
+          thisMonthTotal += parseFloat(expense.amount || 0);
+        } else if (d >= lastMonthStart && d < thisMonthStart) {
+          lastMonthTotal += parseFloat(expense.amount || 0);
+        }
       }
     }
 
@@ -1857,12 +2249,28 @@ async function handleQueryExpenses(text = "") {
       const d = (e.date || e.created_at || "").slice(0, 10);
       return d === yesterdayStr;
     });
+  } else if (range === "last_week") {
+    const fourteenDaysAgo = new Date();
+    fourteenDaysAgo.setDate(now.getDate() - 14);
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(now.getDate() - 7);
+    filtered = filtered.filter((e) => {
+      const d = new Date(e.date || e.created_at);
+      return d >= fourteenDaysAgo && d < sevenDaysAgo;
+    });
   } else if (range === "week") {
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(now.getDate() - 7);
     filtered = filtered.filter(
       (e) => new Date(e.date || e.created_at) >= sevenDaysAgo,
     );
+  } else if (range === "last_month") {
+    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    filtered = filtered.filter((e) => {
+      const d = new Date(e.date || e.created_at);
+      return d >= startOfLastMonth && d < startOfThisMonth;
+    });
   } else {
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     filtered = filtered.filter(
@@ -1887,9 +2295,13 @@ async function handleQueryExpenses(text = "") {
       ? "today"
       : range === "yesterday"
         ? "yesterday"
-        : range === "week"
-          ? "this week"
-          : "this month";
+        : range === "last_week"
+          ? "last week"
+          : range === "week"
+            ? "this week"
+            : range === "last_month"
+              ? "last month"
+              : "this month";
   const walletLabel = wallet ? ` via ${wallet.name}` : "";
 
   if (asksLatest) {
@@ -1903,7 +2315,7 @@ async function handleQueryExpenses(text = "") {
         ok: true,
         message: `I couldn't find recent expenses yet. Try logging one first, then ask me again for latest expenses.`,
         kind: "query",
-        walletType: wallet?.type || null,
+        walletType: wallet ? resolveWalletIconType(wallet) : null,
       };
     }
 
@@ -1920,7 +2332,7 @@ async function handleQueryExpenses(text = "") {
       ok: true,
       message: `Here are your latest expenses:\n${lines}`,
       kind: "query",
-      walletType: wallet?.type || null,
+      walletType: wallet ? resolveWalletIconType(wallet) : null,
     };
   }
 
@@ -1943,7 +2355,7 @@ async function handleQueryExpenses(text = "") {
         ok: true,
         message: `I couldn't find enough expense data this month to rank overspending categories yet.`,
         kind: "query",
-        walletType: wallet?.type || null,
+        walletType: wallet ? resolveWalletIconType(wallet) : null,
       };
     }
 
@@ -1955,12 +2367,63 @@ async function handleQueryExpenses(text = "") {
       ok: true,
       message: `Top spending categories ${range === "month" ? "this month" : rangeLabel}:\n${lines}`,
       kind: "query",
-      walletType: wallet?.type || null,
+      walletType: wallet ? resolveWalletIconType(wallet) : null,
     };
   }
 
   // ── 8. Compute total ──────────────────────────────────────────────────
-  const total = filtered.reduce((sum, e) => sum + parseFloat(e.amount || 0), 0);
+  let total = filtered.reduce((sum, e) => sum + parseFloat(e.amount || 0), 0);
+
+  // If asking for a general total over a time period, the local paginated data is incomplete.
+  // Fetch the exact sum from the backend if online.
+  if (typeof window !== "undefined" && navigator.onLine) {
+    if (!queryCategory && !asksLatest && !asksOverspending) {
+      let startDateStr = null;
+      let endDateStr = null;
+
+      if (range === "month") {
+        const m = now.getMonth() + 1;
+        const y = now.getFullYear();
+        startDateStr = `${y}-${String(m).padStart(2, '0')}-01`;
+        endDateStr = new Date(y, m, 0).toISOString().slice(0, 10);
+      } else if (range === "last_month") {
+        const d = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const m = d.getMonth() + 1;
+        const y = d.getFullYear();
+        startDateStr = `${y}-${String(m).padStart(2, '0')}-01`;
+        endDateStr = new Date(y, m, 0).toISOString().slice(0, 10);
+      } else if (range === "last_week") {
+        const fourteenDaysAgo = new Date();
+        fourteenDaysAgo.setDate(now.getDate() - 14);
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(now.getDate() - 7);
+        startDateStr = fourteenDaysAgo.toISOString().slice(0, 10);
+        
+        // Match the < sevenDaysAgo logic used in the filter
+        const sixDaysAgo = new Date(sevenDaysAgo);
+        sixDaysAgo.setDate(sevenDaysAgo.getDate() - 1);
+        endDateStr = sixDaysAgo.toISOString().slice(0, 10);
+      } else if (range === "week") {
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(now.getDate() - 7);
+        startDateStr = sevenDaysAgo.toISOString().slice(0, 10);
+        endDateStr = todayStr;
+      }
+
+      if (startDateStr && endDateStr) {
+        try {
+          const res = await api.get('/dashboard/stats', { 
+            params: { start_date: startDateStr, end_date: endDateStr } 
+          });
+          if (res?.data?.data) {
+            total = res.data.data.monthly_expenses;
+          }
+        } catch (e) {
+          // Fallback to local sum
+        }
+      }
+    }
+  }
 
   // ── 9. Build human-readable labels ────────────────────────────────────
 
@@ -1971,7 +2434,7 @@ async function handleQueryExpenses(text = "") {
       ok: true,
       message: `No ${queryCategory.label} expenses found ${rangeLabel}${walletLabel}. Either you haven't logged any yet, or you've been really good about it!`,
       kind: "query",
-      walletType: wallet?.type || null,
+      walletType: wallet ? resolveWalletIconType(wallet) : null,
     };
   }
 
@@ -2001,7 +2464,7 @@ async function handleQueryExpenses(text = "") {
       ok: true,
       message: pickRandom(witty, `query_expenses_${queryCategory.key}`),
       kind: "query",
-      walletType: wallet?.type || null,
+      walletType: wallet ? resolveWalletIconType(wallet) : null,
     };
   }
 
@@ -2013,7 +2476,7 @@ async function handleQueryExpenses(text = "") {
     ok: true,
     message: pickRandom(witty, "query_expenses"),
     kind: "query",
-    walletType: wallet?.type || null,
+    walletType: wallet ? resolveWalletIconType(wallet) : null,
   };
 }
 
@@ -2060,10 +2523,23 @@ function handleQueryDebts(text = "") {
   const showIOwe =
     isAskingOwedByMe || (!isAskingOwedByMe && !isAskingOwedByOthers);
 
+  const aggregateDebts = (debtsArray) => {
+    const grouped = new Map();
+    for (const d of debtsArray) {
+      const normalizedName = d.name.trim().toLowerCase();
+      if (!grouped.has(normalizedName)) {
+        grouped.set(normalizedName, { name: d.name.trim(), amount: parseFloat(d.amount || 0) });
+      } else {
+        grouped.get(normalizedName).amount += parseFloat(d.amount || 0);
+      }
+    }
+    return Array.from(grouped.values());
+  };
+
   if (showOwedToMe) {
     if (owedToMe.length > 0) {
-      message += `OWED TO YOU ${formatMoney(owedTotal)}\n`;
-      message += owedToMe
+      message += `OWED TO YOU\n`;
+      message += aggregateDebts(owedToMe)
         .map((d) => `• ${d.name}: ${formatMoney(d.amount)}`)
         .join("\n");
     } else if (isAskingOwedByOthers) {
@@ -2075,8 +2551,8 @@ function handleQueryDebts(text = "") {
 
   if (showIOwe) {
     if (iOwe.length > 0) {
-      message += `YOU OWE ${formatMoney(iOweTotal)}\n`;
-      message += iOwe
+      message += `YOU OWE\n`;
+      message += aggregateDebts(iOwe)
         .map((d) => `• ${d.name}: ${formatMoney(d.amount)}`)
         .join("\n");
     } else if (isAskingOwedByMe) {
@@ -2116,7 +2592,8 @@ function handleQueryBudget() {
     };
   }
 
-  const left = parseFloat(dashboard.stats.remaining_salary || 0);
+  const walletsStore = useWalletsStore();
+  const left = walletsStore.totalBalance;
   const witty = [`Your remaining budget is ${formatMoney(left)}.`];
   return {
     ok: true,
@@ -2245,6 +2722,27 @@ async function _executeTransfer(
   }
 
   try {
+    const data = {
+      from_wallet_id: fromWallet.id,
+      to_wallet_id: toWallet.id,
+      amount: amount,
+      date: new Date().toISOString().split('T')[0],
+      description: `Transfer from ${fromWallet.name || fromWallet.type} to ${toWallet.name || toWallet.type}`,
+    };
+    
+    if (navigator.onLine) {
+      await transferService.create(data);
+    } else {
+      await outboxAdd({
+        method: "post",
+        url: "/transfers",
+        data,
+        entity: "transfers",
+        tempId: `tmp_${crypto.randomUUID()}`
+      });
+      await refreshPendingCount();
+    }
+
     await walletsStore.adjustBalance(fromWallet.id, -amount);
     await walletsStore.adjustBalance(toWallet.id, amount);
     clearPendingContext(sessionId);
@@ -2283,13 +2781,49 @@ async function _dispatchIntent(intentName, text, sessionId, entities = {}) {
   const mappedIntent = _mapNluIntent(intentName, entities);
   const intentType = getIntentType(mappedIntent);
 
+  if (mappedIntent === "pay_plan") {
+    const walletsStore = useWalletsStore();
+    if (!entities.amount) entities.amount = extractAmount(text);
+    if (!entities.wallet) {
+      entities.wallet = matchWallet(text, walletsStore.wallets);
+    }
+    const result = await dispatchPayPlan(text, sessionId, entities);
+    return result ? { ...result, intentType: "action" } : null;
+  }
+
+  if (mappedIntent === "pay_debt") {
+    const result = await dispatchPayDebt(text, sessionId, entities);
+    return result ? { ...result, intentType: "action" } : null;
+  }
+
+  if (mappedIntent === "create_plan") {
+    if (!entities.amount) entities.amount = extractAmount(text);
+    if (!entities.date) entities.date = extractDueDateFromText(text);
+    if (!entities.recurrence) entities.recurrence = detectRecurrenceFromText(text);
+    if (!entities.reason && !isBarePlanTrigger(text)) {
+      const walletsStore = useWalletsStore();
+      const inferredReason = sanitizePlanReason(
+        extractExpenseReason(text, walletsStore.wallets),
+        text,
+      );
+      if (inferredReason) entities.reason = inferredReason;
+    }
+    const result = await planAction("create_plan", entities, sessionId, text);
+    return result ? { ...result, intentType: "action" } : null;
+  }
+
+  if (mappedIntent === "view_plans") {
+    const plansStore = usePlansStore();
+    const result = await _executeViewPlans(plansStore);
+    return result ? { ...result, intentType: "query" } : null;
+  }
+
   // ── ACTION INTENTS: route through deliberative orchestrator ───────────────
   const actionIntents = [
     "log_expense",
     "deposit",
     "create_debt_i_owe",
     "create_debt_owed_to_me",
-    "pay_debt",
     "transfer",
     "set_budget",
   ];
@@ -2304,7 +2838,11 @@ async function _dispatchIntent(intentName, text, sessionId, entities = {}) {
     if (!entities.amount) entities.amount = extractAmount(text);
     if (!entities.wallet) entities.wallet = matchWallet(text, walletsStore.wallets);
     if (!entities.category) entities.category = detectCategory(text);
-    if (!entities.reason) entities.reason = extractExpenseReason(text, walletsStore.wallets);
+    if (!entities.reason) {
+      entities.reason = sanitizeExpenseReason(
+        extractExpenseReason(text, walletsStore.wallets),
+      );
+    }
     if (!entities.person) entities.person = extractPersonName(text);
 
     // Special handling for transfer and debt intents
@@ -2315,12 +2853,6 @@ async function _dispatchIntent(intentName, text, sessionId, entities = {}) {
       );
       if (!entities.fromWallet) entities.fromWallet = extractedFrom;
       if (!entities.toWallet) entities.toWallet = extractedTo;
-    }
-
-    if (mappedIntent === "pay_debt") {
-      if (debtsStore.debts.length === 0) await debtsStore.fetchAll();
-      const debtsResult = findDebtByName(text, debtsStore.debts);
-      if (!entities.debtId && debtsResult.match) entities.debtId = debtsResult.match.id;
     }
 
     // Normalize debt type for orchestrator
@@ -2377,6 +2909,9 @@ function getIntentDisplayName(intent) {
   if (intent === "transfer") return "transfer";
   if (intent === "create_debt" || intent === "create_debt_i_owe" || intent === "create_debt_owed_to_me") return "debt tracking";
   if (intent === "pay_debt") return "debt payment";
+  if (intent === "pay_plan") return "plan payment";
+  if (intent === "create_plan") return "upcoming payment";
+  if (intent === "view_plans") return "upcoming plans";
   if (intent === "set_budget") return "budget setup";
   if (intent === "create_wallet") return "wallet creation";
   return intent.replace(/_/g, " ");
@@ -2404,7 +2939,14 @@ async function executeAiAction(aiData, aiProvider, text, sessionId) {
   // Map AI-extracted fields to local entity format
   if (aiData.amount) aiEntities.amount = Number(aiData.amount);
   if (aiData.category) aiEntities.category = aiData.category;
-  if (aiData.reason) aiEntities.reason = aiData.reason;
+  if (aiData.reason) {
+    aiEntities.reason =
+      aiData.action === "log_expense"
+        ? sanitizeExpenseReason(aiData.reason)
+        : aiData.action === "create_plan"
+          ? sanitizePlanReason(aiData.reason, text)
+          : aiData.reason;
+  }
 
   // Match wallet names to actual wallet objects
   // Prevent AI hallucination by verifying the wallet was actually mentioned in the text
@@ -2440,6 +2982,15 @@ async function executeAiAction(aiData, aiProvider, text, sessionId) {
 
   // Wallet creation fields
   if (aiData.balance !== undefined) aiEntities.balance = Number(aiData.balance);
+  if (aiData.date) aiEntities.date = aiData.date;
+
+  if (aiData.wallet_name && !aiEntities.wallet) {
+    const fromName = matchWallet(aiData.wallet_name, walletsStore.wallets);
+    if (fromName) {
+      aiEntities.wallet = fromName;
+      aiEntities.walletId = fromName.id;
+    }
+  }
 
   // Map the AI action to local intent name
   let localIntent = aiData.action;
@@ -2485,6 +3036,16 @@ export async function processEleFamMessage(
   }
 
   await ensureLoaded();
+
+  if (pendingAction) {
+    const pendingResolved = await resolvePendingAction(text, sessionId);
+    if (pendingResolved) {
+      return {
+        ...pendingResolved,
+        intentType: pendingResolved.intentType || "action",
+      };
+    }
+  }
 
   // Inject fallback context seamlessly into the user's next message
   const fallbackCtx = getPendingContext(sessionId);
@@ -2582,9 +3143,11 @@ export async function processEleFamMessage(
       };
     }
     if (pendingSmallTalk) {
+      const reminderStr = getPendingReminder(existingCtx);
       return {
         ok: true,
-        message: `${getSmallTalkReply(pendingSmallTalk, getLastBotAction())}${getPendingReminder(existingCtx)}`,
+        message: getSmallTalkReply(pendingSmallTalk, getLastBotAction()),
+        reminder: reminderStr ? reminderStr : null,
         kind: "text",
         intentType: "query",
       };
@@ -2695,6 +3258,27 @@ export async function processEleFamMessage(
       }
     }
 
+    // create_wallet uses walletName/walletType on ctx — not REQUIRED_FIELDS.entities
+    if (existingCtx.intent === "create_wallet") {
+      const normalizedWalletReply = normalizeText(text);
+      const zeroWords = [
+        "none",
+        "empty",
+        "wala",
+        "zero",
+        "nothing",
+        "blank",
+        "walang laman",
+      ];
+      if (
+        extractAmount(text) !== null ||
+        normalizedWalletReply === "0" ||
+        zeroWords.some((w) => normalizedWalletReply.includes(w))
+      ) {
+        isLikelySlotFilling = true;
+      }
+    }
+
     const actionKeywords = [
       "spend", "spent", "deposit", "transfer", "balance", "owe", "lend", 
       "pay", "limit", "budget", "income", "salary", "payroll", 
@@ -2753,7 +3337,14 @@ export async function processEleFamMessage(
     }
 
     if (isRealInterruption) {
-      deletePendingContext(sessionId);
+      const mappedIncomingIntent = _mapNluIntent(resolvedIntentName, incomingNlu.entities || aiData || {});
+      const incomingIntentType = getIntentType(mappedIncomingIntent);
+      const isActionInterruption = incomingIntentType === "action";
+
+      if (isActionInterruption) {
+        deletePendingContext(sessionId);
+      }
+
       const result = aiIncomingIntent
         ? await executeAiAction(aiData, aiProvider, text, sessionId)
         : await _dispatchIntent(
@@ -2768,15 +3359,28 @@ export async function processEleFamMessage(
         const finalIntentType = getIntentType(
           _mapNluIntent(finalIntentName, incomingNlu.entities || aiData || {})
         );
+        
+        let finalMessage = result.message;
+        let reminderStr = null;
+        
+        if (!isActionInterruption && existingCtx) {
+          const reminder = getPendingReminder(existingCtx);
+          if (reminder) {
+            reminderStr = reminder;
+          }
+        }
+
         return {
           ...result,
+          message: finalMessage,
+          reminder: reminderStr,
           intentType: finalIntentType,
         };
       }
     }
 
     // If it is not a new intent and it's not likely slot filling, then it is an invalid slot answer!
-    if (!isLikelySlotFilling) {
+    if (!isLikelySlotFilling && existingCtx.intent !== "create_wallet") {
       existingCtx.retryCount = (existingCtx.retryCount || 0) + 1;
       if (existingCtx.retryCount >= 2) {
         deletePendingContext(sessionId);
@@ -2800,11 +3404,13 @@ export async function processEleFamMessage(
       ) {
         promptMsg = "Sorry, I didn't catch that. Which wallet did you use? (e.g. GCash, Maya, BPI, cash)";
       } else if (currentSlotField === "category") {
-        promptMsg = "Sorry, I didn't get that. What was this expense for? (e.g. food, transport, bills)";
+        promptMsg = "Sorry, I didn't get that. What is it for? (e.g. food, transport, bills)";
       } else if (currentSlotField === "person") {
         promptMsg = "Sorry, I didn't catch the person's name. Who is it?";
       } else if (currentSlotField === "amount") {
         promptMsg = "Sorry, I didn't get that amount. How much did you spend?";
+      } else if (existingCtx.intent === "create_wallet") {
+        promptMsg = `Sorry, I didn't quite catch the amount. How much is the starting balance for your ${existingCtx.walletName}? Just type a number like "500" or "0" if it's empty right now.`;
       } else {
         promptMsg = `Sorry, I didn't catch that. ${askForMissingField(currentSlotField, existingCtx)}`;
       }
@@ -2855,7 +3461,14 @@ export async function processEleFamMessage(
         const val = nluResult.entities?.[field];
         if (val === null || val === undefined) return true;
         if (typeof val === "string" && val.trim() === "") return true;
-        if (orchestratorIntent === "log_expense" && field === "category" && val === "expense") return true;
+        if (
+          orchestratorIntent === "log_expense" &&
+          field === "category" &&
+          val === "expense" &&
+          !nluResult.entities?.reason
+        ) {
+          return true;
+        }
         return false;
       });
 
@@ -2894,7 +3507,7 @@ export async function processEleFamMessage(
       if (aiData.action === "reply" && aiData.message) {
         return {
           ok: true,
-          message: aiData.message,
+          message: normalizeHelpReply(aiData.message),
           kind: "text",
           intentType: "query",
           aiProvider: interpretResponse.data.provider,
@@ -2943,7 +3556,7 @@ export async function processEleFamMessage(
         stats: {
           monthly_income: parseFloat(dashboardStore.stats.monthly_income || 0),
           monthly_expenses: parseFloat(dashboardStore.stats.monthly_expenses || 0),
-          remaining_salary: parseFloat(dashboardStore.stats.remaining_salary || 0),
+          remaining_salary: useWalletsStore().totalBalance,
           custom_budget: customBudget,
         }
       });
@@ -3002,9 +3615,477 @@ export async function processEleFamMessage(
   };
 }
 
+async function _executeCreatePlan(title, amount, dateStr, recurrence, plansStore, dashboardStore) {
+  if (!plansStore.fetched) await plansStore.fetchAll();
+  await plansStore.create({
+    title,
+    amount,
+    due_date: dateStr,
+    category: "bills",
+    description: "Added via EleFam chat",
+    recurrence: recurrence || null,
+  });
+  dashboardStore.fetchStats().catch(() => {});
+  return {
+    ok: true,
+    message: `Successfully created plan ${title} for ${formatMoney(amount)}.`,
+    kind: "action",
+  };
+}
+
+function isAffirmativeReply(text) {
+  const n = normalizeText(text);
+  return ["yes", "y", "oo", "oo po", "sige", "confirm", "confirmed", "okay", "ok", "proceed", "go ahead", "tama", "correct"].some(
+    (w) => n === w || n.startsWith(`${w} `) || n.startsWith(`${w},`),
+  );
+}
+
+function isNegativeReply(text) {
+  const n = normalizeText(text);
+  return ["no", "nope", "cancel", "wag", "wag na", "huwag", "ayaw", "stop", "nevermind", "never mind"].some(
+    (w) => n === w || n.startsWith(`${w} `),
+  );
+}
+
+function isSkipReply(text) {
+  const n = normalizeText(text);
+  return ["skip", "no date", "same date", "keep date", "none", "wala"].some((w) => n === w || n.includes(w));
+}
+
+function formatPlanDueDate(dateStr) {
+  if (!dateStr) return "the current due date";
+  const d = new Date(dateStr.includes("T") ? dateStr : `${dateStr}T00:00:00`);
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+async function finalizePlanPayment(plan, payAmount, wallet, isPartial, newDueDate, sessionId) {
+  const plansStore = usePlansStore();
+  const walletsStore = useWalletsStore();
+  const dashboardStore = useDashboardStore();
+
+  await plansStore.markPaid(plan.id, wallet.id, payAmount, isPartial, newDueDate, {
+    expense_description: "Paid via Marti AI",
+  });
+  await plansStore.fetchFeed({ limit: 15 });
+  await walletsStore.fetchAll(true);
+  dashboardStore.fetchStats().catch(() => {});
+
+  const updated = plansStore.plans.find((p) => String(p.id) === String(plan.id));
+  const remainder = isPartial
+    ? Math.max(0, parseFloat(updated?.amount ?? 0))
+    : 0;
+
+  if (!isPartial) {
+    notifyFinanceActivity({ entity: "plan", action: "paid", planId: plan.id });
+    return {
+      ok: true,
+      message: `Successfully paid ${formatMoney(payAmount)} for ${plan.title} from your ${wallet.name}. It’s marked PAID on your Plans page.`,
+      kind: "action",
+    };
+  }
+
+  return {
+    ok: true,
+    message: `Paid ${formatMoney(payAmount)} toward ${plan.title} from ${wallet.name}. Remaining balance: ${formatMoney(remainder)} (due ${formatPlanDueDate(newDueDate || updated?.due_date || plan.due_date)}).`,
+    kind: "action",
+  };
+}
+
+async function executePayPlan(planOrNull, amount, wallet, sessionId, reasonFallback = "") {
+  const plansStore = usePlansStore();
+  const walletsStore = useWalletsStore();
+
+  if (!plansStore.fetched) await plansStore.fetchAll(true);
+
+  let plan = planOrNull;
+  if (!plan && reasonFallback) {
+    const unpaid = plansStore.plans.filter((p) => !p.is_paid);
+    const found = findPlanByName(reasonFallback, unpaid);
+    plan = found.match;
+  }
+
+  if (!plan) {
+    return {
+      ok: false,
+      message: `I couldn't find an active plan${reasonFallback ? ` named "${reasonFallback}"` : ""}.`,
+      kind: "query",
+    };
+  }
+
+  if (!wallet) {
+    return planAction(
+      "pay_plan",
+      { reason: plan.title, amount, wallet: null, _resolvedPlan: plan },
+      sessionId,
+      "",
+    );
+  }
+
+  const planAmount = parseFloat(plan.amount);
+  let payAmount = amount ? parseFloat(amount) : planAmount;
+  if (isNaN(payAmount) || payAmount <= 0) payAmount = planAmount;
+  const isPartial = payAmount + 0.009 < planAmount;
+
+  if (Number(wallet.balance) < payAmount) {
+    return {
+      ok: false,
+      message: `Not enough balance in ${wallet.name} to pay ${formatMoney(payAmount)}. You only have ${formatMoney(wallet.balance)} left.`,
+      kind: "query",
+    };
+  }
+
+  if (isPartial) {
+    const dueLabel = formatPlanDueDate(plan.due_date);
+    const today = new Date().toISOString().slice(0, 10);
+    const isDueToday = plan.due_date === today;
+    
+    pendingAction = {
+      type: "confirm_partial_plan",
+      sessionId,
+      plan,
+      payAmount,
+      wallet,
+      isDueToday
+    };
+    
+    if (isDueToday) {
+      return {
+        ok: false,
+        message: `This is a partial payment of ${formatMoney(payAmount)} toward ${plan.title}. ${formatMoney(planAmount - payAmount)} will remain. Since it's due today, you can optionally set a new due date for the balance. Reply "yes" to confirm (and keep today as due date), "yes [new date]" to extend it, or "no" to cancel.`,
+        kind: "question",
+        intentType: "action",
+      };
+    } else {
+      return {
+        ok: false,
+        message: `This is a partial payment of ${formatMoney(payAmount)} toward ${plan.title}. ${formatMoney(planAmount - payAmount)} will remain due on ${dueLabel}. Reply "yes" to confirm or "no" to cancel.`,
+        kind: "question",
+        intentType: "action",
+      };
+    }
+  }
+
+  return finalizePlanPayment(plan, payAmount, wallet, false, null, sessionId);
+}
+
+async function executePayDebt(debtId, amount, walletId, sessionId) {
+  const debtsStore = useDebtsStore();
+  const walletsStore = useWalletsStore();
+  const dashboardStore = useDashboardStore();
+  return _executePayDebt(
+    debtId,
+    amount,
+    walletId,
+    debtsStore,
+    walletsStore,
+    dashboardStore,
+  );
+}
+
+async function dispatchPayPlan(text, sessionId, entities = {}) {
+  const plansStore = usePlansStore();
+  const walletsStore = useWalletsStore();
+
+  if (!plansStore.fetched) await plansStore.fetchAll(true);
+  const unpaid = plansStore.plans.filter((p) => !p.is_paid);
+
+  if (!entities.amount) entities.amount = extractAmount(text);
+  if (!entities.wallet) {
+    entities.wallet = matchWallet(text, walletsStore.wallets);
+  }
+
+  let planResult = { match: null };
+  if (entities._resolvedPlan) {
+    planResult = { match: entities._resolvedPlan };
+  } else if (entities.reason) {
+    planResult = findPlanByName(entities.reason, unpaid);
+    if (!planResult.match && !planResult.ambiguous) {
+      planResult = findPlanByName(text, unpaid);
+    }
+  } else {
+    planResult = findPlanByName(text, unpaid);
+  }
+
+  if (planResult.ambiguous) {
+    pendingAction = {
+      type: "pay_plan",
+      candidates: planResult.ambiguous,
+      entities: {
+        amount: entities.amount,
+        wallet: entities.wallet,
+      },
+      sessionId,
+    };
+    return {
+      ok: false,
+      message: buildDisambiguationPrompt(
+        planResult.ambiguous,
+        (p) => `${p.title} (${formatMoney(p.amount)})`,
+      ),
+      kind: "question",
+      intentType: "action",
+    };
+  }
+
+  if (!planResult.match) {
+    if (!entities.reason) {
+      return planAction("pay_plan", entities, sessionId, text);
+    }
+    return {
+      ok: false,
+      message: `I couldn't find an active plan matching "${entities.reason}".`,
+      kind: "query",
+    };
+  }
+
+  const plan = planResult.match;
+  entities.reason = plan.title;
+  entities._resolvedPlan = plan;
+  if (!entities.amount || entities.amount <= 0) {
+    entities.amount = parseFloat(plan.amount);
+  }
+
+  if (!entities.wallet) {
+    return planAction("pay_plan", entities, sessionId, text);
+  }
+
+  return executePayPlan(plan, entities.amount, entities.wallet, sessionId, plan.title);
+}
+
+async function dispatchPayDebt(text, sessionId, entities = {}) {
+  const debtsStore = useDebtsStore();
+  const walletsStore = useWalletsStore();
+
+  if (debtsStore.debts.length === 0) await debtsStore.fetchAll();
+
+  if (!entities.amount) entities.amount = extractAmount(text);
+  if (!entities.walletId) {
+    const matched = matchWallet(text, walletsStore.wallets);
+    if (matched) entities.walletId = matched.id;
+  }
+
+  if (!entities.debtId) {
+    let searchPool = debtsStore.debts;
+    if (entities.type) {
+      searchPool = searchPool.filter((d) => d.type === entities.type);
+    }
+    const debtsResult = findDebtByName(text, searchPool);
+    if (debtsResult.match) {
+      entities.debtId = debtsResult.match.id;
+    } else if (debtsResult.ambiguous) {
+      pendingAction = {
+        type: "pay_debt",
+        candidates: debtsResult.ambiguous,
+        entities: {
+          amount: entities.amount,
+          walletId: entities.walletId,
+          type: entities.type,
+        },
+        sessionId,
+      };
+      return {
+        ok: false,
+        message: buildDisambiguationPrompt(
+          debtsResult.ambiguous,
+          (d) => `${d.name} (${formatMoney(d.amount)})`,
+        ),
+        kind: "question",
+        intentType: "action",
+      };
+    }
+  }
+
+  if (!entities.debtId || entities.amount == null || entities.amount === undefined || !entities.walletId) {
+    return planAction("pay_debt", entities, sessionId, text);
+  }
+
+  return executePayDebt(entities.debtId, entities.amount, entities.walletId, sessionId);
+}
+
+async function resolveConfirmPartialPlan(text, sessionId) {
+  const action = pendingAction;
+  if (isNegativeReply(text)) {
+    pendingAction = null;
+    return {
+      ok: true,
+      message: "Okay, cancelled the partial payment.",
+      kind: "text",
+      intentType: "action",
+    };
+  }
+
+  let newDueDate = null;
+  const stripped = text.replace(/^\s*(yes|oo|sige|ok|okay|confirm)[,\s]*/i, "").trim();
+  if (stripped) {
+    newDueDate = parseDueDate(stripped) || extractDueDateFromText(stripped);
+  }
+
+  if (!isAffirmativeReply(text) && !newDueDate) {
+    return {
+      ok: false,
+      message: `Please reply yes to confirm the partial payment of ${formatMoney(action.payAmount)}.`,
+      kind: "question",
+      intentType: "action",
+    };
+  }
+
+  pendingAction = null;
+  return finalizePlanPayment(
+    action.plan,
+    action.payAmount,
+    action.wallet,
+    true,
+    newDueDate,
+    sessionId,
+  );
+}
+
+async function resolvePlanRescheduleDue(text, sessionId) {
+  const action = pendingAction;
+
+  if (isSkipReply(text)) {
+    pendingAction = null;
+    return {
+      ok: true,
+      message: `Got it. The remaining ${formatMoney(action.remainder)} for ${action.planTitle} stays due ${formatPlanDueDate(action.dueHint)}.`,
+      kind: "text",
+      intentType: "action",
+    };
+  }
+
+  const newDate = parseDueDate(text) || extractDueDateFromText(text);
+  if (!newDate) {
+    return {
+      ok: false,
+      message: `Please send a due date (e.g. "July 15") or say "skip".`,
+      kind: "question",
+      intentType: "action",
+    };
+  }
+
+  pendingAction = null;
+  const plansStore = usePlansStore();
+  const plan = plansStore.plans.find((p) => String(p.id) === String(action.planId));
+  if (!plan) {
+    return {
+      ok: false,
+      message: "I couldn't find that plan to update the due date.",
+      kind: "query",
+    };
+  }
+  try {
+    await plansStore.update(action.planId, {
+      title: plan.title,
+      amount: plan.amount,
+      due_date: newDate,
+      description: plan.description ?? null,
+      recurrence: plan.recurrence || null,
+    });
+    return {
+      ok: true,
+      message: `Updated the remaining balance due date for ${action.planTitle} to ${formatPlanDueDate(newDate)}.`,
+      kind: "action",
+    };
+  } catch {
+    return {
+      ok: false,
+      message: "I couldn't update the due date. You can change it from the Plans page.",
+      kind: "query",
+    };
+  }
+}
+
+async function resolvePendingAction(text, sessionId = "default") {
+  if (!pendingAction || pendingAction.sessionId !== sessionId) {
+    return null;
+  }
+
+  if (pendingAction.type === "confirm_partial_plan") {
+    return resolveConfirmPartialPlan(text, sessionId);
+  }
+
+  if (pendingAction.type === "plan_reschedule_due") {
+    return resolvePlanRescheduleDue(text, sessionId);
+  }
+
+  const candidates = pendingAction.candidates;
+  if (!candidates?.length) {
+    pendingAction = null;
+    return null;
+  }
+
+  const choiceIdx = parseDisambiguationChoice(text, candidates.length);
+  if (choiceIdx === null) {
+    pendingAction = null;
+    return null;
+  }
+
+  const action = pendingAction;
+  pendingAction = null;
+  const selected = action.candidates[choiceIdx];
+  const { amount, wallet, walletId, type } = action.entities;
+
+  if (action.type === "pay_plan") {
+    const walletsStore = useWalletsStore();
+    const resolvedWallet =
+      wallet || (walletId ? walletsStore.wallets.find((w) => String(w.id) === String(walletId)) : null);
+    const payAmount =
+      amount && amount > 0 ? amount : parseFloat(selected.amount);
+    if (!resolvedWallet) {
+      return planAction(
+        "pay_plan",
+        {
+          reason: selected.title,
+          amount: payAmount,
+          wallet: null,
+          _resolvedPlan: selected,
+        },
+        sessionId,
+        text,
+      );
+    }
+    return executePayPlan(selected, payAmount, resolvedWallet, sessionId, selected.title);
+  }
+
+  if (action.type === "pay_debt") {
+    const payAmount =
+      amount && amount > 0 ? amount : Math.abs(parseFloat(selected.amount || 0));
+    if (!walletId) {
+      return planAction(
+        "pay_debt",
+        { debtId: selected.id, amount: payAmount, walletId: null, type },
+        sessionId,
+        text,
+      );
+    }
+    return executePayDebt(selected.id, payAmount, walletId, sessionId);
+  }
+
+  return null;
+}
+
+function _executeViewPlans(plansStore) {
+  return new Promise(async (resolve) => {
+    if (!plansStore.fetched) await plansStore.fetchAll();
+    const activePlans = plansStore.plans.filter(p => !p.is_paid);
+    
+    if (activePlans.length === 0) {
+      return resolve({ ok: true, message: "You don't have any upcoming plans right now.", kind: "query" });
+    }
+    
+    const lines = activePlans.map(p => `• ${p.title}: ${formatMoney(p.amount)} (due ${new Date(p.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })})`).join("\n");
+    resolve({
+      ok: true,
+      message: `You have ${activePlans.length} upcoming plans:\n\n${lines}`,
+      kind: "query"
+    });
+  });
+}
+
 if (typeof window !== 'undefined') {
   window.processEleFamMessage = processEleFamMessage;
   window.clearPendingContext = clearPendingContext;
   window.getPendingContext = getPendingContext;
+  window.clearPendingAction = clearPendingAction;
 }
 

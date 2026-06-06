@@ -18,16 +18,17 @@ class Expense extends Model
         'amount',
         'description',
         'date',
-        'payment_method',
         'is_settled',
+        'settled_amount',
     ];
 
     protected $casts = [
-        'amount'      => EncryptedValue::class,
-        'title'       => EncryptedValue::class,
-        'description' => EncryptedValue::class,
-        'date'        => 'date:Y-m-d',
-        'is_settled'  => 'boolean',
+        'amount'         => EncryptedValue::class,
+        'title'          => EncryptedValue::class,
+        'description'    => EncryptedValue::class,
+        'date'           => 'date:Y-m-d',
+        'is_settled'     => 'boolean',
+        'settled_amount' => 'decimal:2',
     ];
 
     public function user(): BelongsTo

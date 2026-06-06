@@ -3,7 +3,7 @@ import { ref, computed, watch } from 'vue'
 import { useWalletsStore } from '@/stores/wallets'
 import { useSalaryStore } from '@/stores/salary'
 import {
-  Wallet, X, CheckCircle2, AlertCircle, ChevronRight, ArrowRight
+  Wallet, X, CheckCircle2, AlertCircle, ChevronRight, ArrowRight, Banknote, ArrowLeft
 } from 'lucide-vue-next'
 import AppBackButton from '@/components/AppBackButton.vue'
 import UiButton from '@/components/ui/Button.vue'
@@ -12,9 +12,12 @@ import UiLabel from '@/components/ui/Label.vue'
 import UiCard from '@/components/ui/Card.vue'
 import UiCardContent from '@/components/ui/CardContent.vue'
 import { formatCurrency, parseCurrency } from '@/utils/format'
+import { getWalletIconUrl } from '@/lib/walletIcons.js'
+import CurrencyAmount from '@/components/shared/CurrencyAmount.vue'
 
 const props = defineProps({
   show:     Boolean,
+  walletId: { type: [String, Number], default: null },
   isAddMore: { type: Boolean, default: false }, // true when "Deposit More" was clicked
 })
 const emit = defineEmits(['close', 'success'])
@@ -134,244 +137,251 @@ async function handleConfirm() {
 
 <template>
   <Teleport to="body">
-    <div
-      v-if="show"
-      class="fixed inset-0 z-[80] flex items-stretch justify-center bg-black/60 backdrop-blur-sm p-0 sm:items-center sm:p-4"
-      @mousedown.self="emit('close')"
-    >
+    <div v-if="show" class="fixed inset-0 z-[80] flex items-end justify-center bg-black/60 backdrop-blur-sm p-0 sm:items-center sm:p-4 animate-in fade-in duration-200" @mousedown.self="emit('close')">
       <UiCard
-        class="flex w-full max-w-none flex-col overflow-hidden bg-card shadow-2xl animate-in fade-in zoom-in duration-200
-          max-sm:h-[100dvh] max-sm:max-h-[100dvh] max-sm:min-h-0 max-sm:rounded-none max-sm:pt-[env(safe-area-inset-top)]
-          sm:max-h-[90vh] sm:min-h-0 sm:max-w-lg sm:rounded-2xl"
+        class="flex w-full max-w-none flex-col overflow-hidden bg-background shadow-2xl border-0
+          max-sm:animate-in max-sm:slide-in-from-bottom max-sm:duration-300
+          sm:animate-in sm:zoom-in-95 sm:duration-200
+          max-sm:h-[85dvh] max-sm:max-h-[100dvh] max-sm:min-h-0 max-sm:rounded-t-3xl max-sm:rounded-b-none
+          sm:max-h-[90vh] sm:min-h-0 sm:max-w-md sm:rounded-3xl"
         @mousedown.stop
       >
-
-        <!-- ── Header ── -->
-        <div class="shrink-0 p-6 border-b border-border bg-gradient-to-r from-emerald-600/10 to-transparent">
-          <div class="flex items-center justify-between mb-3">
-            <div class="flex items-center gap-3">
-              <AppBackButton
-                v-if="step === 2"
-                @click="goBack"
-              />
-              <div>
-                <h2 class="text-xl font-bold tracking-tight">{{ title }}</h2>
-                <p class="text-xs text-muted-foreground mt-0.5">
-                  Step {{ step }} of 2 — {{ step === 1 ? 'Enter amounts' : 'Distribute to wallets' }}
-                </p>
-              </div>
-            </div>
-            <UiButton variant="ghost" size="icon" @click="emit('close')" class="rounded-full h-8 w-8">
-              <X class="h-4 w-4" />
+        <div class="flex flex-col h-full overflow-hidden">
+          <!-- ── Header Step 1 ── -->
+          <div v-if="step === 1" class="relative shrink-0 pt-8 pb-4 flex flex-col items-center">
+            <UiButton type="button" variant="ghost" size="icon" @click="emit('close')" class="absolute right-4 top-4 rounded-full h-8 w-8 bg-muted hover:bg-muted/80 transition-colors">
+              <X class="h-5 w-5 text-muted-foreground" />
             </UiButton>
-          </div>
+            
+            <div class="flex h-12 w-12 items-center justify-center rounded-full bg-card shadow-sm mb-3">
+              <Banknote class="h-6 w-6 text-emerald-500" />
+            </div>
 
-          <!-- Step indicators -->
-          <div class="flex gap-2 mt-1">
-            <div class="h-1 flex-1 rounded-full transition-all duration-300"
-              :class="step >= 1 ? 'bg-emerald-500' : 'bg-muted'" />
-            <div class="h-1 flex-1 rounded-full transition-all duration-300"
-              :class="step >= 2 ? 'bg-emerald-500' : 'bg-muted'" />
-          </div>
-        </div>
-
-        <div class="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
-        <!-- ── Error Banner ── -->
-        <div
-          v-if="error"
-          class="mx-6 mt-4 shrink-0 p-3 rounded-xl bg-destructive/10 border border-destructive/20 flex items-start gap-3"
-        >
-          <AlertCircle class="h-5 w-5 text-destructive shrink-0 mt-0.5" />
-          <p class="text-sm text-destructive font-medium">{{ error }}</p>
-        </div>
-
-        <!-- ══════════════════════════════════════════════════════════ -->
-        <!-- STEP 1 — Amounts                                          -->
-        <!-- ══════════════════════════════════════════════════════════ -->
-        <UiCardContent v-if="step === 1" class="p-6 space-y-5">
-
-          <!-- Total Salary -->
-          <div class="space-y-1.5">
-            <UiLabel class="font-semibold">Total Salary Received</UiLabel>
-            <UiInput
-              v-model="totalSalaryRaw"
-              type="number"
-              min="0"
-              step="0.01"
-              placeholder="e.g. 50000"
-              class="h-12 text-lg font-bold tabular-nums"
-              @focus="$event.target.select()"
-            />
-          </div>
-
-          <!-- Already Spent -->
-          <div class="space-y-1.5">
-            <UiLabel class="font-semibold">
-              Already Spent Before This Deposit
-              <span class="ml-1 text-xs font-normal text-muted-foreground">(optional)</span>
-            </UiLabel>
-            <UiInput
-              v-model="alreadySpentRaw"
-              type="number"
-              min="0"
-              step="0.01"
-              placeholder="e.g. 18000"
-              class="h-12 text-lg font-bold tabular-nums"
-              @focus="$event.target.select()"
-            />
-            <p class="text-xs text-muted-foreground leading-relaxed">
-              If you already spent some of your salary before depositing, enter that amount here.
-              It will count towards this month's spending.
+            <p class="text-sm font-medium text-muted-foreground">
+              {{ title }}
             </p>
-          </div>
-
-          <!-- Available to distribute (live) -->
-          <div
-            class="rounded-2xl border-2 p-4 transition-all duration-200"
-            :class="available > 0
-              ? 'border-emerald-500/40 bg-emerald-500/5'
-              : 'border-muted bg-muted/30'"
-          >
-            <p class="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1">
-              Available to Distribute
-            </p>
-            <p class="text-2xl font-black tabular-nums"
-              :class="available > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'"
-            >
-              {{ formatCurrency(available) }}
-            </p>
-            <p v-if="totalSalary > 0 && alreadySpent > 0" class="text-xs text-muted-foreground mt-1">
-              {{ formatCurrency(totalSalary) }} − {{ formatCurrency(alreadySpent) }} already spent
-            </p>
-          </div>
-
-          <!-- Optional notes -->
-          <div class="space-y-1.5">
-            <UiLabel class="text-xs text-muted-foreground">Notes <span class="font-normal">(optional)</span></UiLabel>
-            <UiInput v-model="notes" placeholder="e.g. May 2026 salary" class="h-10" />
-          </div>
-
-        </UiCardContent>
-
-        <!-- ══════════════════════════════════════════════════════════ -->
-        <!-- STEP 2 — Wallet Distribution                              -->
-        <!-- ══════════════════════════════════════════════════════════ -->
-        <UiCardContent v-else class="p-6 space-y-4">
-
-          <p class="text-sm text-muted-foreground">
-            Distribute <span class="font-bold text-foreground">{{ formatCurrency(available) }}</span>
-            across your wallets. Adjust amounts as needed.
-          </p>
-
-          <!-- Wallet rows -->
-          <div class="space-y-2.5">
-            <div
-              v-for="alloc in allocations"
-              :key="alloc.wallet_id"
-              class="flex items-center gap-3 p-3 rounded-2xl border border-border bg-muted/30 hover:bg-muted/50 transition-all"
-            >
-              <div class="h-10 w-10 rounded-xl bg-background flex items-center justify-center shrink-0 border border-border shadow-sm overflow-hidden">
-                <img 
-                    :src="alloc.icon_url || `/icons/wallets/${alloc.type === 'metrobank' ? 'metrobank.jpg' : alloc.type + '.png'}`" 
-                    class="w-full h-full object-contain rounded"
-                    @error="$event.target.style.display='none'; $event.target.nextElementSibling.style.display='block'"
-                />
-                <Wallet style="display:none" class="h-5 w-5 text-muted-foreground" />
-              </div>
-              <div class="flex-1 min-w-0">
-                <p class="text-sm font-bold truncate">{{ alloc.name }}</p>
-                <p class="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">Allocation</p>
-              </div>
-              <div class="w-36">
-                <UiInput
-                  v-model="alloc.amount"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder="0.00"
-                  class="h-10 text-right font-bold tabular-nums"
+            
+            <div class="mt-4 flex flex-col items-center justify-center w-full px-8 relative overflow-hidden">
+              <UiLabel class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Total Salary Received</UiLabel>
+              <div class="flex items-center justify-center gap-1 border-b-2 border-muted-foreground/30 focus-within:border-emerald-500 pb-2 transition-colors min-w-[140px] max-w-full">
+                <span class="text-3xl font-semibold text-emerald-500 shrink-0 leading-none mt-1">₱</span>
+                <input 
+                  v-model="totalSalaryRaw" 
+                  type="number" 
+                  min="0" 
+                  step="0.01" 
+                  placeholder="0.00" 
+                  required
+                  :style="{ width: Math.max(String(totalSalaryRaw || '').length, 3) + 'ch' }"
+                  class="bg-transparent text-center text-5xl font-bold tracking-tight outline-none focus:ring-0 p-0 leading-none placeholder:text-muted-foreground/30 text-emerald-500"
                   @focus="$event.target.select()"
                 />
               </div>
             </div>
           </div>
 
-          <!-- Running total -->
-          <div
-            class="rounded-2xl border-2 p-4 transition-all duration-200"
-            :class="{
-              'border-emerald-500/40 bg-emerald-500/5': isFullyAllocated,
-              'border-amber-500/40 bg-amber-500/5': !isFullyAllocated && remaining > 0,
-              'border-destructive/40 bg-destructive/5': remaining < -0.005,
-            }"
-          >
-            <div class="flex items-center justify-between">
-              <div>
-                <p class="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-0.5">Distributed</p>
-                <p class="text-lg font-black tabular-nums">{{ formatCurrency(totalAllocated) }}</p>
-              </div>
-              <div class="text-right">
-                <p class="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-0.5">
-                  {{ remaining >= 0 ? 'Remaining' : 'Over by' }}
-                </p>
-                <p class="text-lg font-black tabular-nums"
-                  :class="{
-                    'text-emerald-600 dark:text-emerald-400': isFullyAllocated,
-                    'text-amber-600 dark:text-amber-400': !isFullyAllocated && remaining > 0,
-                    'text-destructive': remaining < -0.005,
-                  }"
-                >
-                  {{ formatCurrency(Math.abs(remaining)) }}
-                </p>
-              </div>
+          <!-- ── Header Step 2 ── -->
+          <div v-if="step === 2" class="relative shrink-0 pt-8 pb-4 flex flex-col items-center">
+            <UiButton type="button" variant="ghost" size="icon" @click="emit('close')" class="absolute right-4 top-4 rounded-full h-8 w-8 bg-muted hover:bg-muted/80 transition-colors">
+              <X class="h-5 w-5 text-muted-foreground" />
+            </UiButton>
+
+            <UiButton type="button" variant="ghost" size="icon" @click="goBack" class="absolute left-4 top-4 rounded-full h-8 w-8 bg-muted hover:bg-muted/80 transition-colors" title="Back">
+              <ArrowLeft class="h-5 w-5 text-muted-foreground" />
+            </UiButton>
+            
+            <div class="flex h-12 w-12 items-center justify-center rounded-full bg-card shadow-sm mb-3">
+              <Wallet class="h-6 w-6 text-emerald-500" />
             </div>
 
-            <div v-if="isFullyAllocated" class="mt-2 flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
-              <CheckCircle2 class="h-4 w-4" />
-              <span class="text-xs font-bold">Fully allocated — ready to confirm</span>
-            </div>
-            <div v-else-if="remaining > 0" class="mt-2 text-xs text-amber-700 dark:text-amber-400 font-medium">
-              {{ formatCurrency(remaining) }} still unallocated. Adjust wallet amounts to continue.
-            </div>
-            <div v-else class="mt-2 text-xs text-destructive font-medium">
-              Over-allocated by {{ formatCurrency(Math.abs(remaining)) }}. Reduce wallet amounts.
+            <p class="text-sm font-medium text-muted-foreground">
+              Distribute
+            </p>
+            
+            <div class="mt-4 flex flex-col items-center justify-center w-full px-8 relative overflow-hidden">
+              <div class="flex items-center justify-center gap-1 border-b-2 border-transparent pb-2 transition-colors min-w-[140px] max-w-full">
+                <span class="text-3xl font-semibold text-emerald-500 shrink-0 leading-none mt-1">₱</span>
+                <span class="bg-transparent text-center text-5xl font-bold tracking-tight outline-none focus:ring-0 p-0 leading-none text-emerald-500">
+                  {{ formatCurrency(available) }}
+                </span>
+              </div>
             </div>
           </div>
 
-        </UiCardContent>
-
-        </div>
-
-        <!-- ── Footer ── -->
-        <div
-          class="shrink-0 border-t border-border bg-muted/20 p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] flex flex-col gap-3 justify-end sm:flex-row"
-        >
-          <UiButton variant="outline" @click="emit('close')" class="rounded-xl h-11 px-6">
-            Cancel
-          </UiButton>
-
-          <!-- Step 1: Next -->
-          <UiButton
-            v-if="step === 1"
-            @click="goToStep2"
-            :disabled="totalSalary <= 0"
-            class="rounded-xl h-11 px-8 bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-2"
+          <!-- ── Error Banner ── -->
+          <div
+            v-if="error"
+            class="mx-4 sm:mx-6 mt-4 shrink-0 p-3 rounded-xl bg-destructive/10 border border-destructive/20 flex items-start gap-3"
           >
-            Next — Distribute
-            <ArrowRight class="h-4 w-4" />
-          </UiButton>
+            <AlertCircle class="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+            <p class="text-sm text-destructive font-medium">{{ error }}</p>
+          </div>
 
-          <!-- Step 2: Confirm -->
-          <UiButton
-            v-else
-            @click="handleConfirm"
-            :disabled="loading || !isFullyAllocated"
-            class="rounded-xl h-11 px-8 bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
-          >
-            {{ loading ? 'Depositing...' : 'Confirm Deposit' }}
-          </UiButton>
+          <div class="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pb-4 sm:px-6 overscroll-contain">
+            
+            <!-- ══════════════════════════════════════════════════════════ -->
+            <!-- STEP 1 — Amounts                                          -->
+            <!-- ══════════════════════════════════════════════════════════ -->
+            <div v-if="step === 1" class="space-y-4 pt-2">
+              <div class="bg-card rounded-2xl shadow-sm border border-border overflow-hidden p-1 space-y-1">
+                <div class="p-3">
+                  <UiLabel class="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-2 block">
+                    Already Spent Before Deposit
+                    <span class="ml-1 font-normal lowercase">(optional)</span>
+                  </UiLabel>
+                  <div class="flex items-center gap-2 border-b-2 border-muted-foreground/20 focus-within:border-emerald-500 pb-2 transition-colors">
+                    <span class="text-3xl font-semibold text-muted-foreground shrink-0 leading-none mt-1">₱</span>
+                    <input 
+                      v-model="alreadySpentRaw" 
+                      type="number" 
+                      min="0" 
+                      step="0.01" 
+                      placeholder="0.00" 
+                      class="bg-transparent text-4xl font-bold tracking-tight outline-none focus:ring-0 p-0 leading-none placeholder:text-muted-foreground/30 w-full"
+                      @focus="$event.target.select()"
+                    />
+                  </div>
+                  <p class="text-[11px] text-muted-foreground leading-relaxed mt-2">
+                    If you spent some salary before depositing, enter it here. It will count towards this month's spending.
+                  </p>
+                </div>
+                
+                <div class="p-3 pt-1">
+                  <UiLabel class="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-2 block">Notes <span class="font-normal">(optional)</span></UiLabel>
+                  <UiInput v-model="notes" placeholder="e.g. May 2026 salary" class="border-0 bg-muted/50 focus-visible:ring-1 focus-visible:ring-emerald-500/30 h-11" />
+                </div>
+              </div>
+
+              <!-- Available to distribute -->
+              <div
+                class="rounded-2xl border-2 p-4 transition-all duration-200"
+                :class="available > 0
+                  ? 'border-emerald-500/40 bg-emerald-500/5'
+                  : 'border-muted bg-muted/30'"
+              >
+                <p class="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1">
+                  Available to Distribute
+                </p>
+                <p class="text-2xl font-black tabular-nums">
+                  <CurrencyAmount :amount="available" :type="available > 0 ? 'income' : 'muted'" />
+                </p>
+                <p v-if="totalSalary > 0 && alreadySpent > 0" class="text-xs text-muted-foreground mt-1">
+                  <CurrencyAmount :amount="totalSalary" type="muted" /> − <CurrencyAmount :amount="alreadySpent" type="muted" /> already spent
+                </p>
+              </div>
+            </div>
+
+            <!-- ══════════════════════════════════════════════════════════ -->
+            <!-- STEP 2 — Wallet Distribution                              -->
+            <!-- ══════════════════════════════════════════════════════════ -->
+            <div v-else class="space-y-4 pt-2">
+              <p class="text-sm text-muted-foreground text-center mb-4">
+                Adjust amounts to distribute your available salary across your wallets.
+              </p>
+
+              <!-- Wallet rows -->
+              <div class="space-y-2.5">
+                <div
+                  v-for="alloc in allocations"
+                  :key="alloc.wallet_id"
+                  class="flex items-center gap-3 p-3 rounded-2xl border border-border bg-card shadow-sm transition-all"
+                >
+                  <div class="h-10 w-10 rounded-xl bg-background flex items-center justify-center shrink-0 border border-border overflow-hidden">
+                    <img 
+                        :src="getWalletIconUrl(alloc)" 
+                        class="w-full h-full object-contain rounded"
+                        @error="$event.target.style.display='none'; $event.target.nextElementSibling.style.display='block'"
+                    />
+                    <Wallet style="display:none" class="h-5 w-5 text-muted-foreground" />
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <p class="text-sm font-bold truncate">{{ alloc.name }}</p>
+                    <p class="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">Allocation</p>
+                  </div>
+                  <div class="w-32">
+                    <UiInput
+                      v-model="alloc.amount"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="0.00"
+                      class="h-10 text-right font-bold tabular-nums border-muted bg-muted/50 focus-visible:ring-emerald-500/30"
+                      @focus="$event.target.select()"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <!-- Running total -->
+              <div
+                class="rounded-2xl border-2 p-4 transition-all duration-200 mt-4"
+                :class="{
+                  'border-emerald-500/40 bg-emerald-500/5': isFullyAllocated,
+                  'border-amber-500/40 bg-amber-500/5': !isFullyAllocated && remaining > 0,
+                  'border-destructive/40 bg-destructive/5': remaining < -0.005,
+                }"
+              >
+                <div class="flex items-center justify-between">
+                  <div>
+                    <p class="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-0.5">Distributed</p>
+                    <CurrencyAmount :amount="totalAllocated" type="neutral" class="text-lg font-black tabular-nums" />
+                  </div>
+                  <div class="text-right">
+                    <p class="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-0.5">
+                      {{ remaining >= 0 ? 'Remaining' : 'Over by' }}
+                    </p>
+                    <CurrencyAmount
+                      :amount="Math.abs(remaining)"
+                      :type="isFullyAllocated ? 'income' : (remaining < -0.005 ? 'expense' : 'neutral')"
+                      class="text-lg font-black tabular-nums"
+                      :class="{ '!text-amber-600 dark:!text-amber-400': !isFullyAllocated && remaining > 0 }"
+                    />
+                  </div>
+                </div>
+
+                <div v-if="isFullyAllocated" class="mt-2 flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+                  <CheckCircle2 class="h-4 w-4" />
+                  <span class="text-xs font-bold">Fully allocated — ready to confirm</span>
+                </div>
+                <div v-else-if="remaining > 0" class="mt-2 text-xs text-amber-700 dark:text-amber-400 font-medium">
+                  <CurrencyAmount :amount="remaining" type="neutral" class="!text-amber-700 dark:!text-amber-400" /> still unallocated. Adjust wallet amounts to continue.
+                </div>
+                <div v-else class="mt-2 text-xs text-destructive font-medium">
+                  Over-allocated by <CurrencyAmount :amount="Math.abs(remaining)" type="expense" />. Reduce wallet amounts.
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- ── Footer ── -->
+          <div class="p-4 bg-background border-t border-border flex items-center gap-3 shrink-0 pb-[max(1rem,env(safe-area-inset-bottom))]">
+            <UiButton type="button" variant="secondary" class="flex-1 font-semibold" @click="emit('close')" :disabled="loading">
+              Cancel
+            </UiButton>
+
+            <!-- Step 1: Next -->
+            <UiButton
+              v-if="step === 1"
+              @click="goToStep2"
+              :disabled="totalSalary <= 0"
+              class="flex-1 font-bold bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              Next — Distribute
+            </UiButton>
+
+            <!-- Step 2: Confirm -->
+            <UiButton
+              v-else
+              @click="handleConfirm"
+              :disabled="loading || !isFullyAllocated"
+              :loading="loading"
+              class="flex-1 font-bold bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              {{ loading ? 'Depositing…' : 'Confirm Deposit' }}
+            </UiButton>
+          </div>
         </div>
-
       </UiCard>
     </div>
   </Teleport>
