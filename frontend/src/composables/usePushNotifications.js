@@ -79,7 +79,7 @@ export function usePushNotifications() {
       })
 
       isSubscribed.value = true
-      toast.success('Successfully subscribed to reminders')
+      toast.success('Enable Notification')
     } catch (e) {
       console.error('Failed to subscribe to push', e)
       toast.error('Failed to enable notifications')
@@ -100,7 +100,7 @@ export function usePushNotifications() {
       }
       
       isSubscribed.value = false
-      toast.success('Unsubscribed from reminders')
+      toast.success('Disabled')
     } catch (e) {
       console.error('Failed to unsubscribe', e)
       toast.error('Failed to disable notifications')

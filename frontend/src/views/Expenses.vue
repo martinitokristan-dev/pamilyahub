@@ -400,25 +400,25 @@ function loadMoreFeed() {
     />
 
     <!-- Mobile/Tablet card list -->
-    <div v-else class="flex flex-col gap-2 xl:hidden p-0.5">
+    <div v-else class="flex flex-col gap-1.5 xl:hidden p-0.5">
       <div
         v-for="expense in displayExpenses"
         :key="`${expense.type || 'expense'}-${expense.id}`"
-        class="flex items-center gap-3 p-4 bg-card hover:bg-muted/30 transition-colors border border-border shadow-sm rounded-2xl cursor-pointer"
+        class="flex items-center gap-3 p-3 bg-card hover:bg-muted/30 transition-all border border-border shadow-sm rounded-2xl cursor-pointer min-h-[44px] active:scale-[0.99]"
         @click="openTransaction(expense)"
       >
         <template v-if="expense.type === 'transfer'">
-          <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-muted/50 border border-border shadow-sm">
-            <ArrowRightLeft class="h-6 w-6 text-muted-foreground" />
+          <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted/50 border border-border shadow-sm">
+            <ArrowRightLeft class="h-5 w-5 text-muted-foreground" />
           </div>
         </template>
         <template v-else-if="expense.type === 'deposit'">
-          <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-muted/50 border border-border shadow-sm">
-             <TrendingUp class="h-6 w-6 text-emerald-600" />
+          <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted/50 border border-border shadow-sm">
+             <TrendingUp class="h-5 w-5 text-emerald-600" />
           </div>
         </template>
         <template v-else-if="isLendingExpense(expense)">
-          <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl overflow-hidden bg-muted/50 border border-border shadow-sm">
+          <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl overflow-hidden bg-muted/50 border border-border shadow-sm">
             <img 
               src="/icons/wallets/lending.png" 
               class="w-full h-full object-contain rounded dark:invert" 
@@ -426,11 +426,11 @@ function loadMoreFeed() {
           </div>
         </template>
         <template v-else>
-          <ExpenseIcon :title="expense.title" size="lg" />
+          <ExpenseIcon :title="expense.title" size="md" />
         </template>
         <div class="min-w-0 flex-1">
           <div class="flex items-center gap-1.5 min-w-0">
-            <span class="font-semibold text-sm truncate" :class="{ 'line-through text-muted-foreground/70': expense.is_settled }">
+            <span class="font-bold text-[13px] leading-tight truncate" :class="{ 'line-through text-muted-foreground/70': expense.is_settled }">
               <template v-if="expense.type === 'transfer'">
                 Transfer
               </template>
@@ -454,8 +454,8 @@ function loadMoreFeed() {
             :type="expense.type === 'transfer' ? 'muted' : 'auto'"
             :prefix="expense.type === 'deposit' ? '+' : (expense.type === 'transfer' ? '' : '-')"
             :strikethrough="expense.is_settled"
-            size="md"
-            class="text-sm font-bold"
+            size="sm"
+            class="font-black tabular-nums shrink-0"
           />
           <span v-if="expense.type !== 'transfer' && expense.wallet" class="text-[10px] font-semibold text-muted-foreground/60 mt-0.5 block">
             via {{ expense.wallet.name }}
@@ -550,8 +550,8 @@ function loadMoreFeed() {
                 :type="expense.type === 'transfer' ? 'muted' : 'auto'"
                 :prefix="expense.type === 'deposit' ? '+' : (expense.type === 'transfer' ? '' : '-')"
                 :strikethrough="expense.is_settled"
-                size="md"
-                class="font-semibold"
+                size="sm"
+                class="font-black"
               />
             </td>
             <td class="px-4 py-3" v-if="!isArchiveRange">

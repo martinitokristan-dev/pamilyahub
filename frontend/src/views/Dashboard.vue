@@ -835,9 +835,9 @@ const statCards = computed(() => [
             <!-- Today's Expenses card -->
             <div
               class="relative rounded-2xl p-4 bg-white dark:bg-zinc-900 shadow-sm border border-zinc-200 dark:border-zinc-800 flex flex-col"
-              style="height: 160px"
+              style="height: 140px"
             >
-              <div class="flex items-center justify-between mb-3 shrink-0">
+              <div class="flex items-center justify-between mb-2 shrink-0">
                 <span class="text-[9px] font-black uppercase tracking-widest text-zinc-900 dark:text-zinc-100">Today</span>
               </div>
               
@@ -855,13 +855,13 @@ const statCards = computed(() => [
                   <div
                     v-for="(item, idx) in todayStats.items"
                     :key="item.id"
-                    class="flex items-center justify-center gap-3 shrink-0 h-[34px] snap-center transition-all duration-300 origin-center"
-                    :class="activeLottoIndex === idx ? 'scale-100 opacity-100' : 'scale-[0.75] opacity-60'"
+                    class="flex items-center justify-center gap-1.5 shrink-0 h-[30px] snap-center transition-all duration-300 origin-center"
+                    :class="activeLottoIndex === idx ? 'scale-100 opacity-100' : 'scale-[0.8] opacity-50'"
                   >
-                    <TrendingDown v-if="item.type === 'expense'" class="h-4 w-4 text-red-500 stroke-[3px] shrink-0" />
-                    <TrendingUp v-else class="h-4 w-4 text-emerald-500 stroke-[3px] shrink-0" />
+                    <TrendingDown v-if="item.type === 'expense'" class="h-3.5 w-3.5 text-red-500 stroke-[3px] shrink-0" />
+                    <TrendingUp v-else class="h-3.5 w-3.5 text-emerald-500 stroke-[3px] shrink-0" />
 
-                    <span class="text-[20px] font-black tracking-tight" :class="item.type === 'expense' ? 'text-zinc-900 dark:text-zinc-100' : 'text-emerald-500'">
+                    <span class="text-[15px] font-black tracking-tight truncate max-w-full" :class="item.type === 'expense' ? 'text-zinc-900 dark:text-zinc-100' : 'text-emerald-500'">
                       {{ item.type === 'deposit' ? '+' : '' }}{{ formatCurrency(item.amount) }}
                     </span>
                   </div>
@@ -875,13 +875,13 @@ const statCards = computed(() => [
             <!-- Monthly Income card -->
             <div
               class="relative rounded-2xl p-4 bg-white dark:bg-zinc-900 shadow-sm border border-zinc-200 dark:border-zinc-800 flex flex-col"
-              style="height: 160px"
+              style="height: 140px"
             >
               <div class="flex items-center justify-between mb-3 shrink-0">
                 <span class="text-[9px] font-black uppercase tracking-widest text-zinc-900 dark:text-zinc-100">Income</span>
               </div>
-              <div class="flex-1 flex flex-col justify-center">
-                <p class="text-2xl font-black leading-none text-emerald-500 sensitive-stat mb-1.5">{{ formatCurrency(dashboard.stats.monthly_income) }}</p>
+              <div class="flex-1 flex flex-col justify-center min-w-0">
+                <p class="text-[18px] font-black leading-none text-emerald-500 sensitive-stat mb-1.5 truncate">{{ formatCurrency(dashboard.stats.monthly_income) }}</p>
                 <p class="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 leading-tight">Deposited this month</p>
               </div>
             </div>
@@ -898,9 +898,9 @@ const statCards = computed(() => [
                 <p class="text-[10px] font-black uppercase tracking-widest text-zinc-900 dark:text-zinc-100 leading-none">Last 7 Days</p>
                 <p class="text-[10px] font-medium text-zinc-500 dark:text-zinc-400 mt-1">Expenses this week</p>
               </div>
-              <div class="text-right">
+              <div class="text-right min-w-0 flex-1">
                 <p class="text-[9px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400 mb-0.5">Total</p>
-                <p class="text-sm font-black leading-none text-zinc-900 dark:text-zinc-100 sensitive-stat">{{ formatCurrency(last7DaysExpenses) }}</p>
+                <p class="text-[13px] font-black leading-none text-zinc-900 dark:text-zinc-100 sensitive-stat truncate">{{ formatCurrency(last7DaysExpenses) }}</p>
               </div>
             </div>
 
@@ -965,14 +965,14 @@ const statCards = computed(() => [
               <div
                 v-for="plan in upcomingPlans"
                 :key="plan.id"
-                class="flex items-center justify-between gap-4 p-4 transition-all hover:bg-muted/30 active:bg-muted/50 cursor-pointer relative overflow-hidden rounded-[20px]"
+                class="flex items-center justify-between gap-3 p-3 transition-all hover:bg-muted/30 active:bg-muted/50 cursor-pointer relative overflow-hidden rounded-2xl"
                 :class="getPlanBackgroundClass(plan)"
                 @click="router.push('/plans')"
               >
                 <!-- Left side: Icon + Details -->
-                <div class="flex items-center gap-3.5 flex-1 min-w-0 z-0">
+                <div class="flex items-center gap-3 flex-1 min-w-0 z-0">
                   <div class="shrink-0">
-                    <ExpenseIcon :title="plan.title" size="lg" />
+                    <ExpenseIcon :title="plan.title" size="md" />
                   </div>
                   <div class="flex flex-col min-w-0">
                     <div class="flex items-center gap-1.5 min-w-0">
@@ -991,8 +991,8 @@ const statCards = computed(() => [
                   <CurrencyAmount 
                     :amount="plan.amount" 
                     type="muted" 
-                    size="md" 
-                    class="font-black tabular-nums" 
+                    size="sm" 
+                    class="font-black tabular-nums shrink-0" 
                   />
                 </div>
               </div>
@@ -1014,28 +1014,28 @@ const statCards = computed(() => [
             
             <!-- Recent Expenses List -->
             <template v-else>
-              <div v-if="recentExpensesList.length > 0" class="text-[15px] font-extrabold tracking-widest text-destructive uppercase pt-6 pb-2 px-3">
+              <div v-if="recentExpensesList.length > 0" class="text-[13px] font-extrabold tracking-widest text-destructive uppercase pt-5 pb-2 px-3">
                 Expenses
               </div>
               <div
                 v-for="(expense, index) in recentExpensesList"
                 :key="`${expense.type || 'expense'}-${expense.id}`"
-                class="flex items-center gap-3 p-4 transition-all hover:bg-muted/30 active:bg-muted/50 cursor-pointer rounded-[20px] relative"
+                class="flex items-center gap-3 p-3 transition-all hover:bg-muted/30 active:bg-muted/50 cursor-pointer rounded-2xl relative"
                 @click="openTransaction(expense)"
               >
                 <!-- Category/Wallet Icon -->
                 <template v-if="expense.type === 'transfer'">
-                  <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-muted/50 border border-border shadow-sm">
-                    <ArrowRightLeft class="h-6 w-6 text-muted-foreground" />
+                  <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted/50 border border-border shadow-sm">
+                    <ArrowRightLeft class="h-5 w-5 text-muted-foreground" />
                   </div>
                 </template>
                 <template v-else-if="expense.type === 'deposit'">
-                  <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-muted/50 border border-border shadow-sm">
-                     <TrendingUp class="h-6 w-6 text-emerald-600" />
+                  <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted/50 border border-border shadow-sm">
+                     <TrendingUp class="h-5 w-5 text-emerald-600" />
                   </div>
                 </template>
                 <template v-else-if="isLendingExpense(expense)">
-                  <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl overflow-hidden bg-muted/50 border border-border shadow-sm">
+                  <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl overflow-hidden bg-muted/50 border border-border shadow-sm">
                     <img 
                       src="/icons/wallets/lending.png" 
                       class="w-full h-full object-contain rounded dark:invert" 
@@ -1043,7 +1043,7 @@ const statCards = computed(() => [
                   </div>
                 </template>
                 <template v-else>
-                  <ExpenseIcon :title="expense.title" size="lg" />
+                  <ExpenseIcon :title="expense.title" size="md" />
                 </template>
 
                 <!-- Details -->
@@ -1080,8 +1080,8 @@ const statCards = computed(() => [
                     :type="expense.type === 'transfer' ? 'muted' : 'auto'"
                     :prefix="expense.type === 'deposit' ? '+' : (expense.type === 'transfer' ? '' : '-')"
                     :strikethrough="expense.is_settled"
-                    size="md"
-                    class="text-sm font-bold"
+                    size="sm"
+                    class="font-black tabular-nums shrink-0"
                   />
                   <div v-if="expense.is_settled" class="mt-1 flex justify-end">
                     <UiBadge variant="outline" class="text-[9px] uppercase tracking-wider py-0 px-1 border-emerald-500/30 bg-emerald-500/10 text-emerald-600">PAID</UiBadge>

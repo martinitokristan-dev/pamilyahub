@@ -358,10 +358,10 @@ async function remove(debt) {
               
               <div class="flex flex-col items-end gap-1 shrink-0">
                   <template v-if="debt.type === 'owed_to_me'">
-                    <CurrencyAmount :amount="debt.amount" :type="debt.is_paid ? 'muted' : 'income'" :prefix="debt.is_paid ? '+' : ''" size="md" class="tabular-nums" />
+                    <CurrencyAmount :amount="debt.amount" :type="debt.is_paid ? 'muted' : 'income'" :prefix="debt.is_paid ? '+' : ''" size="sm" class="font-black tabular-nums shrink-0" />
                   </template>
                   <template v-else>
-                    <CurrencyAmount :amount="debt.amount" :type="debt.is_paid ? 'muted' : 'debt'" :prefix="debt.is_paid ? '' : '-'" size="md" class="tabular-nums" />
+                    <CurrencyAmount :amount="debt.amount" :type="debt.is_paid ? 'muted' : 'debt'" :prefix="debt.is_paid ? '' : '-'" size="sm" class="font-black tabular-nums shrink-0" />
                   </template>
                 <span v-if="debt.is_paid" class="mt-1.5 inline-flex items-center gap-1 text-[9px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider bg-emerald-50 dark:bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-200/50 dark:border-emerald-500/20">
                   <CheckCircle2 class="h-2.5 w-2.5" />

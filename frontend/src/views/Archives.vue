@@ -257,7 +257,7 @@ function formatPlanDueDate(dateStr) {
 
           <div class="text-right shrink-0">
             <p v-if="activeFilter === 'plans'" class="font-bold text-[15px] text-foreground">
-              <CurrencyAmount :amount="item.amount" type="muted" />
+              <CurrencyAmount :amount="item.amount" type="muted" size="sm" class="font-black tabular-nums" />
             </p>
             <p v-else-if="activeFilter !== 'debts'" class="font-bold text-[15px]" :class="{
               'text-emerald-600': item.type === 'deposit',
@@ -267,13 +267,13 @@ function formatPlanDueDate(dateStr) {
             }">
               <span v-if="item.type === 'deposit'">+</span>
               <span v-else-if="item.type === 'expense' && !isLendingExpense(item)">-</span>
-              <CurrencyAmount :amount="item.amount" :type="item.type === 'deposit' ? 'income' : (item.type === 'transfer' ? 'muted' : 'expense')" />
+              <CurrencyAmount :amount="item.amount" :type="item.type === 'deposit' ? 'income' : (item.type === 'transfer' ? 'muted' : 'expense')" size="sm" class="font-black tabular-nums" />
             </p>
             <p v-if="activeFilter === 'debts'" class="font-bold text-[15px]" :class="{
               'text-emerald-600': item.type === 'owed_to_me',
               'text-destructive': item.type === 'i_owe'
             }">
-              <CurrencyAmount :amount="item.amount" :type="item.type === 'owed_to_me' ? 'income' : 'expense'" />
+              <CurrencyAmount :amount="item.amount" :type="item.type === 'owed_to_me' ? 'income' : 'expense'" size="sm" class="font-black tabular-nums" />
             </p>
           </div>
         </div>

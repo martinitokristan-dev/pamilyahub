@@ -355,7 +355,7 @@ function isActive(path) {
           leave-from-class="opacity-100 translate-y-0 scale-100"
           leave-to-class="opacity-0 translate-y-10 scale-95"
         >
-          <div v-if="showMoreMenu" class="absolute bottom-[calc(100%+12px)] left-1/2 -translate-x-1/2 w-full max-w-sm z-50 px-2">
+          <div v-if="showMoreMenu" class="absolute bottom-[calc(100%+12px)] left-1/2 -translate-x-1/2 w-full max-w-[420px] z-50 px-2">
             <div
               class="relative h-20 bg-card/80 backdrop-blur-2xl border border-border/40 rounded-[50px] shadow-[0_10px_40px_rgba(0,0,0,0.15)] flex items-center transition-all duration-500"
               :class="isAdminMoreNav ? 'overflow-hidden px-1' : 'px-2 overflow-visible'"
@@ -397,7 +397,7 @@ function isActive(path) {
           leave-to-class="opacity-0 translate-y-[120%]"
         >
           <div v-if="showSpeedDial" class="fixed bottom-0 inset-x-0 z-50 flex justify-center">
-            <div class="w-full max-w-sm rounded-t-[2rem] bg-card/95 backdrop-blur-3xl border-t border-border/50 shadow-[0_-20px_60px_rgba(0,0,0,0.3)] pb-[calc(env(safe-area-inset-bottom)+1.5rem)] pt-6 px-6 max-h-[80vh] overflow-y-auto origin-bottom">
+            <div class="w-full max-w-[480px] rounded-t-[2rem] bg-card/95 backdrop-blur-3xl border-t border-border/50 shadow-[0_-20px_60px_rgba(0,0,0,0.3)] pb-[calc(env(safe-area-inset-bottom)+1.5rem)] pt-6 px-6 max-h-[80vh] overflow-y-auto origin-bottom">
               <div class="flex justify-between items-center mb-6">
                  <h3 class="font-black text-xl tracking-tight text-foreground">Create New</h3>
                  <button @click="showSpeedDial = false" class="p-2 rounded-full bg-muted/60 hover:bg-muted text-muted-foreground transition-colors active:scale-90">
@@ -423,63 +423,63 @@ function isActive(path) {
         </Transition>
 
         <!-- The Dock Container -->
-        <div class="relative w-full max-w-sm mx-auto h-20 bg-card/80 backdrop-blur-2xl border border-border/40 rounded-[50px] shadow-[0_10px_40px_rgba(0,0,0,0.15)] flex items-center px-2 overflow-visible transition-all duration-500">
+        <div class="relative w-full max-w-[420px] mx-auto h-16 bg-card/80 backdrop-blur-2xl border border-border/40 rounded-[40px] shadow-[0_10px_30px_rgba(0,0,0,0.1)] flex items-center px-1.5 overflow-visible transition-all duration-500">
           
           <!-- Left Side Tabs -->
-          <div class="flex flex-1 justify-around items-center h-full">
+          <div class="flex flex-1 justify-around items-center h-full min-w-0 gap-1">
             <RouterLink
               v-for="item in mainBottomNav.slice(0, 2)"
               :key="item.to"
               :to="item.to"
               @click="showMoreMenu = false; showSpeedDial = false"
-              class="relative flex flex-col items-center justify-center w-[72px] h-[64px] rounded-[50px] transition-all group"
+              class="relative flex flex-col items-center justify-center flex-1 h-[52px] rounded-[32px] transition-all group"
               :class="isActive(item.to) ? 'text-primary bg-zinc-200/80 dark:bg-zinc-800' : 'text-foreground/70 dark:text-zinc-400 hover:text-foreground'"
             >
-              <component :is="item.icon" class="h-6 w-6 transition-transform duration-300 group-active:scale-90" :class="{ 'scale-110 drop-shadow-[0_0_8px_rgba(var(--primary-rgb),0.3)]': isActive(item.to) }" />
-              <span class="text-[10px] font-sans font-bold mt-1.5 uppercase tracking-wide">{{ item.name }}</span>
+              <component :is="item.icon" class="h-5 w-5 transition-transform duration-300 group-active:scale-90" :class="{ 'scale-110 drop-shadow-[0_0_8px_rgba(var(--primary-rgb),0.3)]': isActive(item.to) }" />
+              <span class="text-[9px] sm:text-[10px] font-sans font-bold mt-0.5 uppercase tracking-wider truncate px-1 w-full text-center">{{ item.name }}</span>
             </RouterLink>
           </div>
 
           <!-- Centered FAB -->
-          <div class="relative w-20 flex justify-center -mt-10">
+          <div class="relative w-16 flex justify-center -mt-8">
             <div class="absolute inset-0 bg-background rounded-full scale-125 blur-xl opacity-50 -z-10"></div>
             <button
               @click="showSpeedDial = !showSpeedDial; showMoreMenu = false"
-              class="h-16 w-16 rounded-full bg-primary text-primary-foreground shadow-[0_8px_25px_rgba(var(--primary-rgb),0.5)] flex items-center justify-center active:scale-90 transition-all duration-300 hover:scale-105 group border-4 border-background"
+              class="h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-[0_8px_20px_rgba(var(--primary-rgb),0.5)] flex items-center justify-center active:scale-90 transition-all duration-300 hover:scale-105 group border-4 border-background"
               :class="{ 'rotate-45': showSpeedDial }"
             >
-              <Plus class="h-8 w-8 stroke-[3px] transition-transform" />
+              <Plus class="h-7 w-7 stroke-[3px] transition-transform" />
             </button>
           </div>
 
           <!-- Right Side Tabs -->
-          <div class="flex flex-1 justify-around items-center h-full">
+          <div class="flex flex-1 justify-around items-center h-full min-w-0 gap-1">
             <RouterLink
               :to="mainBottomNav[2].to"
               @click="showMoreMenu = false; showSpeedDial = false"
-              class="relative flex flex-col items-center justify-center w-[72px] h-[64px] rounded-[50px] transition-all group"
+              class="relative flex flex-col items-center justify-center flex-1 h-[52px] rounded-[32px] transition-all group"
               :class="isActive(mainBottomNav[2].to) ? 'text-primary bg-zinc-200/80 dark:bg-zinc-800' : 'text-foreground/70 dark:text-zinc-400 hover:text-foreground'"
             >
-              <component :is="mainBottomNav[2].icon" class="h-6 w-6 transition-transform duration-300 group-active:scale-90" :class="{ 'scale-110 drop-shadow-[0_0_8px_rgba(var(--primary-rgb),0.3)]': isActive(mainBottomNav[2].to) }" />
-              <span class="text-[10px] font-sans font-bold mt-1.5 uppercase tracking-wide">{{ mainBottomNav[2].name }}</span>
+              <component :is="mainBottomNav[2].icon" class="h-5 w-5 transition-transform duration-300 group-active:scale-90" :class="{ 'scale-110 drop-shadow-[0_0_8px_rgba(var(--primary-rgb),0.3)]': isActive(mainBottomNav[2].to) }" />
+              <span class="text-[9px] sm:text-[10px] font-sans font-bold mt-0.5 uppercase tracking-wider truncate px-1 w-full text-center">{{ mainBottomNav[2].name }}</span>
             </RouterLink>
 
             <!-- More Trigger -->
             <button
               @click="showMoreMenu = !showMoreMenu; showSpeedDial = false"
-              class="relative flex flex-col items-center justify-center w-[72px] h-[64px] rounded-[50px] transition-all group"
+              class="relative flex flex-col items-center justify-center flex-1 h-[52px] rounded-[32px] transition-all group"
               :class="showMoreMenu ? 'text-primary bg-zinc-200/80 dark:bg-zinc-800' : 'text-foreground/70 dark:text-zinc-400 hover:text-foreground'"
             >
-              <div class="flex flex-col gap-0.5 items-center justify-center h-6 w-6 transition-transform duration-300 group-active:scale-90 relative">
-                <div class="w-1.5 h-1.5 rounded-full bg-current transition-all" :class="{ 'scale-125': showMoreMenu }" />
-                <div class="w-1.5 h-1.5 rounded-full bg-current transition-all" :class="{ 'scale-125': showMoreMenu }" />
-                <div class="w-1.5 h-1.5 rounded-full bg-current transition-all" :class="{ 'scale-125': showMoreMenu }" />
+              <div class="flex flex-col gap-[1.5px] items-center justify-center h-5 w-5 transition-transform duration-300 group-active:scale-90 relative">
+                <div class="w-1 h-1 rounded-full bg-current transition-all" :class="{ 'scale-125': showMoreMenu }" />
+                <div class="w-1 h-1 rounded-full bg-current transition-all" :class="{ 'scale-125': showMoreMenu }" />
+                <div class="w-1 h-1 rounded-full bg-current transition-all" :class="{ 'scale-125': showMoreMenu }" />
                 <span 
                   v-if="needRefresh" 
-                  class="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-destructive border-2 border-background animate-pulse"
+                  class="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-destructive border-[1.5px] border-background animate-pulse"
                 ></span>
               </div>
-              <span class="text-[10px] font-sans font-bold mt-1.5 uppercase tracking-wide">More</span>
+              <span class="text-[9px] sm:text-[10px] font-sans font-bold mt-0.5 uppercase tracking-wider truncate px-1 w-full text-center">More</span>
             </button>
           </div>
 

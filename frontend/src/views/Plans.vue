@@ -537,7 +537,7 @@ async function confirmPay() {
             <div v-for="plan in day.plans" :key="plan.id" class="relative z-10 flex flex-col items-center text-center">
               <div class="font-bold truncate w-full">{{ plan.title }}</div>
               <div class="flex items-center justify-center mt-0.5 opacity-90 gap-1.5">
-                <CurrencyAmount :amount="plan.amount" size="sm" class="font-bold tracking-tight" />
+                <CurrencyAmount :amount="plan.amount" size="xs" class="font-bold tracking-tight" />
                 <span v-if="plan.is_paid" class="text-[9px] bg-emerald-500 text-white px-1 rounded-sm">PAID</span>
               </div>
             </div>
@@ -589,19 +589,19 @@ async function confirmPay() {
     />
 
     <!-- Plans List -->
-    <div v-else class="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800/80 rounded-[24px] shadow-[0_15px_35px_rgba(0,0,0,0.06)] dark:shadow-none overflow-hidden relative z-10 pt-5 pb-2 mt-2">
+    <div v-else class="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800/80 rounded-3xl shadow-[0_15px_35px_rgba(0,0,0,0.06)] dark:shadow-none overflow-hidden relative z-10 pt-4 pb-2 mt-2">
       <div class="space-y-1 px-2">
         <div
           v-for="plan in displayPlans"
           :key="plan.id"
-          class="flex items-center justify-between gap-4 p-4 transition-all hover:bg-muted/30 active:bg-muted/50 cursor-pointer relative overflow-hidden rounded-[20px]"
+          class="flex items-center justify-between gap-3 p-3 transition-all hover:bg-muted/30 active:bg-muted/50 cursor-pointer relative overflow-hidden rounded-2xl"
           :class="getPlanBackgroundClass(plan)"
           @click="openEdit(plan)"
         >
         <!-- Left side: Icon + Details -->
-        <div class="flex items-center gap-3.5 flex-1 min-w-0 z-0">
+        <div class="flex items-center gap-3 flex-1 min-w-0 z-0">
           <div class="shrink-0" :class="plan.is_paid ? 'opacity-90' : ''">
-            <ExpenseIcon :title="plan.title" size="lg" />
+            <ExpenseIcon :title="plan.title" size="md" />
           </div>
           <div class="flex flex-col min-w-0">
             <div class="flex items-center gap-1.5 min-w-0">
@@ -626,7 +626,7 @@ async function confirmPay() {
           <CurrencyAmount 
             :amount="plan.amount" 
             :type="plan.is_paid ? 'muted' : 'debt'" 
-            size="md" 
+            size="sm" 
             class="font-black tabular-nums" 
           />
           <span v-if="plan.is_paid && plan.wallet_name" class="text-[10px] font-semibold text-muted-foreground/60 mt-0.5">

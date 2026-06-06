@@ -77,8 +77,8 @@ const sizeClasses = computed(() => {
     case 'md':
     default:
       return { 
-        container: 'w-9 h-9 rounded-xl', 
-        brandContainer: 'w-9 h-9 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-hidden',
+        container: 'w-10 h-10 rounded-xl', 
+        brandContainer: 'w-10 h-10 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-hidden',
         img: 'w-full h-full object-contain', 
         lucide: 'w-5 h-5' 
       }

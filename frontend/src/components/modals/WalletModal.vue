@@ -408,7 +408,7 @@ function clearFilters() {
                 >
                   <!-- Icon -->
                   <div class="shrink-0">
-                    <ExpenseIcon :title="item.description" size="lg" />
+                    <ExpenseIcon :title="item.description" size="md" />
                   </div>
                   <!-- Description + date -->
                   <div class="flex flex-col flex-1 min-w-0">
@@ -422,7 +422,7 @@ function clearFilters() {
                       :type="item.type === 'income' ? 'income' : 'expense'"
                       :prefix="item.type === 'income' ? '+' : '-'"
                       size="sm"
-                      class="font-black text-sm"
+                      class="font-black"
                     />
                   </div>
                 </div>

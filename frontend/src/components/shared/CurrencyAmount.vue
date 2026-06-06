@@ -52,8 +52,7 @@ const props = defineProps({
     }
   })
 
-  // Symbol class — standard text character, exact same size and weight as the number
-  const symbolClass = computed(() => {
+  const rootSizeClass = computed(() => {
     switch (props.size) {
       case 'xs': return 'text-[13px] font-bold'
       case 'sm': return 'text-sm font-semibold'
@@ -64,15 +63,12 @@ const props = defineProps({
     }
   })
 
-  // Number class — Inter Semibold/Bold
+  // Number class — only tracking differences
   const numberClass = computed(() => {
     switch (props.size) {
-      case 'xs': return 'text-[13px] font-bold'
-      case 'sm': return 'text-sm font-semibold'
-      case 'md': return 'text-base font-bold'
-      case 'lg': return 'text-xl font-bold tracking-tight'
-      case 'xl': return 'text-3xl font-bold tracking-tight'
-      default:   return 'text-base font-bold'
+      case 'lg': return 'tracking-tight'
+      case 'xl': return 'tracking-tight'
+      default:   return ''
     }
   })
 
@@ -83,9 +79,9 @@ const formattedAmount = computed(() => {
 </script>
 
 <template>
-  <span :class="[colorClass, { 'line-through opacity-50': strikethrough }]" class="inline-flex items-baseline gap-[1px]">
+  <span :class="[colorClass, rootSizeClass, { 'line-through opacity-50': strikethrough }]" class="inline-flex items-baseline gap-[1px]">
     <span v-if="prefix" :class="numberClass">{{ prefix }}</span>
-    <span :class="symbolClass">₱</span>
+    <span>₱</span>
     <span :class="numberClass">{{ formattedAmount }}</span>
   </span>
 </template>
