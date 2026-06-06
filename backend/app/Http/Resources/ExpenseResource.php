@@ -16,7 +16,7 @@ class ExpenseResource extends JsonResource
     {
         return [
             'id' => $this->id,
-            'amount' => number_format((float) $this->amount, 2, '.', ','),
+            'amount' => (float) $this->amount,
             'title' => $this->title, // Keep title for frontend template compatibility
             'description' => $this->title, // Schema specifies description as the main description/title
             'notes' => $this->description, // DB description/notes field

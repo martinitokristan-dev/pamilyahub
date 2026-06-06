@@ -177,7 +177,7 @@ class ExpenseController extends Controller
         $formattedItems = $items->map(function ($item) use ($wallets) {
             return [
                 'id' => $item->id,
-                'amount' => number_format((float) $item->amount, 2, '.', ','),
+                'amount' => (float) $item->amount,
                 'title' => $item->title,
                 'description' => $item->title,
                 'notes' => $item->notes,

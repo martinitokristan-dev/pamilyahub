@@ -20,7 +20,7 @@ import UiButton from '@/components/ui/Button.vue'
 import UiBadge from '@/components/ui/Badge.vue'
 import DepositSalaryModal from '@/components/financial/DepositSalaryModal.vue'
 import dashboardService from '@/services/dashboardService.js'
-import { formatCurrency, formatDateTime, isTodayInPh, parseAppDate } from '@/utils/format'
+import { formatCurrency, formatDateTime, isTodayInPh, parseAppDate, parseExpenseAmount } from '@/utils/format'
 import ExpenseIcon from '@/components/shared/ExpenseIcon.vue'
 import CurrencyAmount from '@/components/shared/CurrencyAmount.vue'
 import TransactionDetailsModal from '@/components/modals/TransactionDetailsModal.vue'
@@ -166,8 +166,8 @@ const todayStats = computed(() => {
   )
   return {
     count: todayExpenses.length,
-    total: todayExpenses.reduce((s, e) => s + parseFloat(e.amount || 0), 0),
-    depositTotal: todayDeposits.reduce((s, e) => s + parseFloat(e.amount || 0), 0),
+    total: todayExpenses.reduce((s, e) => s + parseExpenseAmount(e.amount || 0), 0),
+    depositTotal: todayDeposits.reduce((s, e) => s + parseExpenseAmount(e.amount || 0), 0),
     items
   }
 })

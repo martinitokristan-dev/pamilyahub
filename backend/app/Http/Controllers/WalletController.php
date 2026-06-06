@@ -194,7 +194,7 @@ class WalletController extends Controller
         $formattedItems = $items->map(function ($item) use ($wallet) {
             return [
                 'id' => $item->id,
-                'amount' => number_format((float) $item->amount, 2, '.', ','),
+                'amount' => (float) $item->amount,
                 'description' => $item->description,
                 'date' => $item->date,
                 'wallet' => $wallet, // Send the full wallet object like ExpenseResource

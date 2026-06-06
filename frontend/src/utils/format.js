@@ -49,7 +49,7 @@ export function isTodayInPh(value) {
  * @returns {string} - Formatted currency string (e.g., "₱ 45,000.00")
  */
 export function formatCurrency(value) {
-  const num = parseFloat(value)
+  const num = parseExpenseAmount(value)
   if (isNaN(num)) return '₱ 0.00'
   return new Intl.NumberFormat('en-PH', {
     style: 'currency',
@@ -65,7 +65,7 @@ export function formatCurrency(value) {
  * @returns {string} - Formatted number string (e.g., "45,000")
  */
 export function formatNumber(value) {
-  const num = parseFloat(value)
+  const num = parseExpenseAmount(value)
   if (isNaN(num)) return '0'
   return new Intl.NumberFormat('en-PH').format(num)
 }
