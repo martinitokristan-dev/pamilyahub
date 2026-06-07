@@ -117,8 +117,8 @@ function formatPlanDueDate(dateStr) {
 </script>
 
 <template>
-  <div class="p-4 md:p-6 max-w-6xl mx-auto animate-fade-in">
-    <div class="mb-6 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+  <div class="px-3 py-4 md:p-6 max-w-6xl mx-auto animate-fade-in">
+    <div class="mb-5 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
       <div class="space-y-1">
         <h1 class="text-2xl font-medium tracking-tight text-foreground flex items-center gap-2">
           <Archive class="h-6 w-6 text-primary" />
@@ -134,7 +134,7 @@ function formatPlanDueDate(dateStr) {
           :model-value="activeFilter"
           @update:model-value="selectFilter"
           :options="filterOptions"
-          trigger-class="flex items-center justify-between appearance-none bg-card border border-border/50 text-foreground text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer shadow-sm font-medium w-full sm:w-48 transition-colors hover:bg-muted/50"
+          trigger-class="flex items-center justify-between appearance-none bg-card border border-border/50 text-foreground text-sm rounded-xl h-11 px-4 focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer shadow-sm font-medium w-full sm:w-48 transition-colors hover:bg-muted/50"
         />
       </div>
 
@@ -210,11 +210,7 @@ function formatPlanDueDate(dateStr) {
 
               <div class="flex items-center gap-2 text-xs text-muted-foreground">
                 <span class="font-medium whitespace-nowrap">{{ formatDateTime(item.date) }}</span>
-                <span class="w-1 h-1 rounded-full bg-border"></span>
-                <div v-if="item.type !== 'transfer' && item.wallet" class="flex items-center gap-1.5 shrink-0 max-w-[120px]">
-                  <img :src="getWalletIconUrl(item.wallet.icon)" class="w-3 h-3 grayscale opacity-70 shrink-0" v-if="item.wallet.icon" />
-                  <span class="truncate">{{ item.wallet.name }}</span>
-                </div>
+                <span class="w-1 h-1 rounded-full bg-border" v-if="item.notes"></span>
                 <div v-if="item.notes" class="flex items-center gap-1.5 min-w-0 hidden sm:flex">
                   <span class="w-1 h-1 rounded-full bg-border shrink-0"></span>
                   <span class="truncate">{{ item.notes }}</span>
@@ -255,20 +251,30 @@ function formatPlanDueDate(dateStr) {
             </div>
           </div>
 
-          <div class="text-right shrink-0">
-            <p v-if="activeFilter === 'plans'" class="font-bold text-[15px] text-foreground">
-              <CurrencyAmount :amount="item.amount" type="muted" size="sm" class="font-black tabular-nums" />
-            </p>
-            <p v-else-if="activeFilter !== 'debts'" class="font-bold text-[15px]" :class="{
-              'text-emerald-600': item.type === 'deposit',
-              'text-blue-600': item.type === 'transfer',
-              'text-amber-600': item.type === 'expense' && isLendingExpense(item),
-              'text-foreground': item.type === 'expense' && !isLendingExpense(item)
-            }">
-              <span v-if="item.type === 'deposit'">+</span>
-              <span v-else-if="item.type === 'expense' && !isLendingExpense(item)">-</span>
-              <CurrencyAmount :amount="item.amount" :type="item.type === 'deposit' ? 'income' : (item.type === 'transfer' ? 'muted' : 'expense')" size="sm" class="font-black tabular-nums" />
-            </p>
+          <div class="flex flex-col items-end justify-center shrink-0 text-right">
+            <template v-if="activeFilter === 'plans'">
+              <p class="font-bold text-[15px] text-foreground">
+                <CurrencyAmount :amount="item.amount" type="muted" size="sm" class="font-black tabular-nums" />
+              </p>
+              <span v-if="item.wallet_name || item.wallet" class="text-[10px] font-semibold text-muted-foreground/60 mt-0.5">
+                via {{ item.wallet_name || item.wallet?.name }}
+              </span>
+            </template>
+            <template v-else-if="activeFilter !== 'debts'">
+              <p class="font-bold text-[15px]" :class="{
+                'text-emerald-600': item.type === 'deposit',
+                'text-blue-600': item.type === 'transfer',
+                'text-amber-600': item.type === 'expense' && isLendingExpense(item),
+                'text-foreground': item.type === 'expense' && !isLendingExpense(item)
+              }">
+                <span v-if="item.type === 'deposit'">+</span>
+                <span v-else-if="item.type === 'expense' && !isLendingExpense(item)">-</span>
+                <CurrencyAmount :amount="item.amount" :type="item.type === 'deposit' ? 'income' : (item.type === 'transfer' ? 'muted' : 'expense')" size="sm" class="font-black tabular-nums" />
+              </p>
+              <span v-if="item.type !== 'transfer' && item.wallet" class="text-[10px] font-semibold text-muted-foreground/60 mt-0.5">
+                via {{ item.wallet.name }}
+              </span>
+            </template>
             <p v-if="activeFilter === 'debts'" class="font-bold text-[15px]" :class="{
               'text-emerald-600': item.type === 'owed_to_me',
               'text-destructive': item.type === 'i_owe'

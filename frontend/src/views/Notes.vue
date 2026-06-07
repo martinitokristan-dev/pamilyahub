@@ -184,10 +184,10 @@ function getPreviewLines(content) {
 </script>
 
 <template>
-  <div class="p-4 sm:p-6 max-w-6xl mx-auto animate-fade-in pb-6">
+  <div class="px-3 py-4 md:p-6 max-w-6xl mx-auto animate-fade-in pb-6">
     <!-- List view -->
     <div>
-      <div class="mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+      <div class="mb-5 flex flex-col sm:flex-row sm:items-end justify-between gap-3">
         <div class="flex items-center gap-3 space-y-1">
           <AppBackButton
             v-if="activeFolderId"
@@ -230,11 +230,11 @@ function getPreviewLines(content) {
       </div>
 
       <!-- Folders Grid -->
-      <div v-if="!activeFolderId" class="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-3 lg:grid-cols-4 mb-8">
+      <div v-if="!activeFolderId" class="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-3 lg:grid-cols-4 mb-6">
         <UiCard 
           v-for="folder in store.folders"
           :key="folder.id"
-          class="cursor-pointer hover:border-primary transition-all flex flex-col items-center justify-center p-6 text-center gap-3 shadow-sm hover:shadow-md relative overflow-hidden group"
+          class="cursor-pointer hover:border-primary transition-all flex flex-col items-center justify-center p-4 text-center gap-2 shadow-sm hover:shadow-md relative overflow-hidden group rounded-2xl"
           @click="tryOpenFolder(folder)"
         >
           <!-- Delete Folder Button -->
@@ -268,7 +268,7 @@ function getPreviewLines(content) {
           <UiCard
             v-for="note in filteredNotes"
             :key="note._clientKey || note.id"
-            class="flex flex-col h-36 hover:shadow-md transition-all duration-200 cursor-pointer active:scale-[0.98] relative group"
+            class="flex flex-col h-32 sm:h-36 hover:shadow-md transition-all duration-200 cursor-pointer active:scale-[0.98] relative group rounded-2xl border-border"
             :class="{ 'z-50': menuOpenId === note.id }"
             @click="openNote(note)"
           >
@@ -277,8 +277,8 @@ function getPreviewLines(content) {
               <Star class="h-3 w-3 fill-current" />
             </div>
 
-            <div class="flex flex-col h-full p-4">
-              <div class="flex items-start justify-between gap-2 mb-2">
+            <div class="flex flex-col h-full p-3 sm:p-4">
+              <div class="flex items-start justify-between gap-2 mb-1">
                 <h3 class="font-bold text-sm sm:text-base leading-tight line-clamp-1 flex-1 pr-6">{{ note.title || 'Untitled' }}</h3>
                 
                 <!-- 3 Dots Menu -->

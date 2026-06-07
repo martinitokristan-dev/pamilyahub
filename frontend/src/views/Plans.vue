@@ -566,8 +566,7 @@ async function confirmPay() {
       <div class="flex justify-end">
         <UiButton
           variant="ghost"
-          size="sm"
-          class="h-7 px-2.5 rounded-lg text-[11px] font-semibold text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+          class="h-11 px-4 rounded-xl text-[13px] font-semibold text-muted-foreground hover:bg-muted/50 hover:text-foreground"
           @click="showPaidPlans = !showPaidPlans"
         >
           {{ showPaidPlans ? 'Hide paid items' : 'Show paid items' }}

@@ -247,12 +247,12 @@ async function remove(debt) {
 </script>
 
 <template>
-  <div class="p-6 max-w-4xl mx-auto animate-fade-in">
-    <div class="mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+  <div class="px-3 py-4 md:p-6 max-w-6xl mx-auto animate-fade-in">
+    <div class="mb-5 flex flex-col sm:flex-row sm:items-end justify-between gap-3">
       <div class="space-y-1">
         <h1 class="text-2xl font-medium tracking-tight text-foreground">Debts</h1>
       </div>
-      <div class="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto">
+      <div class="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto">
         <div class="bg-card border border-border shadow-sm px-4 py-2 rounded-2xl flex flex-col items-start sm:items-end min-w-[140px] transition-all hover:shadow-md">
           <span class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest leading-none mb-1">Net Balance</span>
           <CurrencyAmount :amount="totalBalance" type="balance" size="lg" class="tabular-nums sensitive-balance" />
@@ -268,7 +268,7 @@ async function remove(debt) {
         v-for="tab in [{ key: 'all', label: 'All' }, { key: 'owed_to_me', label: 'Owed to Me' }, { key: 'i_owe', label: 'I Owe' }]"
         :key="tab.key"
         :variant="activeTab === tab.key ? 'default' : 'outline'"
-        size="sm"
+        class="h-9 rounded-full px-4 text-[13px] font-bold shadow-sm"
         @click="activeTab = tab.key"
       >
         {{ tab.label }}
@@ -336,12 +336,12 @@ async function remove(debt) {
       <UiCard
         v-for="debt in displayDebts"
         :key="debt._clientKey || debt.id"
-        class="px-4 py-3 transition-all duration-200"
+        class="p-3 bg-card hover:bg-muted/30 transition-all border border-border shadow-sm rounded-2xl min-h-[44px] active:scale-[0.99]"
         :class="isArchiveRange ? 'opacity-80' : 'cursor-pointer sm:cursor-default'"
         @click="!isArchiveRange && openEdit(debt)"
       >
         <div class="flex items-start gap-3">
-          <ExpenseIcon :title="debt.name" size="lg" class="mt-0.5" />
+          <ExpenseIcon :title="debt.name" size="md" class="mt-0.5 shrink-0" />
           
           <div class="flex-1 min-w-0">
             <!-- Row 1: name + type + amount -->
@@ -358,10 +358,10 @@ async function remove(debt) {
               
               <div class="flex flex-col items-end gap-1 shrink-0">
                   <template v-if="debt.type === 'owed_to_me'">
-                    <CurrencyAmount :amount="debt.amount" :type="debt.is_paid ? 'muted' : 'income'" :prefix="debt.is_paid ? '+' : ''" size="sm" class="font-black tabular-nums shrink-0" />
+                    <CurrencyAmount :amount="debt.amount" :type="debt.is_paid ? 'muted' : 'income'" :prefix="debt.is_paid ? '+' : ''" size="md" class="font-black tabular-nums shrink-0" />
                   </template>
                   <template v-else>
-                    <CurrencyAmount :amount="debt.amount" :type="debt.is_paid ? 'muted' : 'debt'" :prefix="debt.is_paid ? '' : '-'" size="sm" class="font-black tabular-nums shrink-0" />
+                    <CurrencyAmount :amount="debt.amount" :type="debt.is_paid ? 'muted' : 'debt'" :prefix="debt.is_paid ? '' : '-'" size="md" class="font-black tabular-nums shrink-0" />
                   </template>
                 <span v-if="debt.is_paid" class="mt-1.5 inline-flex items-center gap-1 text-[9px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider bg-emerald-50 dark:bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-200/50 dark:border-emerald-500/20">
                   <CheckCircle2 class="h-2.5 w-2.5" />

@@ -216,16 +216,16 @@ function loadMoreFeed() {
 </script>
 
 <template>
-  <div class="p-4 md:p-6 max-w-6xl mx-auto animate-fade-in">
-    <div class="mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+  <div class="px-3 py-4 md:p-6 max-w-6xl mx-auto animate-fade-in">
+    <div class="mb-5 flex flex-col sm:flex-row sm:items-end justify-between gap-3">
       <div class="space-y-1">
         <h1 class="text-2xl font-medium tracking-tight text-foreground">Expenses</h1>
       </div>
-      <div class="flex items-center justify-between sm:justify-end gap-2 sm:gap-3 w-full sm:w-auto">
-        <div class="bg-card border border-border shadow-sm px-3 sm:px-4 py-2 rounded-2xl flex flex-col items-center sm:items-end flex-1 sm:flex-none sm:min-w-[140px] transition-all hover:shadow-md min-w-0">
-          <span class="text-[9px] sm:text-[10px] font-bold text-muted-foreground uppercase tracking-widest leading-none mb-1 truncate w-full text-center sm:text-right">Total Expenses</span>
-          <span v-if="dashboard.loading" class="text-base sm:text-xl font-black text-muted-foreground animate-pulse truncate w-full text-center sm:text-right">...</span>
-          <span v-else class="tabular-nums truncate w-full text-center sm:text-right sensitive-stat"><CurrencyAmount :amount="total" type="balance" size="lg" /></span>
+      <div class="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto overflow-hidden">
+        <div class="bg-card border border-border shadow-sm px-4 py-2 rounded-2xl flex flex-col items-start sm:items-end min-w-[140px] transition-all hover:shadow-md">
+          <span class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest leading-none mb-1">Total Expenses</span>
+          <span v-if="dashboard.loading" class="text-base sm:text-xl font-black text-muted-foreground animate-pulse">...</span>
+          <span v-else class="tabular-nums sensitive-stat"><CurrencyAmount :amount="total" type="balance" size="lg" /></span>
         </div>
 
         <!-- Month / Year selector (summary stats only) -->
@@ -256,7 +256,7 @@ function loadMoreFeed() {
     </div>
 
     <!-- Salary / Budget Tracking Card -->
-    <UiCard v-if="!isArchiveRange" class="mb-5 overflow-hidden border-primary/10 shadow-sm rounded-2xl bg-gradient-to-br from-card to-muted/20">
+    <div v-if="!isArchiveRange" class="mb-4 overflow-hidden border border-primary/10 shadow-sm rounded-2xl bg-gradient-to-br from-card to-muted/20">
       <div class="p-4 sm:p-5">
         <div class="flex items-center justify-between mb-4">
           <div class="flex items-center gap-2 min-w-0">
@@ -306,7 +306,7 @@ function loadMoreFeed() {
           </div>
         </div>
       </div>
-    </UiCard>
+    </div>
 
     <!-- Filter Tabs -->
     <div class="mb-5 flex overflow-x-auto hide-scrollbar md:justify-center">
@@ -321,7 +321,7 @@ function loadMoreFeed() {
           :key="tab.id"
           @click="changeTab(tab.id)"
           :class="[
-            'px-5 py-2.5 text-[14px] font-bold rounded-full transition-all border shadow-sm',
+            'h-9 px-4 flex items-center justify-center text-[13px] font-bold rounded-full transition-all border shadow-sm',
             store.filters.type === tab.id 
               ? 'bg-primary border-primary text-primary-foreground' 
               : 'bg-card border-border text-slate-800 hover:text-slate-900 hover:bg-muted dark:text-slate-200 dark:hover:bg-slate-800'

@@ -113,7 +113,7 @@ const upcomingPlans = computed(() => {
 
 const recentExpensesList = computed(() => {
   if (!expenses.expenses) return []
-  return expenses.expenses.filter(e => e.type !== 'deposit').slice(0, 5)
+  return expenses.expenses.filter(e => e.type === 'expense').slice(0, 5)
 })
 
 const last7DaysExpenses = computed(() => {
@@ -1024,17 +1024,7 @@ const statCards = computed(() => [
                 @click="openTransaction(expense)"
               >
                 <!-- Category/Wallet Icon -->
-                <template v-if="expense.type === 'transfer'">
-                  <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted/50 border border-border shadow-sm">
-                    <ArrowRightLeft class="h-5 w-5 text-muted-foreground" />
-                  </div>
-                </template>
-                <template v-else-if="expense.type === 'deposit'">
-                  <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted/50 border border-border shadow-sm">
-                     <TrendingUp class="h-5 w-5 text-emerald-600" />
-                  </div>
-                </template>
-                <template v-else-if="isLendingExpense(expense)">
+                <template v-if="isLendingExpense(expense)">
                   <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl overflow-hidden bg-muted/50 border border-border shadow-sm">
                     <img 
                       src="/icons/wallets/lending.png" 
@@ -1050,23 +1040,8 @@ const statCards = computed(() => [
                 <div class="min-w-0 flex-1">
                   <div class="flex items-center gap-1.5 min-w-0">
                     <span class="font-semibold text-sm truncate" :class="{ 'line-through text-muted-foreground/70': expense.is_settled }">
-                      <template v-if="expense.type === 'transfer'">
-                        Transfer
-                      </template>
-                      <template v-else>
-                        {{ expense.title }}
-                      </template>
+                      {{ expense.title }}
                     </span>
-                  </div>
-                  <div class="flex flex-wrap items-center gap-1.5 mt-0.5">
-                    <template v-if="expense.type === 'transfer'">
-                       <span class="text-[10px] text-muted-foreground font-medium">{{ expense.wallet?.name }}</span>
-                       <ArrowRight class="h-3 w-3 text-muted-foreground" />
-                       <span class="text-[10px] text-muted-foreground font-medium">{{ expense.to_wallet?.name }}</span>
-                    </template>
-                    <template v-else-if="expense.wallet">
-                       <span class="text-[10px] text-muted-foreground font-medium">{{ expense.wallet.name }}</span>
-                    </template>
                   </div>
                   <p class="text-[11px] text-muted-foreground mt-0.5">
                     {{ formatDateTime(expense.date, expense.created_at) }}
@@ -1076,13 +1051,16 @@ const statCards = computed(() => [
                 <!-- Amount -->
                 <div class="shrink-0 text-right">
                   <CurrencyAmount
-                    :amount="expense.type === 'deposit' ? parseFloat(expense.amount) : -parseFloat(expense.amount)"
-                    :type="expense.type === 'transfer' ? 'muted' : 'auto'"
-                    :prefix="expense.type === 'deposit' ? '+' : (expense.type === 'transfer' ? '' : '-')"
+                    :amount="-parseFloat(expense.amount)"
+                    type="auto"
+                    prefix="-"
                     :strikethrough="expense.is_settled"
                     size="sm"
                     class="font-black tabular-nums shrink-0"
                   />
+                  <div v-if="expense.wallet" class="mt-0.5">
+                    <span class="text-[10px] font-medium text-muted-foreground">via {{ expense.wallet.name }}</span>
+                  </div>
                   <div v-if="expense.is_settled" class="mt-1 flex justify-end">
                     <UiBadge variant="outline" class="text-[9px] uppercase tracking-wider py-0 px-1 border-emerald-500/30 bg-emerald-500/10 text-emerald-600">PAID</UiBadge>
                   </div>
