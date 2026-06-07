@@ -112,8 +112,8 @@ const upcomingPlans = computed(() => {
 })
 
 const recentExpensesList = computed(() => {
-  if (!expenses.expenses) return []
-  return expenses.expenses.filter(e => e.type === 'expense').slice(0, 5)
+  if (!expenses.feedItems) return []
+  return expenses.feedItems.filter(e => e.type === 'expense').slice(0, 5)
 })
 
 const last7DaysExpenses = computed(() => {
@@ -123,7 +123,7 @@ const last7DaysExpenses = computed(() => {
   startOfWeek.setDate(now.getDate() - now.getDay())
   startOfWeek.setHours(0, 0, 0, 0)
   return expenses.expenses
-    .filter(e => e.type === 'expense' && new Date(e.created_at) >= startOfWeek)
+    .filter(e => new Date(e.created_at) >= startOfWeek)
     .reduce((sum, e) => sum + parseFloat(e.amount || 0), 0)
 })
 
@@ -142,7 +142,7 @@ const weeklyExpensesByDay = computed(() => {
   startOfWeek.setDate(now.getDate() - todayIdx)
   startOfWeek.setHours(0, 0, 0, 0)
   expenses.expenses
-    .filter(e => e.type === 'expense' && new Date(e.created_at) >= startOfWeek)
+    .filter(e => new Date(e.created_at) >= startOfWeek)
     .forEach(e => {
       const d = new Date(e.created_at)
       days[d.getDay()].total += parseFloat(e.amount || 0)
@@ -156,7 +156,7 @@ const weeklyExpensesByDay = computed(() => {
 // Today's expense stats
 const todayStats = computed(() => {
   const todayExpenses = (expenses.expenses || []).filter(
-    e => e.type === 'expense' && isTodayInPh(e.created_at)
+    e => isTodayInPh(e.created_at)
   )
   const todayDeposits = (expenses.expenses || []).filter(
     e => e.type === 'deposit' && isTodayInPh(e.created_at)
@@ -1091,7 +1091,7 @@ const statCards = computed(() => [
             <div class="flex items-start justify-between gap-3 mb-5">
               <div>
                 <p class="text-[11px] font-bold uppercase tracking-[0.16em] text-primary">Quick Start Guide</p>
-                <h2 class="text-2xl sm:text-[28px] font-black tracking-tight text-foreground mt-1 leading-tight">Welcome to EleFam</h2>
+                <h2 class="text-2xl sm:text-[28px] font-black tracking-tight text-foreground mt-1 leading-tight">Welcome to PamilyaHub</h2>
                 <p class="text-sm text-muted-foreground mt-2 leading-relaxed">Set up these essentials once so your budget, wallet balances, and tracking stay accurate.</p>
               </div>
               <button
@@ -1151,7 +1151,7 @@ const statCards = computed(() => [
             </div>
 
             <div class="mt-5 rounded-xl border border-emerald-200 dark:border-emerald-900/60 bg-emerald-50/70 dark:bg-emerald-950/30 p-4">
-              <p class="text-[11px] font-bold uppercase tracking-[0.16em] text-emerald-700 dark:text-emerald-300">Pro Tip: Use EleFam AI</p>
+              <p class="text-[11px] font-bold uppercase tracking-[0.16em] text-emerald-700 dark:text-emerald-300">Pro Tip: Use Marti AI</p>
               <p class="text-[13px] text-emerald-900 dark:text-emerald-100 mt-2 leading-relaxed">
                 You can automate setup in chat instead of doing every step manually.
               </p>
@@ -1161,9 +1161,10 @@ const statCards = computed(() => [
                 <p class="rounded-lg bg-emerald-100/80 dark:bg-emerald-900/40 px-2.5 py-1.5 text-[12px] text-emerald-900 dark:text-emerald-100 font-mono">deposit 25000 to GCash</p>
                 <p class="rounded-lg bg-emerald-100/80 dark:bg-emerald-900/40 px-2.5 py-1.5 text-[12px] text-emerald-900 dark:text-emerald-100 font-mono">spent 500 on food from GCash</p>
                 <p class="rounded-lg bg-emerald-100/80 dark:bg-emerald-900/40 px-2.5 py-1.5 text-[12px] text-emerald-900 dark:text-emerald-100 font-mono">transfer 1000 from GCash to Maya</p>
+                <p class="rounded-lg bg-emerald-100/80 dark:bg-emerald-900/40 px-2.5 py-1.5 text-[12px] text-emerald-900 dark:text-emerald-100 font-mono">plan 1500 for electricity next week</p>
               </div>
               <UiButton size="sm" class="rounded-xl h-8 px-3 mt-3 text-[11px] font-semibold" @click="() => { dismissSetupGuide(); openAiChat(); }">
-                Open EleFam Chat
+                Open Marti Chat
               </UiButton>
             </div>
           </UiCardContent>

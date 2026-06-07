@@ -239,10 +239,18 @@ export const usePlansStore = defineStore('plans', () => {
       }
       // If paid via wallet, invalidate expenses and wallets to show new balance and transaction
       if (walletId) {
-        useExpensesStore().invalidate()
-        useWalletsStore().invalidate()
+        const expStore = useExpensesStore()
+        expStore.invalidate()
+        expStore.fetchAll()
+        expStore.fetchFeed({ refresh: true })
+
+        const wStore = useWalletsStore()
+        wStore.invalidate()
+        wStore.fetchAll()
       }
-      useDashboardStore().invalidate()
+      const dashStore = useDashboardStore()
+      dashStore.invalidate()
+      dashStore.fetchStats()
       invalidate()
       if (res.data.data?.is_paid) {
         notifyFinanceActivity({ entity: 'plan', action: 'paid', planId: id })
