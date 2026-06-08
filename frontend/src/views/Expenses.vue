@@ -217,7 +217,7 @@ function loadMoreFeed() {
 
 <template>
   <div class="px-3 py-4 md:p-6 max-w-6xl mx-auto animate-fade-in">
-    <div class="mb-5 flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+    <div class="mb-3 flex flex-col sm:flex-row sm:items-end justify-between gap-2">
       <div class="space-y-1">
         <h1 class="text-2xl font-medium tracking-tight text-foreground">Expenses</h1>
       </div>
@@ -256,7 +256,7 @@ function loadMoreFeed() {
     </div>
 
     <!-- Salary / Budget Tracking Card -->
-    <div v-if="!isArchiveRange" class="mb-4 overflow-hidden border border-primary/10 shadow-sm rounded-2xl bg-gradient-to-br from-card to-muted/20">
+    <div v-if="!isArchiveRange" class="mb-3 overflow-hidden border border-primary/10 shadow-sm rounded-2xl bg-gradient-to-br from-card to-muted/20">
       <div class="p-4 sm:p-5">
         <div class="flex items-center justify-between mb-4">
           <div class="flex items-center gap-2 min-w-0">
@@ -265,26 +265,19 @@ function loadMoreFeed() {
             </div>
             <h3 class="text-sm font-bold truncate">Spending Power ({{ months[selectedMonth - 1] }})</h3>
           </div>
-          <p v-if="dashboard.loading" class="text-xs font-bold text-muted-foreground animate-pulse shrink-0 ml-2">
-            ...
-          </p>
-          <p v-else class="shrink-0 ml-2 flex items-baseline" :class="remainingSalary < 0 ? 'text-destructive' : 'text-emerald-600'">
-            <CurrencyAmount size="sm" :amount="Math.abs(remainingSalary)" :type="remainingSalary < 0 ? 'expense' : 'income'" class="sensitive-stat" /> 
-            <span class="uppercase tracking-wider ml-1 text-[10px] font-bold">{{ remainingSalary < 0 ? 'over budget' : 'left' }}</span>
-          </p>
         </div>
         
         <div class="space-y-2.5">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-1.5">
-              <span class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Spent:</span>
+              <span class="text-[13px] font-bold text-muted-foreground uppercase tracking-wider">Spent:</span>
               <span v-if="dashboard.loading" class="animate-pulse text-[13px] font-bold">...</span>
-              <CurrencyAmount v-else size="xs" :amount="total" type="muted" class="sensitive-stat text-foreground" />
+              <CurrencyAmount v-else size="xs" :amount="total" type="muted" class="sensitive-stat text-foreground text-[13px]" />
             </div>
             <div class="flex items-center gap-1.5">
-              <span class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Budget:</span>
+              <span class="text-[13px] font-bold text-muted-foreground uppercase tracking-wider">Left:</span>
               <span v-if="dashboard.loading" class="animate-pulse text-[13px] font-bold">...</span>
-              <CurrencyAmount v-else size="xs" :amount="effectiveLimit" type="muted" class="sensitive-stat text-foreground" />
+              <CurrencyAmount v-else size="xs" :amount="Math.abs(remainingSalary)" :type="remainingSalary < 0 ? 'expense' : 'income'" class="sensitive-stat text-[13px]" />
             </div>
           </div>
           <div class="h-2 w-full bg-muted rounded-full overflow-hidden flex">
@@ -309,7 +302,7 @@ function loadMoreFeed() {
     </div>
 
     <!-- Filter Tabs -->
-    <div class="mb-5 flex overflow-x-auto hide-scrollbar md:justify-center">
+    <div class="mb-3 flex overflow-x-auto hide-scrollbar md:justify-center">
       <div class="flex items-center gap-2 px-1 w-max pb-1">
         <button
           v-for="tab in [
@@ -333,7 +326,7 @@ function loadMoreFeed() {
     </div>
 
     <!-- Search bar & feed date filter -->
-    <div class="mb-5 flex flex-col gap-2.5">
+    <div class="mb-3 flex flex-col gap-2.5">
       <div class="flex items-center gap-2">
         <div class="relative flex-1 min-w-0">
           <Search class="absolute left-3.5 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />

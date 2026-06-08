@@ -135,3 +135,166 @@
   mask-image: linear-gradient(to bottom, transparent, black 15%, black 85%, transparent);
   -webkit-mask-image: linear-gradient(to bottom, transparent, black 15%, black 85%, transparent);
 }
+
+/* ============================================
+   PERFORMANCE OPTIMIZATIONS FOR LOW-END DEVICES
+   ============================================ */
+
+/* Force GPU acceleration for animated elements */
+.animate-in,
+.will-change-transform,
+.will-change-opacity {
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+}
+
+/* Optimized modal animations - reduces jank on low-end devices */
+@keyframes optimized-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes optimized-slide-up {
+  from {
+    transform: translate3d(0, 100%, 0);
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes optimized-zoom-in {
+  from {
+    transform: translate3d(0, 0, 0) scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes optimized-slide-down {
+  from {
+    transform: translate3d(0, -2rem, 0);
+    opacity: 0;
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+    opacity: 1;
+  }
+}
+
+/* Optimized transition classes */
+.transition-optimized {
+  transition-property: transform, opacity;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 200ms;
+  will-change: transform, opacity;
+}
+
+/* Modal backdrop - optimized blur */
+.modal-backdrop {
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  will-change: backdrop-filter;
+}
+
+/* Reduce motion for accessibility and performance */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Touch optimization for mobile */
+* {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+}
+
+/* Improve scrolling performance */
+.smooth-scroll {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+/* Optimize transforms for better performance */
+.transform-gpu {
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+}
+
+/* Hardware accelerated animations */
+@keyframes hw-fade-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.hw-animate-fade-in {
+  animation: hw-fade-in 200ms ease-out;
+  will-change: opacity;
+  backface-visibility: hidden;
+}
+
+/* Optimized modal container */
+.modal-container {
+  contain: layout style paint;
+  isolation: isolate;
+}
+
+/* Prevent layout shifts during animations */
+.animation-stable {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 500px;
+}
+
+/* Optimized button states */
+button, a {
+  touch-action: manipulation;
+}
+
+/* Improve rendering of fixed elements */
+.fixed-optimized {
+  will-change: transform;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+}
+
+/* Optimized backdrop blur for modals */
+@supports (backdrop-filter: blur(8px)) {
+  .backdrop-blur-sm {
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+}
+
+@supports not (backdrop-filter: blur(8px)) {
+  .backdrop-blur-sm {
+    background-color: rgba(0, 0, 0, 0.7);
+  }
+}
+
+/* Reduce paint operations */
+.reduce-paint {
+  will-change: transform;
+  isolation: isolate;
+}

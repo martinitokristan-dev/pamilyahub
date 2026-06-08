@@ -38,6 +38,7 @@ import {
   Archive,
   ArrowRightLeft,
   Calendar,
+  MoreHorizontal,
 } from 'lucide-vue-next'
 
 import { useDashboardStore } from '@/stores/dashboard.js'
@@ -435,17 +436,17 @@ function isActive(path) {
           </div>
         </Transition>
 
-        <!-- The Dock Container -->
-        <div class="relative w-full max-w-[420px] mx-auto h-16 bg-card/80 backdrop-blur-2xl border border-border/40 rounded-[40px] shadow-[0_10px_30px_rgba(0,0,0,0.1)] flex items-center px-1.5 overflow-visible transition-all duration-500">
+        <!-- The Dock Container - Compressed -->
+        <div class="relative w-full max-w-[400px] mx-auto h-[60px] bg-card/80 backdrop-blur-2xl border border-border/40 rounded-[32px] shadow-[0_10px_30px_rgba(0,0,0,0.1)] flex items-center px-1 overflow-visible transition-all duration-500">
           
           <!-- Left Side Tabs -->
-          <div class="flex flex-1 justify-around items-center h-full min-w-0 gap-1">
+          <div class="flex flex-1 justify-around items-center h-full min-w-0 gap-0.5">
             <RouterLink
               v-for="item in mainBottomNav.slice(0, 2)"
               :key="item.to"
               :to="item.to"
               @click="showMoreMenu = false; showSpeedDial = false"
-              class="relative flex flex-col items-center justify-center flex-1 h-[52px] rounded-[32px] transition-all group"
+              class="relative flex flex-col items-center justify-center flex-1 h-[48px] rounded-[28px] transition-all group"
               :class="isActive(item.to) ? 'text-primary bg-zinc-200/80 dark:bg-zinc-800' : 'text-foreground/70 dark:text-zinc-400 hover:text-foreground'"
             >
               <component :is="item.icon" class="h-5 w-5 transition-transform duration-300 group-active:scale-90" :class="{ 'scale-110 drop-shadow-[0_0_8px_rgba(var(--primary-rgb),0.3)]': isActive(item.to) }" />
@@ -454,45 +455,41 @@ function isActive(path) {
           </div>
 
           <!-- Centered FAB -->
-          <div class="relative w-16 flex justify-center -mt-8">
+          <div class="relative w-14 flex justify-center -mt-7">
             <div class="absolute inset-0 bg-background rounded-full scale-125 blur-xl opacity-50 -z-10"></div>
             <button
               @click="showSpeedDial = !showSpeedDial; showMoreMenu = false"
-              class="h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-[0_8px_20px_rgba(var(--primary-rgb),0.5)] flex items-center justify-center active:scale-90 transition-all duration-300 hover:scale-105 group border-4 border-background"
+              class="h-[52px] w-[52px] rounded-full bg-primary text-primary-foreground shadow-[0_8px_20px_rgba(var(--primary-rgb),0.5)] flex items-center justify-center active:scale-90 transition-all duration-300 hover:scale-105 group border-4 border-background"
               :class="{ 'rotate-45': showSpeedDial }"
             >
-              <Plus class="h-7 w-7 stroke-[3px] transition-transform" />
+              <Plus class="h-6 w-6 stroke-[3px] transition-transform" />
             </button>
           </div>
 
           <!-- Right Side Tabs -->
-          <div class="flex flex-1 justify-around items-center h-full min-w-0 gap-1">
+          <div class="flex flex-1 justify-around items-center h-full min-w-0 gap-0.5">
             <RouterLink
               :to="mainBottomNav[2].to"
               @click="showMoreMenu = false; showSpeedDial = false"
-              class="relative flex flex-col items-center justify-center flex-1 h-[52px] rounded-[32px] transition-all group"
+              class="relative flex flex-col items-center justify-center flex-1 h-[48px] rounded-[28px] transition-all group"
               :class="isActive(mainBottomNav[2].to) ? 'text-primary bg-zinc-200/80 dark:bg-zinc-800' : 'text-foreground/70 dark:text-zinc-400 hover:text-foreground'"
             >
               <component :is="mainBottomNav[2].icon" class="h-5 w-5 transition-transform duration-300 group-active:scale-90" :class="{ 'scale-110 drop-shadow-[0_0_8px_rgba(var(--primary-rgb),0.3)]': isActive(mainBottomNav[2].to) }" />
               <span class="text-[9px] sm:text-[10px] font-sans font-bold mt-0.5 uppercase tracking-wider truncate px-1 w-full text-center">{{ mainBottomNav[2].name }}</span>
             </RouterLink>
 
-            <!-- More Trigger -->
+            <!-- More Trigger - Matching Original Style -->
             <button
               @click="showMoreMenu = !showMoreMenu; showSpeedDial = false"
-              class="relative flex flex-col items-center justify-center flex-1 h-[52px] rounded-[32px] transition-all group"
+              class="relative flex flex-col items-center justify-center flex-1 h-[48px] rounded-[28px] transition-all group"
               :class="showMoreMenu ? 'text-primary bg-zinc-200/80 dark:bg-zinc-800' : 'text-foreground/70 dark:text-zinc-400 hover:text-foreground'"
             >
-              <div class="flex flex-col gap-[1.5px] items-center justify-center h-5 w-5 transition-transform duration-300 group-active:scale-90 relative">
-                <div class="w-1 h-1 rounded-full bg-current transition-all" :class="{ 'scale-125': showMoreMenu }" />
-                <div class="w-1 h-1 rounded-full bg-current transition-all" :class="{ 'scale-125': showMoreMenu }" />
-                <div class="w-1 h-1 rounded-full bg-current transition-all" :class="{ 'scale-125': showMoreMenu }" />
-                <span 
-                  v-if="needRefresh" 
-                  class="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-destructive border-[1.5px] border-background animate-pulse"
-                ></span>
-              </div>
+              <MoreHorizontal class="h-5 w-5 transition-transform duration-300 group-active:scale-90" :class="{ 'scale-110': showMoreMenu }" />
               <span class="text-[9px] sm:text-[10px] font-sans font-bold mt-0.5 uppercase tracking-wider truncate px-1 w-full text-center">More</span>
+              <span 
+                v-if="needRefresh" 
+                class="absolute top-1 right-2 h-2 w-2 rounded-full bg-destructive border-[1.5px] border-background animate-pulse"
+              ></span>
             </button>
           </div>
 

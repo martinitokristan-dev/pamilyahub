@@ -20,9 +20,11 @@ const processFrame = () => {
 
   const ctx = canvasRef.value.getContext('2d', { willReadFrequently: true })
 
-  // Optimize performance: Do not process 4K video at full resolution!
-  // Cap the internal processing resolution to 150px wide (perfect for the tiny 128px dashboard container).
-  const MAX_WIDTH = 150
+  // Increase resolution for better quality on high-DPI mobile screens
+  // Use device pixel ratio but cap at 2x to maintain performance
+  const dpr = typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 2) : 1
+  const MAX_WIDTH = 180 * dpr // Scale based on device pixel ratio (180px to 360px)
+  
   let targetWidth = videoRef.value.videoWidth
   let targetHeight = videoRef.value.videoHeight
 
@@ -44,6 +46,10 @@ const processFrame = () => {
     animationFrameId = requestAnimationFrame(processFrame)
     return
   }
+
+  // Enable high-quality image smoothing
+  ctx.imageSmoothingEnabled = true
+  ctx.imageSmoothingQuality = 'high'
 
   ctx.drawImage(videoRef.value, 0, 0, w, h)
   

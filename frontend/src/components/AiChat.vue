@@ -34,14 +34,7 @@ watch(input, () => {
   nextTick(adjustTextareaHeight)
 })
 
-const isUserCollapsed = ref(localStorage.getItem('elefam_chat_user_collapsed') === 'true')
-watch(isUserCollapsed, (newVal) => {
-  if (newVal) {
-    localStorage.setItem('elefam_chat_user_collapsed', 'true')
-  } else {
-    localStorage.removeItem('elefam_chat_user_collapsed')
-  }
-})
+const isUserCollapsed = ref(false) // Removed localStorage persistence - now purely based on inactivity
 
 const { isDark } = useDarkMode()
 
@@ -54,17 +47,28 @@ const FAB_VERTICAL_TOLERANCE = 70
 // Inactivity tracking for button collapse
 const isInactive = ref(false)
 let inactivityTimer = null
-const INACTIVITY_THRESHOLD = 4000 // 4 seconds
+const INACTIVITY_THRESHOLD = 3000 // 3 seconds
 
 function resetInactivityTimer() {
-  isInactive.value = false
+  if (isInactive.value) {
+    isInactive.value = false
+  }
   clearTimeout(inactivityTimer)
   inactivityTimer = setTimeout(() => {
-    isInactive.value = true
+    if (!isOpen.value) {
+      isInactive.value = true
+    }
   }, INACTIVITY_THRESHOLD)
 }
 
+// Throttle activity handler for better performance
+let lastActivityTime = 0
+const ACTIVITY_THROTTLE = 150 // ms
+
 function handleUserActivity() {
+  const now = Date.now()
+  if (now - lastActivityTime < ACTIVITY_THROTTLE) return
+  lastActivityTime = now
   resetInactivityTimer()
 }
 
@@ -74,22 +78,8 @@ function beginFabGesture(clientX, clientY) {
 }
 
 function endFabGesture(clientX, clientY) {
-  const deltaX = clientX - fabStartX
-  const deltaY = clientY - fabStartY
-  const mostlyHorizontal = Math.abs(deltaY) <= FAB_VERTICAL_TOLERANCE
-  if (!mostlyHorizontal) return
-
-  if (!isUserCollapsed.value && deltaX >= FAB_SWIPE_THRESHOLD) {
-    isUserCollapsed.value = true
-    suppressFabClick = true
-    return
-  }
-
-  if (isUserCollapsed.value && deltaX <= -FAB_SWIPE_THRESHOLD) {
-    isUserCollapsed.value = false
-    suppressFabClick = true
-    handleUserActivity()
-  }
+  // Removed swipe-to-collapse logic - now auto-collapses based on inactivity
+  return
 }
 
 let wasCollapsedOnStart = false
@@ -97,7 +87,7 @@ let chatOpenedOnPointerUp = false
 
 function onFabPointerDown(event) {
   suppressFabClick = false
-  wasCollapsedOnStart = isInactive.value || isUserCollapsed.value
+  wasCollapsedOnStart = isInactive.value
   beginFabGesture(event.clientX, event.clientY)
 }
 
@@ -278,14 +268,14 @@ onMounted(async () => {
   window.addEventListener('popstate', handlePopState)
   window.addEventListener('pamilya:open-chat', handleExternalOpenChat)
   
-  // Inactivity tracking event listeners (desktop + mobile)
-  window.addEventListener('mousemove', handleUserActivity)
-  window.addEventListener('pointerdown', handleUserActivity)
-  window.addEventListener('keydown', handleUserActivity)
-  window.addEventListener('wheel', handleUserActivity)
-  window.addEventListener('touchstart', handleUserActivity)
-  window.addEventListener('touchmove', handleUserActivity)
-  document.addEventListener('scroll', handleUserActivity, true)
+  // Inactivity tracking event listeners (optimized with passive flag)
+  window.addEventListener('mousemove', handleUserActivity, { passive: true })
+  window.addEventListener('pointerdown', handleUserActivity, { passive: true })
+  window.addEventListener('keydown', handleUserActivity, { passive: true })
+  window.addEventListener('wheel', handleUserActivity, { passive: true })
+  window.addEventListener('touchstart', handleUserActivity, { passive: true })
+  window.addEventListener('touchmove', handleUserActivity, { passive: true })
+  document.addEventListener('scroll', handleUserActivity, { passive: true, capture: true })
   
   // Start inactivity timer
   resetInactivityTimer()
@@ -338,7 +328,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('wheel', handleUserActivity)
   window.removeEventListener('touchstart', handleUserActivity)
   window.removeEventListener('touchmove', handleUserActivity)
-  document.removeEventListener('scroll', handleUserActivity, true)
+  document.removeEventListener('scroll', handleUserActivity, { capture: true })
   
   clearTimeout(inactivityTimer)
 })
@@ -435,29 +425,37 @@ watch(
     </div>
   </Transition>
 
-  <div v-if="!isOpen" class="fixed bottom-[140px] right-4 z-20 sm:right-6 sm:bottom-[120px]">
+  <div v-if="!isOpen" class="fixed bottom-[100px] right-4 z-20 sm:right-6 sm:bottom-[80px]">
     <button
-      class="flex items-center border-2 rounded-full shadow-[0_12px_40px_rgba(0,0,0,0.08)] hover:shadow-[0_16px_50px_rgba(0,0,0,0.15)] transition-all duration-500 ease-in-out hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-black/20 backdrop-blur-md overflow-hidden whitespace-nowrap touch-none"
+      class="flex items-center border-2 rounded-full shadow-[0_12px_40px_rgba(0,0,0,0.08)] hover:shadow-[0_16px_50px_rgba(0,0,0,0.15)] will-change-transform transition-all ease-out hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-black/20 backdrop-blur-md overflow-hidden whitespace-nowrap touch-none"
+      :style="{
+        width: isInactive ? '164px' : '56px',
+        transitionDuration: '400ms',
+        transitionProperty: 'width, transform, box-shadow, opacity'
+      }"
       :class="[
         isDark 
           ? 'bg-[#181f38]/95 border-white/20 text-slate-200' 
           : 'bg-[#f0f4ff]/95 border-black/20 text-slate-800',
-        (isInactive || isUserCollapsed)
-          ? 'w-14 h-14 p-1.5 gap-2.5 opacity-90'
-          : 'w-[164px] h-14 p-1.5 pr-5 gap-2.5 opacity-100'
+        'h-14 p-1.5 gap-2.5',
+        isInactive ? 'pr-5 opacity-100' : 'opacity-90'
       ]"
       @click="onFabClick"
       @pointerdown="onFabPointerDown"
       @pointerup="onFabPointerUp"
       aria-label="Ask Marti AI"
     >
-      <div class="relative shrink-0">
+      <div class="relative shrink-0 will-change-transform">
         <img src="/icons/wallets/EF-profile.png" alt="Marti" class="w-11 h-11 object-contain" />
         <div class="absolute inset-0 rounded-full bg-primary/20 blur-md -z-10"></div>
       </div>
       <span 
-        class="font-bold text-current text-[13px] sm:text-sm tracking-wide shrink-0 transition-opacity duration-500 ease-in-out" 
-        :class="(isInactive || isUserCollapsed) ? 'opacity-0' : 'opacity-100'"
+        class="font-bold text-current text-[13px] sm:text-sm tracking-wide shrink-0 will-change-opacity"
+        :style="{
+          opacity: isInactive ? '1' : '0',
+          transition: 'opacity 300ms ease-out',
+          transitionDelay: isInactive ? '100ms' : '0ms'
+        }"
       >
         Ask Marti AI
       </span>

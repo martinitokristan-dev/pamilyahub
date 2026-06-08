@@ -463,7 +463,7 @@ function generateEleFamBubbleLine() {
     candidates.push({
       severity: 'critical',
       score: todayVsBaselineRatio,
-      text: `${name}, you've spent ${formatCurrency(todaySpend)} today — above your daily pace. Take it easy!`,
+      text: `${name}, you spent ${formatCurrency(todaySpend)} today. Take it easy!`,
       rule: 'daily_vs_baseline_critical',
     })
   }
@@ -472,7 +472,7 @@ function generateEleFamBubbleLine() {
     candidates.push({
       severity: 'warning',
       score: todayVsWeekRatio,
-      text: `${name}, today's spending is higher than your recent average. Slow down muna today.`,
+      text: `${name}, spending is higher than usual. Slow down today.`,
       rule: 'daily_vs_week_warning',
     })
   }
@@ -481,7 +481,7 @@ function generateEleFamBubbleLine() {
     candidates.push({
       severity: 'warning',
       score: todayVsYesterdayRatio,
-      text: `${name}, you spent more today than yesterday. Konting alalay muna.`,
+      text: `${name}, you spent more today. Ease up a bit.`,
       rule: 'today_vs_yesterday_warning',
     })
   }
@@ -490,7 +490,7 @@ function generateEleFamBubbleLine() {
     candidates.push({
       severity: 'positive',
       score: 1 - todayVsYesterdayRatio,
-      text: `${name}, nice! You spent less today than yesterday. Keep it up!`,
+      text: `Nice, ${name}! You spent less today. Keep it up!`,
       rule: 'today_vs_yesterday_positive',
     })
   }
@@ -500,14 +500,14 @@ function generateEleFamBubbleLine() {
     const ratio = budget > 0 ? todaySpend / budget : null
     let tone = ''
     if (ratio !== null) {
-      if (ratio >= 0.8) tone = `That's ${Math.round(ratio * 100)}% of your daily budget.`
-      else if (ratio >= 0.5) tone = `Halfway through your daily budget.`
-      else tone = `Still within safe pace today!`
+      if (ratio >= 0.8) tone = `${Math.round(ratio * 100)}% of daily budget.`
+      else if (ratio >= 0.5) tone = `Halfway through budget.`
+      else tone = `Safe pace today!`
     }
     candidates.push({
       severity: 'info',
       score: todaySpend,
-      text: `${name}, you spent ${formatCurrency(todaySpend)} today. ${tone}`,
+      text: `${name}, ${formatCurrency(todaySpend)} spent today. ${tone}`,
       rule: 'today_activity_summary',
     })
   }
@@ -516,7 +516,7 @@ function generateEleFamBubbleLine() {
     candidates.push({
       severity: 'warning',
       score: thisWeekVsPreviousWeekRatio,
-      text: `${name}, you're spending more this week than last week. Consider cutting non-essentials.`,
+      text: `${name}, spending more this week. Cut non-essentials.`,
       rule: 'week_over_week_warning',
     })
   }
@@ -525,7 +525,7 @@ function generateEleFamBubbleLine() {
     candidates.push({
       severity: 'positive',
       score: 1 - thisWeekVsPreviousWeekRatio,
-      text: `${name}, great job! You spent less this week. Keep it up!`,
+      text: `Great job, ${name}! Spent less this week. Keep it up!`,
       rule: 'week_over_week_positive',
     })
   }
@@ -534,8 +534,8 @@ function generateEleFamBubbleLine() {
     candidates.push({
       severity: 'warning',
       score: thisMonthVsPreviousMonthRatio,
-      text: `${name}, your spending is higher this month. Let's tighten the budget.`,
-      rule: 'month_over_month_warning',
+      text: `${name}, spending is higher this month. Tighten budget.`,
+      rule: 'month_over_week_warning',
     })
   }
 
@@ -543,7 +543,7 @@ function generateEleFamBubbleLine() {
     candidates.push({
       severity: 'positive',
       score: 1 - thisMonthVsPreviousMonthRatio,
-      text: `${name}, galing! You spent less this month. Keep up the good budgeting!`,
+      text: `Galing, ${name}! Spent less this month. Keep going!`,
       rule: 'month_over_month_positive',
     })
   }
@@ -554,14 +554,14 @@ function generateEleFamBubbleLine() {
       candidates.push({
         severity: 'critical',
         score: Math.abs(remaining),
-        text: `Huy ${name}, over budget na tayo and ${topWallet} is taking the hit. Slow down!`,
+        text: `Huy ${name}, over budget! ${topWallet} taking the hit.`,
         rule: 'remaining_negative_with_top_wallet',
       })
     } else {
       candidates.push({
         severity: 'critical',
         score: Math.abs(remaining),
-        text: `Huy ${name}, over budget na tayo this month. Avoid unnecessary purchases for now!`,
+        text: `Huy ${name}, over budget this month. Avoid extras!`,
         rule: 'remaining_negative',
       })
     }
@@ -572,7 +572,7 @@ function generateEleFamBubbleLine() {
     candidates.push({
       severity: 'critical',
       score: ratio,
-      text: `${name}, spending exceeds income. Tighten the belt before next paycheck arrives!`,
+      text: `${name}, spending exceeds income. Tighten up!`,
       rule: 'monthly_ratio_critical',
     })
   }
@@ -582,7 +582,7 @@ function generateEleFamBubbleLine() {
     candidates.push({
       severity: 'warning',
       score: ratio,
-      text: `${name}, budget is almost gone. Let's cut back on non-essentials!`,
+      text: `${name}, budget almost gone. Cut non-essentials!`,
       rule: 'monthly_ratio_warning',
     })
   }
@@ -592,7 +592,7 @@ function generateEleFamBubbleLine() {
     candidates.push({
       severity: 'info',
       score: iOwe,
-      text: `${name}, reminder to check on payables. Even small payments help!`,
+      text: `${name}, check payables. Small payments help!`,
       rule: 'debts_info',
     })
   }
@@ -602,7 +602,7 @@ function generateEleFamBubbleLine() {
     candidates.push({
       severity: 'positive',
       score: 1,
-      text: `${topWallet} is your go-to lately. Budget looks good, keep tracking!`,
+      text: `${topWallet} is your go-to. Budget looks good!`,
       rule: 'top_wallet_positive',
     })
   }
@@ -620,7 +620,7 @@ function generateEleFamBubbleLine() {
     candidates.push({
       severity: 'info',
       score: 0,
-      text: `${name}, no expenses logged yet. Start tracking for accurate insights!`,
+      text: `${name}, no expenses yet. Start tracking!`,
       rule: 'no_expenses_info',
     })
   }
@@ -629,7 +629,7 @@ function generateEleFamBubbleLine() {
     candidates.push({
       severity: 'fallback',
       score: 0,
-      text: `Good job tracking expenses today, ${name}! Keep it up!`,
+      text: `Good job tracking, ${name}! Keep it up!`,
       rule: 'fallback_general',
     })
 
@@ -722,29 +722,29 @@ const statCards = computed(() => [
 <template>
   <div class="animate-fade-in bg-background dark:bg-zinc-950 min-h-screen">
     <!-- ── Top Greeting (White Background) ── -->
-    <div class="bg-background dark:bg-zinc-950 pt-10 px-5 sm:px-8 pb-4 max-w-6xl mx-auto relative">
-      <!-- Settings Icon on top right (Positioned absolutely above greeting) -->
-      <RouterLink to="/settings" class="absolute top-4 right-8 h-10 w-10 rounded-2xl bg-white dark:bg-zinc-900 shadow-sm border border-zinc-200 dark:border-zinc-800 text-purple-600 dark:text-purple-500 hover:text-purple-700 hover:scale-105 transition-all flex items-center justify-center z-10">
-        <Settings class="h-[20px] w-[20px] stroke-[2.5px]" />
+    <div class="bg-background dark:bg-zinc-950 pt-4 px-5 sm:px-8 pb-2 max-w-6xl mx-auto relative">
+      <!-- Settings Icon on top right (Positioned absolutely above greeting) - Smaller and more to the right -->
+      <RouterLink to="/settings" class="absolute top-4 right-4 h-9 w-9 rounded-2xl bg-white dark:bg-zinc-900 shadow-sm border border-zinc-200 dark:border-zinc-800 text-purple-600 dark:text-purple-500 hover:text-purple-700 hover:scale-105 transition-all flex items-center justify-center z-10">
+        <Settings class="h-[18px] w-[18px] stroke-[2.5px]" />
       </RouterLink>
 
       <div>
         <p class="text-[10px] font-black text-muted-foreground tracking-widest uppercase mb-1">
           {{ currentDate }}
         </p>
-        <h1 class="text-2xl font-medium tracking-tight text-foreground relative z-10">
+        <h1 class="text-xl font-medium tracking-tight text-foreground relative z-10 pr-12">
           {{ greeting }}, <span class="font-black">{{ auth.user?.name?.split(' ')[0] }}!</span>
         </h1>
       </div>
     </div>
 
-    <!-- ── Mascot Section (Triple Split: White / Purple / White) ── -->
-    <div class="relative z-0" style="background: linear-gradient(to bottom, transparent 40%, #9333ea 40%, #9333ea 82%, transparent 82%)">
+    <!-- ── Mascot Section (Triple Split: White / Purple / White) - Very Compact -->
+    <div class="relative z-0" style="background: linear-gradient(to bottom, transparent 40%, #9333ea 40%, #9333ea 90%, transparent 90%)">
 
-      <div class="max-w-6xl mx-auto px-4 sm:px-6 pt-2 pb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+      <div class="max-w-6xl mx-auto px-4 sm:px-6 pt-0 pb-4 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div class="flex flex-col w-full relative">
           <div class="flex items-center gap-0 w-full relative">
-            <div class="w-32 h-36 shrink-0 overflow-hidden z-10 flex items-start justify-center bg-transparent -ml-4">
+            <div class="w-28 h-32 shrink-0 overflow-hidden z-10 flex items-start justify-center bg-transparent -ml-4">
               <!-- Canvas-based green screen removal for iOS compatibility -->
               <TransparentVideo 
                 src="/icons/wallets/elefam_greenscreen.mp4"
@@ -753,14 +753,14 @@ const statCards = computed(() => [
               />
             </div>
             
-            <!-- Chat Bubble (Rectangular shape, full text visible) -->
-            <div class="bg-white dark:bg-zinc-900 shadow-2xl rounded-2xl py-3 px-5 relative ml-2 z-0 flex-1 min-w-0 border border-purple-100 dark:border-zinc-800/80 mt-[-32px] max-w-sm">
+            <!-- Chat Bubble (Rectangular shape, wider for 3 lines) - Adjusted size -->
+            <div class="bg-white dark:bg-zinc-900 shadow-2xl rounded-2xl py-2.5 px-4 relative ml-2 z-0 flex-1 min-w-0 border border-purple-100 dark:border-zinc-800/80 mt-[-16px] max-w-md">
               <!-- Speech bubble tail (Pointed to mouth) -->
               <div class="absolute top-[75%] -translate-y-1/2 -left-[8px] w-4 h-4 bg-white dark:bg-zinc-900 border-l border-b border-purple-100 dark:border-zinc-800/80 rotate-45 rounded-sm"></div>
               
               <div class="relative z-10">
-                <h3 class="font-black text-primary text-[10px] tracking-widest mb-1">EleFam</h3>
-                <p class="text-[11px] text-muted-foreground dark:text-zinc-300 leading-relaxed font-medium">
+                <h3 class="font-black text-primary text-[9px] tracking-widest mb-0.5">EleFam</h3>
+                <p class="text-[10px] text-muted-foreground dark:text-zinc-300 leading-[1.4] font-medium">
                   {{ eleFamBubbleLine }}
                 </p>
               </div>
@@ -771,11 +771,11 @@ const statCards = computed(() => [
       </div>
     </div>
 
-    <!-- ── Main Content Area ── -->
-    <div class="px-3 sm:px-6 -mt-4 pb-24 max-w-6xl mx-auto relative z-10">
+    <!-- ── Main Content Area - Cards below mascot -->
+    <div class="px-3 sm:px-6 mt-0 pb-32 max-w-6xl mx-auto relative z-10 bg-background dark:bg-zinc-950 min-h-screen">
 
       <!-- ── Financial Stats ── -->
-      <div class="flex flex-col gap-3 mb-8">
+      <div class="flex flex-col gap-2.5 mb-2">
         <template v-if="dashboard.loading && !dashboard.fetched">
           <div class="grid grid-cols-2 gap-3">
             <div class="h-[110px] rounded-2xl bg-zinc-100 dark:bg-zinc-800 animate-pulse" />
@@ -896,19 +896,19 @@ const statCards = computed(() => [
       </div>
 
       <!-- ── Unified Overview Section ── -->
-      <div class="mt-8 mb-6">
+      <div class="mt-0 mb-6">
         <div class="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800/80 rounded-[24px] shadow-[0_15px_35px_rgba(0,0,0,0.06)] dark:shadow-none overflow-hidden relative z-10 pt-5 pb-2">
           
           <!-- Header -->
           <div class="flex items-start justify-between mb-5 px-5">
             <div>
               <div class="flex items-center gap-2">
-                <Calendar class="h-[22px] w-[22px] shrink-0 text-emerald-500 stroke-[2.5px]" />
-                <h2 class="text-[19px] font-extrabold text-foreground leading-none">Upcoming</h2>
+                <Calendar class="h-5 w-5 shrink-0 text-emerald-500 stroke-[2.5px]" />
+                <h2 class="text-[16px] font-extrabold text-foreground leading-none">Upcoming</h2>
               </div>
-              <p class="text-[11px] font-medium text-muted-foreground mt-2 pl-[30px]">Planned and recurring money moves</p>
+              <p class="text-[10px] font-medium text-muted-foreground mt-2 pl-[25px]">Planned and recurring money moves</p>
             </div>
-            <RouterLink to="/plans" class="text-[11px] font-black uppercase tracking-widest text-primary hover:opacity-70 transition-opacity mt-1">
+            <RouterLink to="/plans" class="text-[10px] font-black uppercase tracking-widest text-primary hover:opacity-70 transition-opacity mt-1">
               See All
             </RouterLink>
           </div>
@@ -932,10 +932,10 @@ const statCards = computed(() => [
                   </div>
                   <div class="flex flex-col min-w-0">
                     <div class="flex items-center gap-1.5 min-w-0">
-                      <span class="font-bold text-foreground truncate text-sm">{{ plan.title }}</span>
-                      <span v-if="plan.recurrence" class="text-[9px] uppercase tracking-widest font-black bg-purple-100 text-purple-600 dark:bg-purple-500/20 dark:text-purple-400 px-1.5 py-0.5 rounded shrink-0">{{ plan.recurrence }}</span>
+                      <span class="font-bold text-foreground truncate text-[13px]">{{ plan.title }}</span>
+                      <span v-if="plan.recurrence" class="text-[8px] uppercase tracking-widest font-black bg-purple-100 text-purple-600 dark:bg-purple-500/20 dark:text-purple-400 px-1.5 py-0.5 rounded shrink-0">{{ plan.recurrence }}</span>
                     </div>
-                    <span class="text-xs font-semibold text-muted-foreground/80 mt-0.5">{{ formatExpenseDate(plan.due_date) }}</span>
+                    <span class="text-[11px] font-semibold text-muted-foreground/80 mt-0.5">{{ formatExpenseDate(plan.due_date) }}</span>
                   </div>
                 </div>
 
@@ -970,7 +970,7 @@ const statCards = computed(() => [
             
             <!-- Recent Expenses List -->
             <template v-else>
-              <div v-if="recentExpensesList.length > 0" class="text-[13px] font-extrabold tracking-widest text-destructive uppercase pt-5 pb-2 px-3">
+              <div v-if="recentExpensesList.length > 0" class="text-[11px] font-extrabold tracking-widest text-destructive uppercase pt-5 pb-2 px-3">
                 Expenses
               </div>
               <div
@@ -995,7 +995,7 @@ const statCards = computed(() => [
                 <!-- Details -->
                 <div class="min-w-0 flex-1">
                   <div class="flex items-center gap-1.5 min-w-0">
-                    <span class="font-semibold text-sm truncate" :class="{ 'line-through text-muted-foreground/70': expense.is_settled }">
+                    <span class="font-semibold text-[13px] truncate" :class="{ 'line-through text-muted-foreground/70': expense.is_settled }">
                       {{ expense.title }}
                     </span>
                   </div>

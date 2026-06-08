@@ -471,10 +471,10 @@ async function confirmPay() {
 <template>
   <div class="p-4 md:p-6 max-w-6xl mx-auto animate-fade-in pb-24">
     <!-- Header -->
-    <div class="mb-6 flex items-start justify-between gap-4">
+    <div class="mb-3 flex items-start justify-between gap-4">
       <div class="space-y-1">
-        <h1 class="text-2xl font-medium tracking-tight text-foreground">Plan</h1>
-        <p class="text-xs text-muted-foreground">Manage your upcoming bills and recurring commitments.</p>
+        <h1 class="text-[16px] font-medium tracking-tight text-foreground">Plan</h1>
+        <p class="text-[10px] text-muted-foreground">Manage your upcoming bills and recurring commitments.</p>
       </div>
       <UiButton @click="openCreate" class="shrink-0 h-10 px-5 rounded-[50px] font-semibold bg-primary text-white hover:bg-primary/90 shadow-sm" size="sm">
         New Plan
@@ -482,18 +482,18 @@ async function confirmPay() {
     </div>
 
     <!-- iPhone Style Calendar -->
-    <div class="mb-4 bg-card border border-border shadow-sm rounded-[24px] p-3 select-none">
+    <div class="mb-3 bg-card border border-border shadow-sm rounded-[24px] p-3 select-none">
       <!-- Calendar Header -->
-      <div class="flex items-center justify-between mb-4 px-2">
-        <h2 class="text-lg font-bold text-foreground">
+      <div class="flex items-center justify-between mb-3 px-2">
+        <h2 class="text-[13px] font-bold text-foreground">
           {{ monthNames[currentMonth] }} {{ currentYear }}
         </h2>
         <div class="flex gap-2">
           <UiButton variant="ghost" size="icon" class="h-8 w-8 rounded-full hover:bg-muted" @click="prevMonth">
-            <ChevronLeft class="h-5 w-5" />
+            <ChevronLeft class="h-4 w-4" />
           </UiButton>
           <UiButton variant="ghost" size="icon" class="h-8 w-8 rounded-full hover:bg-muted" @click="nextMonth">
-            <ChevronRight class="h-5 w-5" />
+            <ChevronRight class="h-4 w-4" />
           </UiButton>
         </div>
       </div>
@@ -501,7 +501,7 @@ async function confirmPay() {
       <!-- Calendar Grid -->
       <div class="grid grid-cols-7 gap-y-1 gap-x-1">
         <!-- Day Names -->
-        <div v-for="day in dayNames" :key="day" class="text-center text-[9px] font-bold text-muted-foreground uppercase tracking-widest mb-1">
+        <div v-for="day in dayNames" :key="day" class="text-center text-[8px] font-bold text-muted-foreground uppercase tracking-widest mb-1">
           {{ day }}
         </div>
         
@@ -513,7 +513,7 @@ async function confirmPay() {
         >
           <!-- Day Number Bubble -->
           <div 
-            class="flex items-center justify-center h-6 w-6 rounded-full text-xs transition-colors cursor-pointer"
+            class="flex items-center justify-center h-6 w-6 rounded-full text-[10px] transition-colors cursor-pointer"
             :class="[
               !day.isCurrentMonth ? 'text-muted-foreground/30 font-medium' : (day.plans.length === 0 ? 'text-foreground font-medium hover:bg-muted' : ''),
               day.isToday && day.plans.length === 0 ? 'bg-primary text-white hover:bg-primary/90' : '',
@@ -529,16 +529,16 @@ async function confirmPay() {
           <!-- Popover / Bubble Chat Info -->
           <div 
             v-if="selectedDate === day.dateString && day.plans.length > 0"
-            class="absolute bottom-[110%] z-50 min-w-[140px] max-w-[200px] bg-card border border-border text-foreground text-xs rounded-xl shadow-xl p-2.5 space-y-2 transform -translate-x-1/2 left-1/2 animate-in zoom-in duration-200"
+            class="absolute bottom-[110%] z-50 min-w-[140px] max-w-[200px] bg-card border border-border text-foreground text-[10px] rounded-xl shadow-xl p-2.5 space-y-2 transform -translate-x-1/2 left-1/2 animate-in zoom-in duration-200"
           >
             <!-- Triangle pointer -->
             <div class="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rotate-45 bg-card border-r border-b border-border"></div>
             
             <div v-for="plan in day.plans" :key="plan.id" class="relative z-10 flex flex-col items-center text-center">
-              <div class="font-bold truncate w-full">{{ plan.title }}</div>
+              <div class="font-bold truncate w-full text-[11px]">{{ plan.title }}</div>
               <div class="flex items-center justify-center mt-0.5 opacity-90 gap-1.5">
                 <CurrencyAmount :amount="plan.amount" size="xs" class="font-bold tracking-tight" />
-                <span v-if="plan.is_paid" class="text-[9px] bg-emerald-500 text-white px-1 rounded-sm">PAID</span>
+                <span v-if="plan.is_paid" class="text-[8px] bg-emerald-500 text-white px-1 rounded-sm">PAID</span>
               </div>
             </div>
           </div>
@@ -547,26 +547,26 @@ async function confirmPay() {
     </div>
 
     <!-- Search Input & Filter -->
-    <div class="mb-5 flex flex-col gap-2">
+    <div class="mb-3 flex flex-col gap-2">
       <div class="flex items-center gap-2">
         <div class="relative flex-1">
           <Search class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-          <UiInput v-model="searchQuery" class="pl-9 bg-card border-border/60 h-11 rounded-xl shadow-sm text-sm" placeholder="Search plans…" />
+          <UiInput v-model="searchQuery" class="pl-9 bg-card border-border/60 h-11 rounded-xl shadow-sm text-[13px]" placeholder="Search plans…" />
         </div>
         <UiButton 
           variant="outline" 
-          class="h-11 px-3 shrink-0 rounded-xl bg-card border-border/60 shadow-sm"
+          class="h-11 px-3 shrink-0 rounded-xl bg-card border-border/60 shadow-sm text-[11px]"
           :class="filterDateFrom || filterDateTo ? 'border-primary/50 text-primary bg-primary/5' : ''"
           @click="showFilters = true"
         >
-          <Filter class="h-4 w-4 mr-2" />
+          <Filter class="h-3.5 w-3.5 mr-1.5" />
           Filter
         </UiButton>
       </div>
       <div class="flex justify-end">
         <UiButton
           variant="ghost"
-          class="h-11 px-4 rounded-xl text-[13px] font-semibold text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+          class="h-9 px-4 rounded-xl text-[11px] font-semibold text-muted-foreground hover:bg-muted/50 hover:text-foreground"
           @click="showPaidPlans = !showPaidPlans"
         >
           {{ showPaidPlans ? 'Hide paid items' : 'Show paid items' }}
@@ -605,21 +605,21 @@ async function confirmPay() {
           <div class="flex flex-col min-w-0">
             <div class="flex items-center gap-1.5 min-w-0">
               <span
-                class="font-bold truncate text-sm"
+                class="font-bold truncate text-[13px]"
                 :class="plan.is_paid ? 'text-muted-foreground line-through decoration-emerald-500/50' : 'text-foreground'"
               >{{ plan.title }}</span>
-              <span v-if="plan.recurrence" class="text-[9px] uppercase tracking-widest font-black bg-purple-100 text-purple-600 dark:bg-purple-500/20 dark:text-purple-400 px-1.5 py-0.5 rounded">{{ plan.recurrence }}</span>
+              <span v-if="plan.recurrence" class="text-[8px] uppercase tracking-widest font-black bg-purple-100 text-purple-600 dark:bg-purple-500/20 dark:text-purple-400 px-1.5 py-0.5 rounded">{{ plan.recurrence }}</span>
             </div>
             <div class="flex flex-wrap items-center gap-1 mt-0.5">
-              <span class="text-xs font-semibold text-muted-foreground/80">Due {{ formatDate(plan.due_date) }}</span>
-              <span v-if="plan.is_paid" class="text-xs font-semibold text-emerald-600/80">• Paid {{ formatDate(plan.paid_date) }}</span>
+              <span class="text-[11px] font-semibold text-muted-foreground/80">Due {{ formatDate(plan.due_date) }}</span>
+              <span v-if="plan.is_paid" class="text-[11px] font-semibold text-emerald-600/80">• Paid {{ formatDate(plan.paid_date) }}</span>
             </div>
           </div>
         </div>
 
         <!-- Right side: Amount + Days Left -->
         <div class="flex flex-col items-end justify-center shrink-0 z-0 text-right">
-          <span v-if="!plan.is_paid" class="text-[10px] tracking-wider mb-0.5" :class="getDaysRemainingClass(plan)">
+          <span v-if="!plan.is_paid" class="text-[9px] tracking-wider mb-0.5" :class="getDaysRemainingClass(plan)">
             {{ getDaysRemainingText(plan) }}
           </span>
           <CurrencyAmount 
@@ -628,7 +628,7 @@ async function confirmPay() {
             size="sm" 
             class="font-black tabular-nums" 
           />
-          <span v-if="plan.is_paid && plan.wallet_name" class="text-[10px] font-semibold text-muted-foreground/60 mt-0.5">
+          <span v-if="plan.is_paid && plan.wallet_name" class="text-[9px] font-semibold text-muted-foreground/60 mt-0.5">
             via {{ plan.wallet_name }}
           </span>
         </div>

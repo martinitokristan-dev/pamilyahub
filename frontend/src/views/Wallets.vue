@@ -27,6 +27,17 @@ onMounted(() => {
   }
 })
 
+// Determine responsive size for wallet balance based on amount
+function getBalanceSize(balance) {
+  const absAmount = Math.abs(parseFloat(balance) || 0)
+  const formatted = formatCurrency(absAmount).replace(/[^0-9]/g, '')
+  const digits = formatted.length
+  
+  if (digits >= 7) return 'md' // 1,000,000+ (7+ digits)
+  if (digits >= 6) return 'lg' // 100,000+ (6 digits)
+  return 'lg' // default
+}
+
 
 
 const WALLET_TYPE_BG = {
@@ -85,13 +96,13 @@ const groupedWallets = computed(() => {
 
 <template>
   <div class="p-4 md:p-6 max-w-2xl mx-auto animate-fade-in">
-    <div class="mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+    <div class="mb-3 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
       <div class="space-y-1">
-        <h1 class="text-2xl font-medium tracking-tight text-foreground">Wallets</h1>
+        <h1 class="text-[16px] font-medium tracking-tight text-foreground">Wallets</h1>
       </div>
       <div class="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto">
         <div class="bg-card border border-border shadow-sm px-4 py-2 rounded-2xl flex flex-col items-start sm:items-end min-w-[140px] transition-all hover:shadow-md">
-          <span class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest leading-none mb-1">Net Worth</span>
+          <span class="text-[9px] font-bold text-muted-foreground uppercase tracking-widest leading-none mb-1">Net Worth</span>
           <CurrencyAmount :amount="netWorth" type="balance" size="lg" class="tabular-nums sensitive-balance" />
         </div>
         <UiButton @click="openCreate" class="hidden sm:flex shrink-0 h-10 px-5 rounded-[50px] font-semibold bg-primary text-white hover:bg-primary/90 shadow-sm" size="sm">
@@ -106,25 +117,25 @@ const groupedWallets = computed(() => {
 
     <div v-else-if="store.wallets.length === 0" class="flex flex-col items-center justify-center py-24 text-center border rounded-2xl border-dashed bg-muted/20">
       <Wallet class="h-10 w-10 text-muted-foreground/40 mb-3" />
-      <p class="text-sm text-muted-foreground">No wallets yet. Add your first one!</p>
+      <p class="text-[13px] text-muted-foreground">No wallets yet. Add your first one!</p>
     </div>
 
-    <div v-else class="space-y-8">
+    <div v-else class="space-y-4">
       <section v-for="group in groupedWallets" :key="group.id">
-        <h2 class="text-[11px] font-black uppercase tracking-widest text-muted-foreground mb-3 px-1">{{ group.label }}</h2>
+        <h2 class="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-2 px-1">{{ group.label }}</h2>
         <div class="grid grid-cols-2 gap-3">
           <div
             v-for="wallet in group.wallets"
             :key="wallet._clientKey || wallet.id"
-            class="relative rounded-2xl p-4 text-white shadow-md overflow-hidden bg-gradient-to-br sm:cursor-default cursor-pointer"
+            class="relative rounded-2xl p-3 text-white shadow-md overflow-hidden bg-gradient-to-br sm:cursor-default cursor-pointer"
             @click="openEdit(wallet)"
             :class="typeInfo(wallet.type).bg"
           >
-            <div class="flex items-center gap-2.5 mb-3">
+            <div class="flex items-center gap-2 mb-2">
               <img 
                 :src="getWalletIconUrl(wallet)" 
                 :alt="wallet.name" 
-                class="h-8 w-8 rounded-lg object-contain bg-white/20 p-1 shadow-sm shrink-0" 
+                class="h-7 w-7 rounded-lg object-contain bg-white/20 p-1 shadow-sm shrink-0" 
               />
               <div class="min-w-0">
                 <p class="text-[11px] text-white font-bold truncate leading-tight">{{ wallet.name }}</p>
@@ -144,8 +155,8 @@ const groupedWallets = computed(() => {
             </div>
             
             <div class="mt-auto">
-              <p class="text-[8px] uppercase tracking-[0.15em] text-white/50 font-black leading-none mb-1.5">Balance</p>
-              <CurrencyAmount :amount="wallet.balance" type="balance" size="lg" class="leading-none tabular-nums tracking-tight sensitive-balance !text-white" />
+              <p class="text-[7px] uppercase tracking-[0.15em] text-white/50 font-black leading-none mb-1">Balance</p>
+              <CurrencyAmount :amount="wallet.balance" type="balance" :size="getBalanceSize(wallet.balance)" class="leading-none tabular-nums tracking-tight sensitive-balance !text-white" />
             </div>
             
             <div class="absolute -bottom-4 -right-4 h-20 w-20 rounded-full bg-white/10" />
