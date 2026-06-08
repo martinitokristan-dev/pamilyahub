@@ -33,6 +33,23 @@ registerRoute(
   })
 )
 
+// Cache Videos (CacheFirst - includes the EleFam mascot video for offline mode)
+registerRoute(
+  ({ request }) => request.destination === 'video',
+  new CacheFirst({
+    cacheName: 'videos',
+    plugins: [
+      new CacheableResponsePlugin({
+        statuses: [0, 200],
+      }),
+      new ExpirationPlugin({
+        maxEntries: 10,
+        maxAgeSeconds: 30 * 24 * 60 * 60, // 30 Days
+      }),
+    ],
+  })
+)
+
 // Cache Fonts (CacheFirst)
 registerRoute(
   ({ request }) => request.destination === 'font',
@@ -59,11 +76,12 @@ registerRoute(
 // Cache API calls (NetworkFirst)
 // NetworkFirst ensures we ALWAYS get the live, correct data when online (fixing the deposit bug),
 // but falls back to the cache if the user is offline or the network is failing.
+// iOS Safari may need slightly longer timeout due to network handling differences
 registerRoute(
   ({ url }) => url.pathname.startsWith('/api/'),
   new NetworkFirst({
     cacheName: 'api-cache',
-    networkTimeoutSeconds: 3,
+    networkTimeoutSeconds: 5, // Increased timeout for iOS compatibility
     plugins: [
       new CacheableResponsePlugin({
         statuses: [0, 200],

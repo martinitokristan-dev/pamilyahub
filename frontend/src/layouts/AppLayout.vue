@@ -90,14 +90,27 @@ const {
   needRefresh,
   updateServiceWorker,
 } = useRegisterSW({
+  immediate: true, // Register immediately for iOS compatibility
   onRegisteredSW(swUrl, registration) {
+    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) || 
+                  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+    
+    console.log('[SW] Service worker registered:', swUrl)
+    console.log('[SW] Platform:', isIOS ? 'iOS' : 'Other')
+    
     if (registration) {
-      // Check for service worker updates every 30 minutes
-      // This ensures users get update notifications even if the app stays open
+      // iOS benefits from slightly longer update intervals (less aggressive)
+      const updateInterval = isIOS ? 2 * 60 * 1000 : 1 * 60 * 1000
+      
       setInterval(() => {
+        console.log('[SW] Checking for updates...')
         registration.update()
-      }, 1 * 60 * 1000) // Fast check for testing (1 min)
+      }, updateInterval)
     }
+  },
+  onRegisterError(error) {
+    console.error('[SW] Registration failed:', error)
+    console.error('[SW] This may be due to iOS PWA requirements - ensure app is accessed via HTTPS')
   }
 })
 

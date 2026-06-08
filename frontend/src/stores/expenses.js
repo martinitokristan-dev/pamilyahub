@@ -553,10 +553,67 @@ export const useExpensesStore = defineStore("expenses", () => {
         feedItems.value = [...feedItems.value, ...filteredNew];
       }
     } catch (e) {
+      // Handle offline mode: filter cached expenses locally
+      if (isNetworkError(e)) {
+        return _fetchFeedOffline(options);
+      }
       error.value = e.response?.data?.message ?? "Failed to load feed";
     } finally {
       feedLoading.value = false;
     }
+  }
+
+  function _fetchFeedOffline(options = {}) {
+    const {
+      startDate = null,
+      endDate = null,
+      search = "",
+      type = filters.value.type,
+    } = options;
+
+    // Get all cached expenses (from expenses array which includes pending items)
+    let filtered = [...expenses.value];
+
+    // Filter by type
+    if (type && type !== 'all') {
+      filtered = filtered.filter(item => item.type === type);
+    }
+
+    // Filter by date range
+    if (startDate) {
+      filtered = filtered.filter(item => {
+        const itemDate = (item.date || '').slice(0, 10);
+        return itemDate >= startDate;
+      });
+    }
+    if (endDate) {
+      filtered = filtered.filter(item => {
+        const itemDate = (item.date || '').slice(0, 10);
+        return itemDate <= endDate;
+      });
+    }
+
+    // Filter by search term
+    if (search) {
+      const searchLower = search.toLowerCase();
+      filtered = filtered.filter(item => {
+        const title = (item.title || '').toLowerCase();
+        const desc = (item.description || '').toLowerCase();
+        const wallet = (item.wallet?.name || '').toLowerCase();
+        return title.includes(searchLower) || desc.includes(searchLower) || wallet.includes(searchLower);
+      });
+    }
+
+    // Sort by date descending (newest first)
+    filtered.sort((a, b) => {
+      const dateA = new Date(a.created_at || a.date);
+      const dateB = new Date(b.created_at || b.date);
+      return dateB - dateA;
+    });
+
+    feedItems.value = filtered;
+    feedHasMore.value = false;
+    feedNextCursor.value = null;
   }
 
   async function archiveTransaction(type, id) {

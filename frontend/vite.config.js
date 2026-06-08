@@ -16,7 +16,12 @@ export default defineConfig(({ mode }) => {
         srcDir: 'src',
         filename: 'sw.js',
         registerType: 'prompt',
-        includeAssets: ['icons/wallets/EF-logo-192.png', 'icons/wallets/EF-logo-512.png', 'icons/wallets/EF-logo.png'],
+        includeAssets: [
+          'icons/wallets/EF-logo-192.png', 
+          'icons/wallets/EF-logo-512.png', 
+          'icons/wallets/EF-logo.png',
+          'icons/wallets/elefam_greenscreen.mp4' // Include mascot video for offline mode
+        ],
         manifest: {
           name: 'EleFam',
           short_name: 'EleFam',
@@ -24,6 +29,8 @@ export default defineConfig(({ mode }) => {
           theme_color: '#5610c9',
           background_color: '#5610c9',
           display: 'standalone',
+          start_url: '/',
+          scope: '/',
           icons: [
             {
               src: '/icons/wallets/EF-logo-192.png',

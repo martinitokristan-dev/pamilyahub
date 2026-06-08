@@ -27,6 +27,7 @@ import TransactionDetailsModal from '@/components/modals/TransactionDetailsModal
 import { getDaysRemaining, getDaysRemainingText, getDaysRemainingClass, getPlanBackgroundClass } from '@/utils/planHelpers'
 
 import { SkeletonGrid, SkeletonListItem } from '@/components/skeletons'
+import TransparentVideo from '@/components/ui/TransparentVideo.vue'
 
 const router = useRouter()
 const auth      = useAuthStore()
@@ -175,7 +176,6 @@ const todayStats = computed(() => {
 const LOTTO_ITEM_HEIGHT = 38 // 34px row + 4px gap
 const lottoScrollRef = ref(null)
 const lottoPad = ref(30)
-const mascotVideoRef = ref(null)
 const activeLottoIndex = ref(0)
 const lastTodayLeadId = ref(null)
 
@@ -210,22 +210,6 @@ function scrollLottoToNewest(behavior = 'auto') {
       activeLottoIndex.value = targetIndex
     })
   })
-}
-
-function playMascotVideo() {
-  const el = mascotVideoRef.value
-  if (!el) return
-  if (el.paused || el.ended) {
-    el.play().catch(() => {})
-  }
-}
-
-function resumeMascotVideo() {
-  const el = mascotVideoRef.value
-  if (!el) return
-  if (el.paused) {
-    el.play().catch(() => {})
-  }
 }
 
 function onFinanceChanged() {
@@ -479,7 +463,7 @@ function generateEleFamBubbleLine() {
     candidates.push({
       severity: 'critical',
       score: todayVsBaselineRatio,
-      text: `${name}, you've spent ${formatCurrency(todaySpend)} today — that's above your daily pace (${formatCurrency(dailyIncomeBaseline)}). Take it easy muna today.`,
+      text: `${name}, you've spent ${formatCurrency(todaySpend)} today — above your daily pace. Take it easy!`,
       rule: 'daily_vs_baseline_critical',
     })
   }
@@ -488,7 +472,7 @@ function generateEleFamBubbleLine() {
     candidates.push({
       severity: 'warning',
       score: todayVsWeekRatio,
-      text: `${name}, today's spending (${formatCurrency(todaySpend)}) is much higher than your recent daily average (${formatCurrency(weekDailyAverage)}). Slow down muna tayo today.`,
+      text: `${name}, today's spending is higher than your recent average. Slow down muna today.`,
       rule: 'daily_vs_week_warning',
     })
   }
@@ -497,7 +481,7 @@ function generateEleFamBubbleLine() {
     candidates.push({
       severity: 'warning',
       score: todayVsYesterdayRatio,
-      text: `${name}, mas malaki ang gastos mo today (${formatCurrency(todaySpend)}) vs yesterday (${formatCurrency(yesterdaySpend)}). Konting alalay muna.`,
+      text: `${name}, you spent more today than yesterday. Konting alalay muna.`,
       rule: 'today_vs_yesterday_warning',
     })
   }
@@ -506,7 +490,7 @@ function generateEleFamBubbleLine() {
     candidates.push({
       severity: 'positive',
       score: 1 - todayVsYesterdayRatio,
-      text: `${name}, nice! Mas mababa ang gastos mo today (${formatCurrency(todaySpend)}) kaysa kahapon (${formatCurrency(yesterdaySpend)}). Keep this pacing up.`,
+      text: `${name}, nice! You spent less today than yesterday. Keep it up!`,
       rule: 'today_vs_yesterday_positive',
     })
   }
@@ -516,14 +500,14 @@ function generateEleFamBubbleLine() {
     const ratio = budget > 0 ? todaySpend / budget : null
     let tone = ''
     if (ratio !== null) {
-      if (ratio >= 0.8) tone = `⚠️ That's already ${Math.round(ratio * 100)}% of your daily budget — pumipiga na.`
-      else if (ratio >= 0.5) tone = `Medyo kalahati na ng daily budget mo — mindful pa rin tayo.`
-      else tone = `Still within safe pace — maayos ang takbo ng araw mo!`
+      if (ratio >= 0.8) tone = `That's ${Math.round(ratio * 100)}% of your daily budget.`
+      else if (ratio >= 0.5) tone = `Halfway through your daily budget.`
+      else tone = `Still within safe pace today!`
     }
     candidates.push({
       severity: 'info',
       score: todaySpend,
-      text: `${name}, today you spent ${formatCurrency(todaySpend)} across ${todayExpenseCount} expense${todayExpenseCount > 1 ? 's' : ''}. ${topWallet ? `Most of it came from ${topWallet}. ` : ''}${tone}`,
+      text: `${name}, you spent ${formatCurrency(todaySpend)} today. ${tone}`,
       rule: 'today_activity_summary',
     })
   }
@@ -532,7 +516,7 @@ function generateEleFamBubbleLine() {
     candidates.push({
       severity: 'warning',
       score: thisWeekVsPreviousWeekRatio,
-      text: `${name}, mas mataas ang gastos mo this week (${formatCurrency(thisWeekSpend)}) compared sa last week (${formatCurrency(previousWeekSpend)}). Baka pwedeng bawasan muna ang non-essentials.`,
+      text: `${name}, you're spending more this week than last week. Consider cutting non-essentials.`,
       rule: 'week_over_week_warning',
     })
   }
@@ -541,7 +525,7 @@ function generateEleFamBubbleLine() {
     candidates.push({
       severity: 'positive',
       score: 1 - thisWeekVsPreviousWeekRatio,
-      text: `${name}, great job — mas mababa ang gastos mo this week (${formatCurrency(thisWeekSpend)}) kaysa last week (${formatCurrency(previousWeekSpend)}). Tuloy lang ang good budgeting.`,
+      text: `${name}, great job! You spent less this week. Keep it up!`,
       rule: 'week_over_week_positive',
     })
   }
@@ -550,7 +534,7 @@ function generateEleFamBubbleLine() {
     candidates.push({
       severity: 'warning',
       score: thisMonthVsPreviousMonthRatio,
-      text: `${name}, mas mataas na ang spending mo this month (${formatCurrency(monthlyExpenses)}) kaysa last month (${formatCurrency(previousMonthExpenses)}). Let's tighten spending a bit this month.`,
+      text: `${name}, your spending is higher this month. Let's tighten the budget.`,
       rule: 'month_over_month_warning',
     })
   }
@@ -559,7 +543,7 @@ function generateEleFamBubbleLine() {
     candidates.push({
       severity: 'positive',
       score: 1 - thisMonthVsPreviousMonthRatio,
-      text: `${name}, galing! You spent less this month (${formatCurrency(monthlyExpenses)}) than last month (${formatCurrency(previousMonthExpenses)}). Keep up the good budgeting.`,
+      text: `${name}, galing! You spent less this month. Keep up the good budgeting!`,
       rule: 'month_over_month_positive',
     })
   }
@@ -570,14 +554,14 @@ function generateEleFamBubbleLine() {
       candidates.push({
         severity: 'critical',
         score: Math.abs(remaining),
-        text: `Huy ${name}, over budget na tayo this month at mukhang si ${topWallet} ang medyo bugbog sarado. Baka pwede nating dahan-dahanin muna ang spending natin?`,
+        text: `Huy ${name}, over budget na tayo and ${topWallet} is taking the hit. Slow down!`,
         rule: 'remaining_negative_with_top_wallet',
       })
     } else {
       candidates.push({
         severity: 'critical',
         score: Math.abs(remaining),
-        text: `Huy ${name}, lagpas na tayo sa budget limit natin this month. Sobrang pula na ng balance—iwas-iwas muna sa mga hindi naman kailangang bilhin ngayon, ha?`,
+        text: `Huy ${name}, over budget na tayo this month. Avoid unnecessary purchases for now!`,
         rule: 'remaining_negative',
       })
     }
@@ -588,7 +572,7 @@ function generateEleFamBubbleLine() {
     candidates.push({
       severity: 'critical',
       score: ratio,
-      text: `Ay, lagpas-lagpas na ang nagastos natin kumpara sa kita natin, ${name}. Konting higpit muna ng sinturon bago dumating ang susunod na sahod.`,
+      text: `${name}, spending exceeds income. Tighten the belt before next paycheck arrives!`,
       rule: 'monthly_ratio_critical',
     })
   }
@@ -598,7 +582,7 @@ function generateEleFamBubbleLine() {
     candidates.push({
       severity: 'warning',
       score: ratio,
-      text: `Lapit na natin maubos ang budget natin for the month, ${name}. Kaya pa natin 'tong i-salba! Bawas-bawasan muna natin ang gala or kape sa labas.`,
+      text: `${name}, budget is almost gone. Let's cut back on non-essentials!`,
       rule: 'monthly_ratio_warning',
     })
   }
@@ -608,7 +592,7 @@ function generateEleFamBubbleLine() {
     candidates.push({
       severity: 'info',
       score: iOwe,
-      text: `A gentle reminder to check on our payables, ${name}. Kahit paunti-unting bayad, malaking tulong para gumaan ang pakiramdam sa finances natin.`,
+      text: `${name}, reminder to check on payables. Even small payments help!`,
       rule: 'debts_info',
     })
   }
@@ -618,7 +602,7 @@ function generateEleFamBubbleLine() {
     candidates.push({
       severity: 'positive',
       score: 1,
-      text: `Mukhang si ${topWallet} ang paborito mong gamitin lately. Ayos naman ang takbo ng budget natin, ituloy lang natin ang tamang tracking!`,
+      text: `${topWallet} is your go-to lately. Budget looks good, keep tracking!`,
       rule: 'top_wallet_positive',
     })
   }
@@ -627,7 +611,7 @@ function generateEleFamBubbleLine() {
     candidates.push({
       severity: 'positive',
       score: 2,
-      text: `Nice one, ${name}. Wala pang gastos today — keep this calm pace hanggang mamaya.`,
+      text: `Nice one, ${name}. No spending today — keep this pace!`,
       rule: 'no_spend_today_positive',
     })
   }
@@ -636,7 +620,7 @@ function generateEleFamBubbleLine() {
     candidates.push({
       severity: 'info',
       score: 0,
-      text: `${name}, wala pa tayong na-log na expenses this month. Track lang agad para accurate lagi ang reminders ko.`,
+      text: `${name}, no expenses logged yet. Start tracking for accurate insights!`,
       rule: 'no_expenses_info',
     })
   }
@@ -645,7 +629,7 @@ function generateEleFamBubbleLine() {
     candidates.push({
       severity: 'fallback',
       score: 0,
-      text: `Good job sa pag-track ng bawat gastos today! Malaking tulong 'to para alam natin kung saan talaga napupunta ang pera natin.`,
+      text: `Good job tracking expenses today, ${name}! Keep it up!`,
       rule: 'fallback_general',
     })
 
@@ -672,15 +656,9 @@ watch(
   }
 )
 
-function onVisibilityChange() {
-  if (document.visibilityState === 'visible') playMascotVideo()
-}
-
 onMounted(async () => {
   window.addEventListener('pamilya:finance-changed', onFinanceChanged)
-  document.addEventListener('visibilitychange', onVisibilityChange)
   nextTick(() => {
-    playMascotVideo()
     syncLottoPad()
     scrollLottoToNewest()
   })
@@ -717,14 +695,12 @@ onMounted(async () => {
 
 onActivated(() => {
   nextTick(() => {
-    resumeMascotVideo()
     scrollLottoToNewest()
   })
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('pamilya:finance-changed', onFinanceChanged)
-  document.removeEventListener('visibilitychange', onVisibilityChange)
 })
 
 // ── Stat cards ───────────────────────────────────────────────────────────────
@@ -764,47 +740,27 @@ const statCards = computed(() => [
 
     <!-- ── Mascot Section (Triple Split: White / Purple / White) ── -->
     <div class="relative z-0" style="background: linear-gradient(to bottom, transparent 40%, #9333ea 40%, #9333ea 82%, transparent 82%)">
-      
-      <!-- SVG Filter for Green Screen Removal -->
-      <svg width="0" height="0" class="absolute pointer-events-none">
-        <defs>
-          <filter id="green-screen" color-interpolation-filters="sRGB">
-            <feColorMatrix type="matrix" values="
-              1 0 0 0 0
-              0 1 0 0 0
-              0 0 1 0 0
-              1.5 -2.5 1.5 1 0
-            " />
-          </filter>
-        </defs>
-      </svg>
 
       <div class="max-w-6xl mx-auto px-4 sm:px-6 pt-2 pb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div class="flex flex-col w-full relative">
           <div class="flex items-center gap-0 w-full relative">
             <div class="w-32 h-36 shrink-0 overflow-hidden z-10 flex items-start justify-center bg-transparent -ml-4">
-              <video 
-                ref="mascotVideoRef"
-                autoplay 
-                loop 
-                muted 
-                playsinline
-                class="w-[110%] max-w-none h-auto object-cover -translate-y-[5%]"
-                style="filter: url(#green-screen)"
-                @loadeddata="playMascotVideo"
-              >
-                <source src="/icons/wallets/elefam_greenscreen.mp4" type="video/mp4" />
-              </video>
+              <!-- Canvas-based green screen removal for iOS compatibility -->
+              <TransparentVideo 
+                src="/icons/wallets/elefam_greenscreen.mp4"
+                :tolerance="25"
+                video-class="w-full h-auto object-cover scale-110 translate-y-[17%]"
+              />
             </div>
             
-            <!-- Chat Bubble (Solid White / Dark Mode Aware) -->
-            <div class="bg-white dark:bg-zinc-900 shadow-2xl rounded-2xl p-5 relative ml-2 z-0 flex-1 min-w-0 border border-purple-100 dark:border-zinc-800/80 mt-[-32px]">
+            <!-- Chat Bubble (Rectangular shape, full text visible) -->
+            <div class="bg-white dark:bg-zinc-900 shadow-2xl rounded-2xl py-3 px-5 relative ml-2 z-0 flex-1 min-w-0 border border-purple-100 dark:border-zinc-800/80 mt-[-32px] max-w-sm">
               <!-- Speech bubble tail (Pointed to mouth) -->
               <div class="absolute top-[75%] -translate-y-1/2 -left-[8px] w-4 h-4 bg-white dark:bg-zinc-900 border-l border-b border-purple-100 dark:border-zinc-800/80 rotate-45 rounded-sm"></div>
               
               <div class="relative z-10">
                 <h3 class="font-black text-primary text-[10px] tracking-widest mb-1">EleFam</h3>
-                <p class="text-xs text-muted-foreground dark:text-zinc-300 leading-snug font-semibold">
+                <p class="text-[11px] text-muted-foreground dark:text-zinc-300 leading-relaxed font-medium">
                   {{ eleFamBubbleLine }}
                 </p>
               </div>
