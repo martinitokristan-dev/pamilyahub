@@ -50,15 +50,20 @@ class DashboardController extends Controller
                 ->whereNull('wallet_id')
                 ->sum(fn($e) => (float) $e->amount);
 
+            // Calculate total wallet balance (cumulative, not month-specific)
+            $totalWalletBalance = (float) \App\Models\Wallet::where('user_id', $userId)
+                ->get()
+                ->sum(fn($w) => (float) $w->balance);
+
             // Sum active incomes and archives for the selected range (deposits write to `incomes`)
             $totalIncome = 0.0;
-            if (Schema::hasTable('incomes')) {
+            if (\App\Support\ArchivedFeedQuery::tableExists('incomes')) {
                 $totalIncome += (float) Income::where('user_id', $userId)
                     ->whereBetween('date', [$startDate, $endDate])
                     ->get()
                     ->sum(fn ($i) => (float) $i->amount);
             }
-            if (Schema::hasTable('income_archives')) {
+            if (\App\Support\ArchivedFeedQuery::tableExists('income_archives')) {
                 $totalIncome += (float) IncomeArchive::where('user_id', $userId)
                     ->whereBetween('date', [$startDate, $endDate])
                     ->get()
@@ -67,7 +72,7 @@ class DashboardController extends Controller
 
             $stats->monthly_expenses = $expensesTotal;
             $stats->monthly_income   = $totalIncome;
-            $stats->remaining_salary = $totalIncome - $expensesTotal;
+            $stats->remaining_salary = $totalWalletBalance;
             
             // Add unallocated if needed by frontend
             $stats->unallocated_expenses = $unallocatedTotal;
@@ -80,9 +85,6 @@ class DashboardController extends Controller
 
     public static function invalidateCache(int $userId, ?int $year = null, ?int $month = null): void
     {
-        $year = $year ?? now()->year;
-        $month = $month ?? now()->month;
-        $cacheKey = "dashboard_stats_{$userId}_{$year}_{$month}";
-        Cache::forget($cacheKey);
+        app(\App\Services\DashboardCacheService::class)->invalidate($userId, $year, $month);
     }
 }

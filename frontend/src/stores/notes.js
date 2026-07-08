@@ -14,6 +14,7 @@ import { refreshPendingCount, isSyncing } from '@/lib/syncEngine.js'
 export const useNotesStore = defineStore('notes', () => {
   const notes = ref([])
   const folders = ref([])
+  const activeFolderId = ref(null)
   const loading = ref(false)
   const error = ref(null)
   const fetched = ref(false)
@@ -269,7 +270,7 @@ export const useNotesStore = defineStore('notes', () => {
   }
 
   return { 
-    notes, folders, loading, error, fetched,
+    notes, folders, activeFolderId, loading, error, fetched,
     fetchAll, create, update, remove, 
     createFolder, removeFolder, invalidate 
   }

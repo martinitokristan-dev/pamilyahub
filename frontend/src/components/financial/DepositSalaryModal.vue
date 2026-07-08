@@ -200,7 +200,6 @@ async function handleConfirm() {
             
             <div class="mt-4 flex flex-col items-center justify-center w-full px-8 relative overflow-hidden">
               <div class="flex items-center justify-center gap-1 border-b-2 border-transparent pb-2 transition-colors min-w-[140px] max-w-full">
-                <span class="text-3xl font-semibold text-emerald-500 shrink-0 leading-none mt-1">₱</span>
                 <span class="bg-transparent text-center text-5xl font-bold tracking-tight outline-none focus:ring-0 p-0 leading-none text-emerald-500">
                   {{ formatCurrency(available) }}
                 </span>

@@ -45,7 +45,7 @@ class ExpenseController extends Controller
 
         $buildExpenseQuery = function (string $table) use ($userId, $startDate, $endDate) {
             $query = \Illuminate\Support\Facades\DB::table($table)
-                ->select('id', \Illuminate\Support\Facades\DB::raw("'expense' as type"), 'amount', 'title', 'description as notes', 'date', 'created_at', 'wallet_id', 'is_settled', 'settled_amount', \Illuminate\Support\Facades\DB::raw('null as to_wallet_id'))
+                ->select('id', \Illuminate\Support\Facades\DB::raw("'expense' as type"), 'amount', 'title', 'description as notes', 'date', 'created_at', 'wallet_id', 'is_settled', 'settled_amount', 'receipt_items', \Illuminate\Support\Facades\DB::raw('null as to_wallet_id'))
                 ->where('user_id', $userId);
 
             if ($startDate) $query->where('date', '>=', $startDate);
@@ -56,7 +56,7 @@ class ExpenseController extends Controller
 
         $buildIncomeQuery = function (string $table) use ($userId, $startDate, $endDate) {
             $query = \Illuminate\Support\Facades\DB::table($table)
-                ->select('id', \Illuminate\Support\Facades\DB::raw("'deposit' as type"), 'amount', 'source as title', \Illuminate\Support\Facades\DB::raw('null as notes'), 'date', 'created_at', 'wallet_id', \Illuminate\Support\Facades\DB::raw('null as is_settled'), \Illuminate\Support\Facades\DB::raw('null as settled_amount'), \Illuminate\Support\Facades\DB::raw('null as to_wallet_id'))
+                ->select('id', \Illuminate\Support\Facades\DB::raw("'deposit' as type"), 'amount', 'source as title', \Illuminate\Support\Facades\DB::raw('null as notes'), 'date', 'created_at', 'wallet_id', \Illuminate\Support\Facades\DB::raw('null as is_settled'), \Illuminate\Support\Facades\DB::raw('null as settled_amount'), \Illuminate\Support\Facades\DB::raw('null as receipt_items'), \Illuminate\Support\Facades\DB::raw('null as to_wallet_id'))
                 ->where('user_id', $userId);
 
             if ($startDate) $query->where('date', '>=', $startDate);
@@ -69,7 +69,7 @@ class ExpenseController extends Controller
             // Amount is NOT encrypted for transfers (based on Transfer model)
             // Neither is description.
             $query = \Illuminate\Support\Facades\DB::table($table)
-                ->select('id', \Illuminate\Support\Facades\DB::raw("'transfer' as type"), 'amount', \Illuminate\Support\Facades\DB::raw('null as title'), 'description as notes', 'date', 'created_at', 'from_wallet_id as wallet_id', \Illuminate\Support\Facades\DB::raw('null as is_settled'), \Illuminate\Support\Facades\DB::raw('null as settled_amount'), 'to_wallet_id')
+                ->select('id', \Illuminate\Support\Facades\DB::raw("'transfer' as type"), 'amount', \Illuminate\Support\Facades\DB::raw('null as title'), 'description as notes', 'date', 'created_at', 'from_wallet_id as wallet_id', \Illuminate\Support\Facades\DB::raw('null as is_settled'), \Illuminate\Support\Facades\DB::raw('null as settled_amount'), \Illuminate\Support\Facades\DB::raw('null as receipt_items'), 'to_wallet_id')
                 ->where('user_id', $userId);
 
             if ($startDate) $query->where('date', '>=', $startDate);
@@ -88,8 +88,8 @@ class ExpenseController extends Controller
             if ($useArchive) $parts[] = $buildIncomeQuery('income_archives');
         }
         if ($type === 'all' || $type === 'transfer' || empty($type)) {
-            if ($useActive && \Illuminate\Support\Facades\Schema::hasTable('transfers')) $parts[] = $buildTransferQuery('transfers');
-            if ($useArchive && \Illuminate\Support\Facades\Schema::hasTable('transfer_archives')) $parts[] = $buildTransferQuery('transfer_archives');
+            if ($useActive && \App\Support\ArchivedFeedQuery::tableExists('transfers')) $parts[] = $buildTransferQuery('transfers');
+            if ($useArchive && \App\Support\ArchivedFeedQuery::tableExists('transfer_archives')) $parts[] = $buildTransferQuery('transfer_archives');
         }
 
         if (empty($parts)) {
@@ -179,7 +179,6 @@ class ExpenseController extends Controller
                 'id' => $item->id,
                 'amount' => (float) $item->amount,
                 'title' => $item->title,
-                'description' => $item->title,
                 'notes' => $item->notes,
                 'date' => \App\Support\ArchivedFeedQuery::normalizeDateValue($item->date),
                 'wallet' => $wallets->get($item->wallet_id),
@@ -188,6 +187,7 @@ class ExpenseController extends Controller
                 'wallet_id' => $item->wallet_id,
                 'is_settled' => (bool) $item->is_settled,
                 'settled_amount' => $item->settled_amount,
+                'receipt_items' => $item->receipt_items ? json_decode($item->receipt_items, true) : null,
                 'created_at' => $item->created_at,
             ];
         });
@@ -220,7 +220,14 @@ class ExpenseController extends Controller
             return $this->error('Insufficient wallet balance.', 422);
         }
 
-        $expense = $this->expenseService->create($request->user()->id, $request->validated());
+        $data = $request->validated();
+        
+        // Include receipt_items if present
+        if ($request->has('receipt_items')) {
+            $data['receipt_items'] = $request->receipt_items;
+        }
+
+        $expense = $this->expenseService->create($request->user()->id, $data);
         return $this->success($expense, 'Expense created', 201);
     }
 
@@ -248,7 +255,14 @@ class ExpenseController extends Controller
             return $this->error('Insufficient wallet balance.', 422);
         }
 
-        $updatedExpense = $this->expenseService->update($request->user()->id, $id, $request->validated());
+        $data = $request->validated();
+        
+        // Include receipt_items if present
+        if ($request->has('receipt_items')) {
+            $data['receipt_items'] = $request->receipt_items;
+        }
+
+        $updatedExpense = $this->expenseService->update($request->user()->id, $id, $data);
 
         if (! $updatedExpense) {
             return $this->error('Expense not found', 404);

@@ -86,14 +86,14 @@ class AuthService
                     'google_avatar' => $avatar,
                 ]);
             } else {
-                // 3. Create a brand-new user (no password needed)
+                // 3. Create a brand-new user (generate a random password since it's required)
                 $user = User::create([
                     'name'          => $name,
                     'email'         => $email,
                     'google_id'     => $googleId,
                     'google_avatar' => $avatar,
                     'avatar'        => null,
-                    'password'      => null,
+                    'password'      => Hash::make(Str::random(32)),
                 ]);
             }
         } else {

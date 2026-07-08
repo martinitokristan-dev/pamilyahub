@@ -6,13 +6,13 @@ use App\Models\Transfer;
 use App\Repositories\TransferRepository;
 use App\Repositories\WalletRepository;
 use Illuminate\Support\Facades\DB;
-use App\Http\Controllers\DashboardController;
 
 class TransferService
 {
     public function __construct(
         private TransferRepository $repository,
-        private WalletRepository $walletRepository
+        private WalletRepository $walletRepository,
+        private \App\Services\DashboardCacheService $cache
     ) {}
 
     public function create(int $userId, array $data): Transfer
@@ -28,7 +28,7 @@ class TransferService
             
             $transfer = $this->repository->create($data);
 
-            DashboardController::invalidateCache($userId);
+            $this->cache->invalidate($userId);
             return $transfer;
         });
     }

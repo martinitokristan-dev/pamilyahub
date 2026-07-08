@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Repositories\IncomeRepository;
 use App\Repositories\WalletRepository;
 use App\Services\UserStatsService;
-use App\Http\Controllers\DashboardController;
 use Illuminate\Support\Facades\DB;
 
 class IncomeService
@@ -14,6 +13,7 @@ class IncomeService
         private IncomeRepository $incomeRepository,
         private WalletRepository $walletRepository,
         private UserStatsService $statsService,
+        private \App\Services\DashboardCacheService $cache
     ) {}
 
     public function create(int $userId, array $data): void
@@ -27,7 +27,7 @@ class IncomeService
             }
 
             $this->statsService->adjust($userId, 'income_total', +(float)$data['amount']);
-            DashboardController::invalidateCache($userId);
+            $this->cache->invalidate($userId);
         });
     }
 
@@ -47,7 +47,7 @@ class IncomeService
                 $this->statsService->adjust($userId, 'income_total', $delta);
             }
 
-            DashboardController::invalidateCache($userId);
+            $this->cache->invalidate($userId);
         });
     }
 
@@ -61,7 +61,7 @@ class IncomeService
             $this->incomeRepository->delete($income);
             
             $this->statsService->adjust($userId, 'income_total', -$amount);
-            DashboardController::invalidateCache($userId);
+            $this->cache->invalidate($userId);
         });
     }
 
@@ -84,7 +84,7 @@ class IncomeService
             }
             
             $this->statsService->adjust($userId, 'income_total', $total);
-            DashboardController::invalidateCache($userId);
+            $this->cache->invalidate($userId);
         });
     }
 }

@@ -17,6 +17,10 @@ const props = defineProps({
     type: String,
     default: 'Select an option'
   },
+  disabled: {
+    type: Boolean,
+    default: false
+  },
   // Allows overriding the trigger button's styles if needed in different contexts (like Archive page vs Modals)
   triggerClass: {
     type: String,
@@ -42,18 +46,20 @@ const displayValue = computed(() => {
 })
 
 function selectOption(value) {
+  if (props.disabled) return
   emit('update:modelValue', value)
   isOpen.value = false
 }
 </script>
 
 <template>
-  <div ref="selectContainer" class="relative w-full" :class="isOpen ? 'z-[60]' : 'z-40'">
+  <div ref="selectContainer" class="relative w-full">
     <button
       type="button"
-      @click="isOpen = !isOpen"
+      @click="!disabled && (isOpen = !isOpen)"
       class="flex items-center justify-between"
-      :class="triggerClass"
+      :class="[triggerClass, { 'opacity-60 cursor-not-allowed': disabled }]"
+      :disabled="disabled"
     >
       <div class="flex items-center gap-2 overflow-hidden pr-2">
         <img v-if="selectedOption?.iconUrl" :src="selectedOption.iconUrl" class="h-5 w-5 rounded object-contain shrink-0 bg-white/20" @error="$event.target.style.display='none'" />
@@ -70,7 +76,7 @@ function selectOption(value) {
       leave-from-class="transform opacity-100 scale-100"
       leave-to-class="transform opacity-0 scale-95"
     >
-      <div v-if="isOpen" class="absolute z-50 mt-1 w-full bg-card/95 backdrop-blur-xl border border-border/50 rounded-xl shadow-lg overflow-hidden py-1 max-h-56 overflow-y-auto">
+      <div v-if="isOpen && !disabled" class="absolute z-[100] mt-1 w-full bg-card/95 backdrop-blur-xl border border-border/50 rounded-xl shadow-lg overflow-hidden py-1 max-h-56 overflow-y-auto">
         <button
           v-for="option in options"
           :key="option.value"

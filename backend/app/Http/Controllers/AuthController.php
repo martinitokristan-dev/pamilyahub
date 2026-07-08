@@ -60,53 +60,15 @@ class AuthController extends Controller
         ]);
 
         try {
-            $client = new \Google\Client(['client_id' => env('GOOGLE_CLIENT_ID')]);
-            $payload = $client->verifyIdToken($request->id_token);
+            $result = $this->authService->loginWithGoogle($request->id_token);
 
-            if (!$payload) {
-                return response()->json(['message' => 'Invalid Google token'], 401);
-            }
-
-            $googleId = $payload['sub'];
-            $email    = $payload['email'];
-            $name     = $payload['name'] ?? '';
-            $avatar   = $payload['picture'] ?? null;
-
-            // Find existing user or create a new one
-            $user = \App\Models\User::firstOrCreate(
-                ['email' => $email],
-                [
-                    'name'          => $name,
-                    'google_id'     => $googleId,
-                    'google_avatar' => $avatar,
-                    'avatar'        => null,
-                    'password'      => bcrypt(\Illuminate\Support\Str::random(32)),
-                ]
-            );
-
-            // Update google_id or google_avatar if they already existed but these were different/missing
-            $updates = [];
-            if (!$user->google_id) {
-                $updates['google_id'] = $googleId;
-            }
-            if ($user->google_avatar !== $avatar) {
-                $updates['google_avatar'] = $avatar;
-            }
-            if (!empty($updates)) {
-                $user->update($updates);
-            }
-
-            $token = $user->createToken('auth_token')->plainTextToken;
-
-            return response()->json([
-                'data' => [
-                    'user'  => $user,
-                    'token' => $token,
-                ]
-            ]);
-
+            return $this->success($result, 'Logged in with Google successfully');
+        } catch (\Google\Exception $e) {
+            return response()->json(['message' => 'Failed to verify Google token'], 401);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json(['message' => $e->getMessage()], 401);
         } catch (\Exception $e) {
-            return response()->json(['message' => 'Google sign-in failed: ' . $e->getMessage()], 500);
+            return response()->json(['message' => 'An error occurred during Google login'], 500);
         }
     }
 

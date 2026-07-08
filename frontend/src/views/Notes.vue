@@ -19,9 +19,13 @@ const modals = useModalsStore()
 const isMobile = ref(false)
 
 // Folder & Priority State
-const activeFolderId = ref(null)
+const activeFolderId = computed({
+  get: () => store.activeFolderId,
+  set: (val) => { store.activeFolderId = val }
+})
 const showFolderModal = ref(false)
 const showCreateFolderModal = ref(false)
+const isCreatingFolder = ref(false)
 const showPasswordModal = ref(false)
 const targetNote = ref(null)
 const unlockedFolders = ref(new Set())
@@ -134,12 +138,20 @@ function openCreateFolder() {
 }
 
 async function handleCreateFolder() {
-  if (!folderForm.value.name.trim()) return
-  await store.createFolder({
-    name: folderForm.value.name.trim(),
-    password: folderForm.value.password.trim() || null
-  })
-  showCreateFolderModal.value = false
+  if (!folderForm.value.name.trim() || isCreatingFolder.value) return
+  isCreatingFolder.value = true
+  try {
+    await store.createFolder({
+      name: folderForm.value.name.trim(),
+      password: folderForm.value.password.trim() || null
+    })
+    showCreateFolderModal.value = false
+  } catch (err) {
+    console.error(err)
+    toast.error('Failed to create folder')
+  } finally {
+    isCreatingFolder.value = false
+  }
 }
 
 function tryOpenFolder(folder) {
@@ -181,6 +193,10 @@ function getPreviewLines(content) {
   const plainText = content.replace(/<p[^>]*>/g, '\n').replace(/<[^>]+>/g, '').trim()
   return plainText.split('\n').slice(0, 3).join('\n')
 }
+
+onBeforeUnmount(() => {
+  store.activeFolderId = null
+})
 </script>
 
 <template>
@@ -198,11 +214,11 @@ function getPreviewLines(content) {
             {{ activeFolder ? activeFolder.name : 'Notes' }}
           </h1>
         </div>
-        <div class="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto">
-          <UiButton variant="outline" size="sm" @click="openCreateFolder" class="shrink-0 rounded-full h-9 px-4">
+        <div class="flex items-center justify-end gap-3 w-full sm:w-auto">
+          <UiButton v-if="!activeFolderId" variant="outline" size="sm" @click="openCreateFolder" class="shrink-0 rounded-full h-9 px-4">
             <FolderPlus class="h-4 w-4 mr-2" /> Add Folder
           </UiButton>
-          <UiButton @click="openCreate" size="sm" class="hidden sm:flex shrink-0 rounded-full h-9 px-4">
+          <UiButton @click="openCreate" variant="outline" size="sm" class="shrink-0 rounded-full h-9 px-4" :class="{'hidden sm:flex': !activeFolderId}">
             <Plus class="h-4 w-4 mr-2" /> New Note
           </UiButton>
         </div>
@@ -372,35 +388,39 @@ function getPreviewLines(content) {
 
     <!-- Create Folder Modal -->
     <Teleport to="body">
-      <div v-if="showCreateFolderModal" class="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" @mousedown.self="showCreateFolderModal = false">
+      <div v-if="showCreateFolderModal" class="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" @mousedown.self="!isCreatingFolder && (showCreateFolderModal = false)">
         <UiCard class="w-full sm:max-w-sm shadow-xl animate-fade-in rounded-2xl p-5">
           <h2 class="text-lg font-semibold mb-4">New Folder</h2>
           <div class="space-y-4">
             <div>
               <UiLabel>Folder Name</UiLabel>
-              <UiInput v-model="folderForm.name" placeholder="e.g. Secret, Work, Recipes" class="mt-1" autofocus autocomplete="off" />
+              <UiInput v-model="folderForm.name" :disabled="isCreatingFolder" placeholder="e.g. Secret, Work, Recipes" class="mt-1" autofocus autocomplete="off" />
             </div>
             <div>
               <UiLabel>Password (Optional)</UiLabel>
               <div class="relative mt-1">
                 <UiInput 
                   v-model="folderForm.password" 
+                  :disabled="isCreatingFolder"
                   :type="showPasswordCreate ? 'text' : 'password'" 
                   placeholder="Lock this folder" 
                   autocomplete="new-password"
                 />
                 <button 
                   type="button"
+                  :disabled="isCreatingFolder"
                   @click="showPasswordCreate = !showPasswordCreate"
-                  class="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  class="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground disabled:opacity-50"
                 >
                   <component :is="showPasswordCreate ? EyeOff : Eye" class="h-4 w-4" />
                 </button>
               </div>
             </div>
             <div class="flex justify-end gap-2 mt-6">
-              <UiButton variant="ghost" @click="showCreateFolderModal = false">Cancel</UiButton>
-              <UiButton @click="handleCreateFolder">Create Folder</UiButton>
+              <UiButton variant="ghost" :disabled="isCreatingFolder" @click="showCreateFolderModal = false">Cancel</UiButton>
+              <UiButton :disabled="isCreatingFolder" @click="handleCreateFolder">
+                {{ isCreatingFolder ? 'Creating...' : 'Create Folder' }}
+              </UiButton>
             </div>
           </div>
         </UiCard>

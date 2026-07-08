@@ -106,14 +106,22 @@ async function submit() {
     amount: newAmount,
   }
 
-  if (props.debtId) {
-    await store.update(props.debtId, data)
-  } else {
-    await store.create(data)
-  }
-  emit('close')
-  if (shouldFetchFromServer()) {
-    dashboardStore.fetchStats()
+  try {
+    if (props.debtId) {
+      await store.update(props.debtId, data)
+    } else {
+      await store.create(data)
+    }
+    emit('close')
+    if (shouldFetchFromServer()) {
+      dashboardStore.fetchStats()
+    }
+  } catch (e) {
+    if (e.response?.data?.message) {
+      balanceError.value = e.response.data.message
+    } else {
+      balanceError.value = 'Failed to save debt. Please check your inputs.'
+    }
   }
 }
 

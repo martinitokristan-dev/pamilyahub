@@ -94,8 +94,10 @@ function onFinanceChanged(e) {
 }
 
 onMounted(() => {
-  loadFeed()
-  if (walletsStore.wallets.length === 0) {
+  if (!store.fetched && !store.loading) {
+    loadFeed()
+  }
+  if (!walletsStore.fetched && !walletsStore.loading) {
     walletsStore.fetchAll().catch(() => {})
   }
   if (route.query.action === 'add') {
@@ -699,13 +701,13 @@ async function confirmPay() {
                 <div class="p-3">
                   <UiLabel class="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-2 block">Title</UiLabel>
                   <UiInput v-if="!viewMode" v-model="form.title" placeholder="Rent, Electric Bill, Netflix…" required class="border-0 bg-muted/50 focus-visible:ring-1 focus-visible:ring-primary/30 h-11" />
-                  <div v-else class="text-base font-medium h-11 flex items-center px-3 bg-muted/20 rounded-md border border-transparent">{{ form.title }}</div>
+                  <div v-else class="text-base font-medium h-11 flex items-center px-3 bg-muted/20 rounded-md border border-transparent text-muted-foreground">{{ form.title }}</div>
                 </div>
 
                 <div class="p-3 pt-1">
                   <UiLabel class="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-2 block">Due Date</UiLabel>
                   <DatePicker v-if="!viewMode" v-model="form.due_date" placeholder="Pick a due date" class="w-full border-0 bg-muted/50" />
-                  <div v-else class="text-base font-medium h-10 flex items-center px-3 bg-muted/20 rounded-md border border-transparent">{{ formatDate(form.due_date) }}</div>
+                  <div v-else class="text-base font-medium h-10 flex items-center px-3 bg-muted/20 rounded-md border border-transparent text-muted-foreground">{{ formatDate(form.due_date) }}</div>
                 </div>
 
                 <div class="p-3 pt-1">
@@ -739,7 +741,7 @@ async function confirmPay() {
                       </div>
                     </div>
                   </div>
-                  <div v-else class="text-base font-medium h-10 flex items-center px-3 bg-muted/20 rounded-md">
+                  <div v-else class="text-base font-medium h-10 flex items-center px-3 bg-muted/20 rounded-md text-muted-foreground">
                     {{ RECURRENCE_OPTIONS.find(o => o.value === (form.recurrence || ''))?.label || 'One-time only' }}
                   </div>
                   <p v-if="!viewMode && form.recurrence" class="text-[11px] text-muted-foreground mt-1.5 leading-snug">
@@ -751,7 +753,7 @@ async function confirmPay() {
               <div class="bg-card rounded-2xl shadow-sm border border-border p-4">
                 <UiLabel class="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-2 block">Description / Notes</UiLabel>
                 <UiTextarea v-if="!viewMode" v-model="form.description" placeholder="Add additional details or account info here…" rows="3" class="bg-muted/50 border-0 focus-visible:ring-1 focus-visible:ring-primary/30 resize-none rounded-xl" />
-                <div v-else class="text-sm font-medium min-h-[60px] bg-muted/20 p-3 rounded-md whitespace-pre-wrap">{{ form.description || 'No description provided.' }}</div>
+                <div v-else class="text-sm font-medium min-h-[60px] bg-muted/20 p-3 rounded-md whitespace-pre-wrap text-muted-foreground">{{ form.description || 'No description provided.' }}</div>
               </div>
               
               <p v-if="formError" class="text-sm font-medium text-destructive mt-4 text-center bg-destructive/10 rounded-xl p-3">{{ formError }}</p>
@@ -760,7 +762,6 @@ async function confirmPay() {
             <!-- Actions -->
             <div v-if="viewMode" class="p-4 bg-background border-t border-border flex items-center gap-3 shrink-0 pb-[max(1rem,env(safe-area-inset-bottom))]">
               <UiButton type="button" variant="secondary" class="flex-1 font-semibold" @click="viewMode = false">
-                <Pencil class="h-4 w-4 mr-2" />
                 Edit
               </UiButton>
               <UiButton v-if="!editingPlan?.is_paid" type="button" class="flex-1 font-bold bg-emerald-600 hover:bg-emerald-700" @click="openPayModal(editingPlan)">

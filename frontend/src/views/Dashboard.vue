@@ -437,7 +437,8 @@ function generateEleFamBubbleLine() {
     const monthlyExpenses = parseFloat(dashboard.stats.monthly_expenses || 0)
     const remaining = parseFloat(dashboard.stats.remaining_salary || 0)
     const iOwe = parseFloat(dashboard.stats.debts_i_owe || 0)
-    const ratio = monthlyIncome > 0 ? monthlyExpenses / monthlyIncome : null
+    // Use cumulative balance (remaining_salary) instead of monthly income for ratio calculation
+    const ratio = remaining > 0 ? monthlyExpenses / remaining : null
     const dailyIncomeBaseline = monthlyIncome > 0 ? (monthlyIncome / 30) : 0
     const {
       topWallet,
@@ -567,22 +568,22 @@ function generateEleFamBubbleLine() {
     }
   }
 
-  // Case 2: Expenses significantly exceed income (ratio >= 1.1)
+  // Case 2: Expenses significantly exceed available balance (ratio >= 1.1)
   if (ratio !== null && ratio >= 1.1) {
     candidates.push({
       severity: 'critical',
       score: ratio,
-      text: `${name}, spending exceeds income. Tighten up!`,
+      text: `${name}, spending exceeds available balance. Tighten up!`,
       rule: 'monthly_ratio_critical',
     })
   }
 
-  // Case 3: Expenses are near income (ratio >= 0.85)
+  // Case 3: Expenses are eating into available balance (ratio >= 0.85)
   if (ratio !== null && ratio >= 0.85 && ratio < 1.1) {
     candidates.push({
       severity: 'warning',
       score: ratio,
-      text: `${name}, budget almost gone. Cut non-essentials!`,
+      text: `${name}, spending high relative to balance. Watch it!`,
       rule: 'monthly_ratio_warning',
     })
   }
@@ -666,13 +667,11 @@ onMounted(async () => {
   // Wave 1: Fetch stats, salary, expenses, and wallets (dashboard-critical)
   const fetches = []
   const currentMonthKey = `dashboard_${new Date().getFullYear()}_${new Date().getMonth() + 1}`
-  if (!dashboard.fetched || dashboard.lastCacheKey !== currentMonthKey) {
+  if ((!dashboard.fetched && !dashboard.loading) || dashboard.lastCacheKey !== currentMonthKey) {
     fetches.push(dashboard.fetchStats())
   }
-  if (!salary.fetched) fetches.push(salary.fetchCurrentMonth())
-  if (!expenses.fetched) fetches.push(expenses.fetchAll())
-  if (!wallets.fetched) fetches.push(wallets.fetchAll())
-  if (!plans.fetched) fetches.push(plans.fetchAll())
+  if (!salary.fetched && !salary.loading) fetches.push(salary.fetchCurrentMonth())
+  if (!expenses.feedItems.length && !expenses.feedLoading) fetches.push(expenses.fetchFeed({ refresh: true }))
   fetches.push(fetchPreviousMonthStats())
 
   try {
@@ -682,15 +681,6 @@ onMounted(async () => {
   }
 
   generateEleFamBubbleLine()
-
-  // Wave 2: Fetch notes only if we have idle time or if they are not fetched
-  if (!notes.fetched) {
-    if ('requestIdleCallback' in window) {
-      window.requestIdleCallback(() => notes.fetchAll())
-    } else {
-      setTimeout(() => notes.fetchAll(), 500)
-    }
-  }
 })
 
 onActivated(() => {
@@ -1026,7 +1016,7 @@ const statCards = computed(() => [
                 </div>
 
                 <!-- Bottom Divider Line (except last item) -->
-                <div v-if="index !== expenses.expenses.slice(0, 5).length - 1" class="absolute bottom-0 left-4 right-4 h-[1px] bg-zinc-200 dark:bg-zinc-800/80 pointer-events-none"></div>
+                <div v-if="index !== recentExpensesList.length - 1" class="absolute bottom-0 left-4 right-4 h-[1px] bg-zinc-200 dark:bg-zinc-800/80 pointer-events-none"></div>
               </div>
             </template>
           </div>

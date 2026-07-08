@@ -54,7 +54,17 @@ const isArchiveRange = computed(() => {
 })
 
 onMounted(() => {
-  dashboardStore.fetchStats()
+  if (!dashboardStore.fetched && !dashboardStore.loading) dashboardStore.fetchStats()
+  
+  if (!store.fetched && !store.loading) {
+    store.fetchFeed({
+      refresh: true,
+      startDate: store.filters.dateFrom,
+      endDate: store.filters.dateTo,
+      search: debouncedSearch.value.trim() || undefined,
+      type: activeTab.value !== 'all' ? activeTab.value : undefined
+    })
+  }
   
   if (route.query.action === 'add') {
     openCreate()
@@ -62,7 +72,8 @@ onMounted(() => {
   }
 })
 
-watch([debouncedSearch, activeTab], () => {
+watch([debouncedSearch, activeTab], (newVal, oldVal) => {
+  if (newVal[0] === oldVal[0] && newVal[1] === oldVal[1]) return
   store.fetchFeed({
     refresh: true,
     startDate: store.filters.dateFrom,
@@ -70,7 +81,7 @@ watch([debouncedSearch, activeTab], () => {
     search: debouncedSearch.value.trim() || undefined,
     type: activeTab.value !== 'all' ? activeTab.value : undefined
   })
-}, { immediate: true })
+})
 
 function openFilterSheet() {
   filterFrom.value = store.filters.dateFrom || ''

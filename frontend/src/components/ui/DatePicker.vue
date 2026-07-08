@@ -7,6 +7,7 @@ const props = defineProps({
   placeholder: { type: String, default: 'Select date' },
   /** Taller trigger styled for filter bottom sheets */
   sheetStyle: { type: Boolean, default: false },
+  disabled: { type: Boolean, default: false },
 })
 const emit = defineEmits(['update:modelValue'])
 
@@ -123,6 +124,7 @@ function selectYear(y) {
 }
 
 function open() {
+  if (props.disabled) return
   const d = parseDate(props.modelValue)
   if (d) { viewYear.value = d.year; viewMonth.value = d.month }
   else { viewYear.value = today.getFullYear(); viewMonth.value = today.getMonth() }
@@ -137,12 +139,14 @@ function open() {
     <button
       type="button"
       @click="open"
+      :disabled="disabled"
       class="flex w-full items-center gap-2.5 border text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
       :class="[
         sheetStyle
           ? 'h-12 rounded-xl border-border bg-background px-3.5 text-sm shadow-sm hover:bg-muted/30'
           : 'h-9 rounded-md border-input bg-transparent px-3 text-sm shadow-sm hover:border-ring',
         displayValue ? 'text-foreground font-medium' : 'text-muted-foreground',
+        disabled ? 'opacity-60 cursor-not-allowed hover:bg-transparent hover:border-input' : '',
       ]"
     >
       <CalendarDays class="h-4 w-4 shrink-0 text-muted-foreground" />

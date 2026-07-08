@@ -6,6 +6,12 @@ import router from '@/router/index.js'
 import { getActivePinia } from 'pinia'
 import { useDashboardStore } from './dashboard.js'
 import { useWalletsStore } from './wallets.js'
+import { useDebtsStore } from './debts.js'
+import { useExpensesStore } from './expenses.js'
+import { useFilesStore } from './files.js'
+import { useNotesStore } from './notes.js'
+import { usePlansStore } from './plans.js'
+import { useSalaryStore } from './salary.js'
 import { cacheSingleGet, cacheSingleSet, cacheSingleRemove, isNetworkError } from '@/lib/offlineDb.js'
 import { revokeGoogleCredential } from '@/lib/googleAuth.js'
 
@@ -118,18 +124,30 @@ export const useAuthStore = defineStore('auth', () => {
       await cacheSingleRemove('user')
     } catch { /* ignore */ }
 
-    // 5. Reset all Pinia stores
-    const pinia = getActivePinia()
-    if (pinia) {
-      Object.values(pinia.state.value).forEach((storeState) => {
-        if ('$reset' in storeState) {
-          storeState.$reset()
-        } else {
-          if ('fetched' in storeState) storeState.fetched = false
-          if ('user' in storeState) storeState.user = null
-        }
-      })
-    }
+    // 5. Explicitly reset all known Pinia stores
+    const storesToReset = [
+      useDashboardStore(),
+      useWalletsStore(),
+      useDebtsStore(),
+      useExpensesStore(),
+      useFilesStore(),
+      useNotesStore(),
+      usePlansStore(),
+      useSalaryStore()
+    ]
+    
+    storesToReset.forEach(store => {
+      if (typeof store.$reset === 'function') {
+        store.$reset()
+      } else {
+        if ('fetched' in store) store.fetched = false
+        if ('cacheTime' in store) store.cacheTime = 0
+        if ('items' in store) store.items = []
+        if ('wallets' in store) store.wallets = []
+        if ('stats' in store) store.stats = null
+        if ('user' in store) store.user = null
+      }
+    })
 
     // 6. Navigate to login BEFORE any network calls (instant UX)
     router.push({ name: 'login' })

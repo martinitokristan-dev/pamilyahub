@@ -472,8 +472,9 @@ class ChatController extends Controller
         ]);
 
         $expenses = Expense::where('user_id', $userId)
-            ->latest()
-            ->limit(10)
+            ->where('is_settled', false)
+            ->latest('date')
+            ->limit(100)
             ->get()
             ->map(fn($e) => [
                 'title' => $e->title,
@@ -567,7 +568,8 @@ class ChatController extends Controller
             . "\"i paid meralco\"           -> expense (electricity bill)\n"
             . "\"pay Ana 300\"              -> debt payment (person's name)\n"
             . "\"nagbayad ako ng netflix\"  -> expense (service, not person)\n"
-            . "11. PLAN PAYMENT AWARENESS — If the user asks to pay a specific bill/service that exactly matches one of their active \"Upcoming Plans (Unpaid)\", suggest using the 'pay plan' command or proceed with paying that plan instead of logging a generic expense.";
+            . "11. PLAN PAYMENT AWARENESS — If the user asks to pay a specific bill/service that exactly matches one of their active \"Upcoming Plans (Unpaid)\", suggest using the 'pay plan' command or proceed with paying that plan instead of logging a generic expense.\n"
+            . "12. SMART CATEGORIZATION — If the user asks about their spending in a specific category (e.g., 'how much did I spend on food this week?', 'did I spend a lot on transportation?'), use the provided 'Recent Expenses' to intelligently categorize and calculate the total. Base your categorization on the 'title' and 'description' of the expenses, not just the hardcoded 'category' string (e.g., if title is 'lunch' or 'jollibee', treat it as food; if 'fare', treat as transport). Give them the calculated total and a brief summary. Do not list all individual expenses unless they explicitly ask for a breakdown.";
 
         $userMessage = $request->input('message');
         $history = $request->input('history', []);

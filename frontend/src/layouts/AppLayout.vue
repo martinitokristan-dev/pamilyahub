@@ -12,6 +12,7 @@ import { useDarkMode } from '@/composables/useDarkMode.js'
 import { useRegisterSW } from 'virtual:pwa-register/vue'
 import { useSalaryStore } from '@/stores/salary.js'
 import { useModalsStore } from '@/stores/modals.js'
+import { usePlansStore } from '@/stores/plans.js'
 
 import WalletModal from '@/components/modals/WalletModal.vue'
 import ExpenseModal from '@/components/modals/ExpenseModal.vue'
@@ -54,6 +55,12 @@ const files = useFilesStore()
 const wallets = useWalletsStore()
 const salary = useSalaryStore()
 const modals = useModalsStore()
+const plans = usePlansStore()
+
+// noteFolders is handled internally by useNotesStore.fetchAll(). We define a stub to satisfy the prefetch call.
+const noteFolders = {
+  fetchAll: () => Promise.resolve()
+}
 const route = useRoute()
 const router = useRouter()
 const { isDark } = useDarkMode()
@@ -176,12 +183,23 @@ onMounted(async () => {
 
   // Hydrate user and fetch global UI data
   if (auth.user) {
+    // Wave 1: Fetch critical financial data in parallel
     Promise.all([
-      wallets.fetchAll(),
-      salary.fetchCurrentMonth(),
-      dashboard.fetchStats(), // Keep stats for header/general availability
-      // expenses.fetchAll() // Removed: Dashboard.vue or Expenses.vue will own this
+      !salary.fetched && !salary.loading ? salary.fetchCurrentMonth() : Promise.resolve(),
+      !dashboard.fetched && !dashboard.loading ? dashboard.fetchStats() : Promise.resolve(),
+      !wallets.fetched && !wallets.loading ? wallets.fetchAll() : Promise.resolve(),
+      !expenses.feedItems.length && !expenses.feedLoading ? expenses.fetchFeed({ refresh: true }) : Promise.resolve(),
+      !plans.fetched && !plans.loading ? plans.fetchAll() : Promise.resolve(),
     ]).catch(() => {})
+
+    // Wave 2: Fetch notes, folders, and debts in background to warm cache
+    setTimeout(() => {
+      Promise.all([
+        !notes.fetched && !notes.loading ? notes.fetchAll() : Promise.resolve(),
+        noteFolders.fetchAll(),
+        !debts.fetched && !debts.loading ? debts.fetchAll() : Promise.resolve(),
+      ]).catch(() => {})
+    }, 200)
   }
 })
 
@@ -268,6 +286,9 @@ const hideNavigationAndAi = computed(() => {
     || route.path === '/admin/api-usage'
     || route.path === '/admin/ai-logs'
 })
+const hideBottomNav = computed(() => {
+  return hideNavigationAndAi.value || (route.path === '/notes' && notes.activeFolderId)
+})
 
 function isActive(path) {
   if (path === '/') return route.path === '/'
@@ -337,7 +358,7 @@ function isActive(path) {
       <main 
         class="flex-1 overflow-y-auto bg-background dark:bg-zinc-950"
         :class="[
-          hideNavigationAndAi ? 'pb-6' : 'pb-32 xl:pb-0',
+          hideBottomNav ? 'pb-6' : 'pb-32 xl:pb-0',
           {
             'hide-balances-active': auth.user?.hide_balances,
             'hide-stats-active': auth.user?.hide_stats
@@ -352,7 +373,7 @@ function isActive(path) {
       </main>
 
       <!-- Mobile Bottom Navigation -->
-      <nav v-if="!hideNavigationAndAi" class="fixed bottom-0 inset-x-0 z-[60] xl:hidden pb-safe flex justify-center px-4 mb-6">
+      <nav v-if="!hideBottomNav" class="fixed bottom-0 inset-x-0 z-[60] xl:hidden pb-safe flex justify-center px-4 mb-6">
         <!-- Backdrop to close Menus -->
         <div 
           v-if="showMoreMenu || showSpeedDial" 

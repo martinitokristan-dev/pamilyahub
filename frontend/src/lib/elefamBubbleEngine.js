@@ -74,13 +74,13 @@ export const SCOLD_WEEK = [
 ]
 
 export const SCOLD_MONTH_RATIO = [
-  '{name}, halos ubos na ang budget vs kita this month. Higpit ng sinturon — hindi naman permanenteng summer sale ang life.',
-  'Lagpas na tayo sa kita, {name}. Gastos > income — hindi tayo ATM ng shopee. Ayusin natin slowly.',
+  '{name}, mataas ang spending vs available balance mo. Higpit ng sinturon — hindi naman permanenteng summer sale ang life.',
+  'Medyo mataas na gastos relative sa balance, {name}. Spending > balance — hindi tayo ATM ng shopee. Ayusin natin slowly.',
 ]
 
 export const SCOLD_NEAR_BUDGET = [
-  '{name}, 85% na ng budget mo for the month. Konting gala na lang, baka maubusan ng buffer bago sweldo.',
-  'Lapit na maubos ang monthly budget, {name}. Kape sa labas muna — 3-in-1 muna tayo, charot pero totoo.',
+  '{name}, spending mo is getting high relative sa balance. Konting gala na lang, baka maubusan ng buffer.',
+  'Medyo mataas na spending relative to balance, {name}. Kape sa labas muna — 3-in-1 muna tayo, charot pero totoo.',
 ]
 
 export const SCOLD_DEPOSIT_BUT_SPEND = [
@@ -167,7 +167,8 @@ export function buildElefamBubbleCandidates(ctx) {
     formatMoney,
   } = ctx
 
-  const ratio = monthlyIncome > 0 ? monthlyExpenses / monthlyIncome : null
+  // Use cumulative balance (remaining) instead of monthly income for ratio calculation
+  const ratio = remaining > 0 ? monthlyExpenses / remaining : null
   const dailyIncomeBaseline = monthlyIncome > 0 ? monthlyIncome / 30 : 0
   const candidates = []
   const vars = (extra = {}) => ({ name, ...extra })

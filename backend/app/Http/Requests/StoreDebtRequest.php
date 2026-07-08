@@ -15,12 +15,12 @@ class StoreDebtRequest extends FormRequest
     {
         return [
             'name'        => ['required', 'string', 'max:255'],
-            'amount'      => ['required', 'numeric', 'min:0'],
+            'amount'      => ['required', 'numeric', 'min:0.01'],
             'type'        => ['required', 'in:owed_to_me,i_owe'],
             'description' => ['nullable', 'string'],
             'due_date'    => ['nullable', 'date'],
             'is_paid'     => ['sometimes', 'boolean'],
-            'wallet_id'   => ['nullable', 'integer', 'exists:wallets,id'],
+            'wallet_id'   => ['nullable', 'integer', \Illuminate\Validation\Rule::exists('wallets', 'id')->where('user_id', auth()->id())],
         ];
     }
 }

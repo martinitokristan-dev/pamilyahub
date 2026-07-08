@@ -106,16 +106,16 @@ class WalletController extends Controller
         };
 
         $parts = [];
-        if ($useActive && Schema::hasTable('expenses')) {
+        if ($useActive && \App\Support\ArchivedFeedQuery::tableExists('expenses')) {
             $parts[] = $buildExpenseQuery('expenses');
         }
-        if ($useArchive && Schema::hasTable('expense_archives')) {
+        if ($useArchive && \App\Support\ArchivedFeedQuery::tableExists('expense_archives')) {
             $parts[] = $buildExpenseQuery('expense_archives');
         }
-        if ($useActive && Schema::hasTable('incomes')) {
+        if ($useActive && \App\Support\ArchivedFeedQuery::tableExists('incomes')) {
             $parts[] = $buildIncomeQuery('incomes');
         }
-        if ($useArchive && Schema::hasTable('income_archives')) {
+        if ($useArchive && \App\Support\ArchivedFeedQuery::tableExists('income_archives')) {
             $parts[] = $buildIncomeQuery('income_archives');
         }
 

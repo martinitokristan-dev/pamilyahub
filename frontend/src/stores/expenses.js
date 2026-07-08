@@ -186,6 +186,7 @@ export const useExpensesStore = defineStore("expenses", () => {
       notifyFinanceActivity({ type: "expense", action: "create" });
       return res.data.data;
     } catch (e) {
+      console.error('Expense creation failed:', e.response?.data)
       if (isNetworkError(e)) return _createOffline(data);
       throw e;
     } finally {

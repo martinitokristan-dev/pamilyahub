@@ -17,6 +17,7 @@ class DebtService
         private WalletRepository  $walletRepository,
         private UserStatsService  $stats,
         private ExpenseRepository $expenseRepository,
+        private \App\Services\DashboardCacheService $cache
     ) {}
 
     public function getAll(int $userId, ?string $type = null, ?string $search = null): Collection
@@ -79,7 +80,7 @@ class DebtService
                 $this->stats->adjust($userId, 'debts_i_owe', (float) $data['amount']);
             }
 
-            \App\Http\Controllers\DashboardController::invalidateCache($userId);
+            $this->cache->invalidate($userId);
             return $debt;
         });
     }
@@ -154,7 +155,7 @@ class DebtService
             // Subtract from the appropriate debt field
             $field = $debt->type === 'i_owe' ? 'debts_i_owe' : 'debts_owed_to_me';
             $this->stats->adjust($userId, $field, -$amount);
-            \App\Http\Controllers\DashboardController::invalidateCache($userId);
+            $this->cache->invalidate($userId);
             return $result;
         });
     }
@@ -185,7 +186,7 @@ class DebtService
             // Adjust stats
             $field = $debt->type === 'i_owe' ? 'debts_i_owe' : 'debts_owed_to_me';
             $this->stats->adjust($userId, $field, -$amount);
-            \App\Http\Controllers\DashboardController::invalidateCache($userId);
+            $this->cache->invalidate($userId);
 
             // If it's a debt I OWE, log partial payment as an expense
             if ($debt->type === 'i_owe') {
@@ -243,7 +244,7 @@ class DebtService
                 $field = $debt->type === 'i_owe' ? 'debts_i_owe' : 'debts_owed_to_me';
                 $this->stats->adjust($userId, $field, -(float) $debt->amount);
             }
-            \App\Http\Controllers\DashboardController::invalidateCache($userId);
+            $this->cache->invalidate($userId);
             return true;
         });
     }

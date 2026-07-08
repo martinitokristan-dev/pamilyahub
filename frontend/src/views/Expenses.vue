@@ -40,8 +40,8 @@ const showTransactionDetails = ref(false)
 const selectedTransaction = ref(null)
 
 onMounted(() => {
-  dashboard.fetchStats({ month: selectedMonth.value, year: selectedYear.value })
-  if (!walletsStore.fetched) walletsStore.fetchAll()
+  if (!dashboard.fetched && !dashboard.loading) dashboard.fetchStats({ month: selectedMonth.value, year: selectedYear.value })
+  if (!walletsStore.fetched && !walletsStore.loading) walletsStore.fetchAll()
   if (route.query.action === 'add') {
     modals.openExpenseModal(null, route.query.wallet_id)
     router.replace({ query: { ...route.query, action: undefined, wallet_id: undefined } })
@@ -102,14 +102,15 @@ const spendingPercentage = computed(() => {
 })
 
 // Fetch feed on search changes (filters are applied explicitly)
-watch(debouncedSearch, () => {
+watch(debouncedSearch, (newVal, oldVal) => {
+  if (newVal === oldVal) return
   store.fetchFeed({
     refresh: true,
     startDate: store.filters.dateFrom,
     endDate: store.filters.dateTo,
     search: debouncedSearch.value.trim() || undefined,
   })
-}, { immediate: true })
+})
 
 // Display expenses combines the backend cursor feed items with any local/offline pending items
 const displayExpenses = computed(() => {
@@ -429,6 +430,9 @@ function loadMoreFeed() {
               </template>
               <template v-else>
                 {{ expense.title }}
+                <span v-if="expense.receipt_items && expense.receipt_items.itemCount" class="text-muted-foreground font-normal">
+                  - {{ expense.receipt_items.itemCount }} {{ expense.receipt_items.itemCount === 1 ? 'item' : 'items' }}
+                </span>
               </template>
             </span>
           </div>

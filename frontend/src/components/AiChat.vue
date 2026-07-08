@@ -203,6 +203,8 @@ async function sendMessage(rawText = input.value) {
   }
 }
 
+const rulesLoaded = ref(false)
+
 function openChat() {
   if (!isOpen.value) {
     window.history.pushState({ elefamChatOpen: true }, '')
@@ -211,6 +213,14 @@ function openChat() {
   isOpen.value = true
   chatOpen.value = true
   scrollToBottom()
+
+  if (!rulesLoaded.value) {
+    rulesLoaded.value = true
+    loadRemoteChatRules().catch(err => {
+      console.warn('Failed to load remote chat rules:', err)
+      rulesLoaded.value = false
+    })
+  }
 }
 
 function closeChat() {
@@ -262,9 +272,6 @@ function handleExternalOpenChat() {
 }
 
 onMounted(async () => {
-  // Load remote chat rules/vocabulary dynamically
-  loadRemoteChatRules().catch(err => console.warn('Failed to load remote chat rules:', err))
-
   window.addEventListener('popstate', handlePopState)
   window.addEventListener('pamilya:open-chat', handleExternalOpenChat)
   

@@ -6,8 +6,6 @@ use App\Repositories\SalaryDepositRepository;
 use App\Repositories\IncomeRepository;
 use App\Repositories\WalletRepository;
 use App\Services\ExpenseService;
-use App\Services\UserStatsService;
-use App\Http\Controllers\DashboardController;
 use Illuminate\Support\Facades\DB;
 
 class SalaryDepositService
@@ -18,6 +16,7 @@ class SalaryDepositService
         private WalletRepository        $walletRepo,
         private ExpenseService          $expenseService,
         private UserStatsService        $statsService,
+        private \App\Services\DashboardCacheService $cache
     ) {}
 
     /**
@@ -63,9 +62,10 @@ class SalaryDepositService
         float  $totalAmount,
         float  $alreadySpent,
         array  $walletAllocations,
-        ?string $notes = null
+        ?string $notes = null,
+        ?int    $alreadySpentWalletId = null
     ): void {
-        DB::transaction(function () use ($userId, $totalAmount, $alreadySpent, $walletAllocations, $notes) {
+        DB::transaction(function () use ($userId, $totalAmount, $alreadySpent, $walletAllocations, $notes, $alreadySpentWalletId) {
             $now       = now();
             $isDelayed = $now->day > 10;
 
@@ -102,13 +102,13 @@ class SalaryDepositService
                     'amount'      => $alreadySpent,
                     'description' => 'Pre-existing spending logged during salary deposit',
                     'date'        => $now->toDateString(),
-                    'wallet_id'   => null,
+                    'wallet_id'   => $alreadySpentWalletId,
                 ]);
             }
 
             // 2.6 Update cumulative income stat and refresh dashboard cache for this month
             $this->statsService->adjust($userId, 'income_total', $totalAmount);
-            DashboardController::invalidateCache($userId, $now->year, $now->month);
+            $this->cache->invalidate($userId, $now->year, $now->month);
         });
     }
 
@@ -119,7 +119,7 @@ class SalaryDepositService
             if (!$deposit || $deposit->user_id !== $userId) return;
 
             $this->depositRepo->update($deposit, $data);
-            DashboardController::invalidateCache($userId);
+            $this->cache->invalidate($userId);
         });
     }
 
@@ -130,7 +130,7 @@ class SalaryDepositService
             if (!$deposit || $deposit->user_id !== $userId) return;
 
             $this->depositRepo->delete($deposit);
-            DashboardController::invalidateCache($userId);
+            $this->cache->invalidate($userId);
         });
     }
 }

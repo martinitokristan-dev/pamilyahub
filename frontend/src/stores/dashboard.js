@@ -83,15 +83,9 @@ export const useDashboardStore = defineStore("dashboard", () => {
   function adjustStat(key, delta) {
     const current = parseFloat(stats.value[key] ?? 0);
     stats.value[key] = current + delta;
-    if (stats.value.remaining_salary === undefined) return;
-    if (key === "monthly_expenses") {
-      stats.value.remaining_salary =
-        parseFloat(stats.value.remaining_salary ?? 0) - delta;
-    }
-    if (key === "monthly_income") {
-      stats.value.remaining_salary =
-        parseFloat(stats.value.remaining_salary ?? 0) + delta;
-    }
+    // NOTE: remaining_salary is now calculated from wallet balances by the backend,
+    // not derived from monthly_income and monthly_expenses adjustments.
+    // The obsolete adjustment logic has been removed as part of the cumulative budget fix.
   }
 
   function invalidate(filters = {}) {

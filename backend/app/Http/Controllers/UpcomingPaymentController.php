@@ -81,7 +81,7 @@ class UpcomingPaymentController extends Controller
         $parts = [];
         if ($useActive)
             $parts[] = $buildQuery('upcoming_payments');
-        if ($useArchive && \Illuminate\Support\Facades\Schema::hasTable('upcoming_payment_archives')) {
+        if ($useArchive && \App\Support\ArchivedFeedQuery::tableExists('upcoming_payment_archives')) {
             $parts[] = $buildQuery('upcoming_payment_archives');
         }
 
@@ -169,16 +169,9 @@ class UpcomingPaymentController extends Controller
         ]);
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(\App\Http\Requests\StoreUpcomingPaymentRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'title' => 'required|string|max:255',
-            'amount' => 'required|numeric|min:0.01',
-            'description' => 'nullable|string|max:1000',
-            'due_date' => 'required|date',
-            'category' => 'nullable|string|max:100',
-            'recurrence' => 'nullable|string|in:weekly,monthly,yearly',
-        ]);
+        $validated = $request->validated();
 
         $validated['user_id'] = $request->user()->id;
         $validated['is_paid'] = false;
@@ -193,18 +186,11 @@ class UpcomingPaymentController extends Controller
         return $this->success($payment, 'Upcoming payment created', 201);
     }
 
-    public function update(Request $request, int $id): JsonResponse
+    public function update(\App\Http\Requests\StoreUpcomingPaymentRequest $request, int $id): JsonResponse
     {
         $payment = UpcomingPayment::where('user_id', $request->user()->id)->findOrFail($id);
 
-        $validated = $request->validate([
-            'title' => 'required|string|max:255',
-            'amount' => 'required|numeric|min:0.01',
-            'description' => 'nullable|string|max:1000',
-            'due_date' => 'required|date',
-            'category' => 'nullable|string|max:100',
-            'recurrence' => 'nullable|string|in:weekly,monthly,yearly',
-        ]);
+        $validated = $request->validated();
 
         if (array_key_exists('recurrence', $validated) && $validated['recurrence'] === '') {
             $validated['recurrence'] = null;
@@ -236,7 +222,11 @@ class UpcomingPaymentController extends Controller
         }
 
         $validated = $request->validate([
-            'wallet_id' => 'nullable|integer|exists:wallets,id',
+            'wallet_id' => [
+                'nullable',
+                'integer',
+                \Illuminate\Validation\Rule::exists('wallets', 'id')->where('user_id', $request->user()->id)
+            ],
             'amount' => 'nullable|numeric|min:0.01',
             'is_partial' => 'nullable|boolean',
             'new_due_date' => 'nullable|date',

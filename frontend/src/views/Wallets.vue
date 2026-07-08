@@ -20,7 +20,7 @@ const route = useRoute()
 const router = useRouter()
 
 onMounted(() => {
-  store.fetchAll()
+  if (!store.fetched && !store.loading) store.fetchAll()
   if (route.query.action === 'add') {
     modals.openWalletModal()
     router.replace({ query: { ...route.query, action: undefined } })

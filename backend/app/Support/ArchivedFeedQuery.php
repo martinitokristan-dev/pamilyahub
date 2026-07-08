@@ -12,6 +12,15 @@ class ArchivedFeedQuery
         return now()->subMonths(6)->startOfDay()->format('Y-m-d');
     }
 
+    public static function tableExists(string $tableName): bool
+    {
+        static $cache = [];
+        if (!isset($cache[$tableName])) {
+            $cache[$tableName] = \Illuminate\Support\Facades\Schema::hasTable($tableName);
+        }
+        return $cache[$tableName];
+    }
+
     /**
      * Whether the active (non-archive) table should be queried for this range.
      */

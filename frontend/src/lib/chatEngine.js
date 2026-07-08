@@ -1269,7 +1269,7 @@ async function ensureLoaded() {
   // Use a Promise.all but with a short timeout or just don't block if we have cached data
   // For offline first, if we have local data, we can proceed.
   const loaders = [];
-  if (!wallets.fetched) loaders.push(wallets.fetchAll().catch(() => { }));
+  if (!wallets.fetched && !wallets.loading) loaders.push(wallets.fetchAll().catch(() => { }));
   if (!expenses.fetched) loaders.push(expenses.fetchAll().catch(() => { }));
   if (!debts.fetched) loaders.push(debts.fetchAll().catch(() => { }));
   if (!dashboard.fetched) loaders.push(dashboard.fetchStats().catch(() => { }));
@@ -3450,7 +3450,7 @@ export async function processEleFamMessage(
   // Determine if local NLU matched confidently and completely
   const mappedIntentForType = nluResult.matched ? _mapNluIntent(nluResult.intent, nluResult.entities || {}) : null;
   const intentType = mappedIntentForType ? getIntentType(mappedIntentForType) : null;
-  const isActionIntent = intentType === "action";
+  let isActionIntent = intentType === "action";
 
   let isConfidentAndComplete = false;
   if (nluResult.matched && nluResult.intent !== "unknown" && nluResult.intent !== "ambiguous" && nluResult.intent !== "out_of_scope") {
@@ -3498,9 +3498,16 @@ export async function processEleFamMessage(
       const aiData = interpretResponse.data.data;
 
       // If the AI identified an action, route it through local execution
+      // EXCEPTION: query intents that require smart logic should fall through to the conversational AI
+      const AI_QUERY_INTENTS = new Set(["query_expenses", "query_debts", "query_budget", "query_balance"]);
       if (aiData.action && aiData.action !== "reply") {
-        const result = await executeAiAction(aiData, interpretResponse.data.provider, text, sessionId);
-        if (result) return result;
+        if (AI_QUERY_INTENTS.has(aiData.action)) {
+          // The AI correctly classified this as a query, overriding any potential local misclassification
+          isActionIntent = false;
+        } else {
+          const result = await executeAiAction(aiData, interpretResponse.data.provider, text, sessionId);
+          if (result) return result;
+        }
       }
 
       // If AI returned a reply (not an action), show it as text

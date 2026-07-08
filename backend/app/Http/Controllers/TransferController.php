@@ -15,15 +15,9 @@ class TransferController extends Controller
         private TransferService $transferService
     ) {}
 
-    public function store(Request $request): JsonResponse
+    public function store(\App\Http\Requests\StoreTransferRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'from_wallet_id' => 'required|integer|exists:wallets,id',
-            'to_wallet_id' => 'required|integer|exists:wallets,id',
-            'amount' => 'required|numeric|min:0.01',
-            'date' => 'required|date',
-            'description' => 'nullable|string',
-        ]);
+        $validated = $request->validated();
 
         $fromWallet = \App\Models\Wallet::where('user_id', $request->user()->id)->find($validated['from_wallet_id']);
         if (!$fromWallet) return $this->error('Source wallet not found', 404);

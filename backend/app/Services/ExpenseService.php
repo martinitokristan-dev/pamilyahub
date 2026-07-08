@@ -13,7 +13,8 @@ class ExpenseService
     public function __construct(
         private ExpenseRepository $repository,
         private WalletRepository  $walletRepository,
-        private UserStatsService  $stats
+        private UserStatsService  $stats,
+        private \App\Services\DashboardCacheService $cache
     ) {}
 
     public function getAll(int $userId, array $filters = []): Collection
@@ -32,7 +33,7 @@ class ExpenseService
             }
 
             $this->stats->adjust($userId, 'expenses_total', (float) $data['amount']);
-            \App\Http\Controllers\DashboardController::invalidateCache($userId);
+            $this->cache->invalidate($userId);
             return $expense->load('wallet');
         });
     }
@@ -59,7 +60,7 @@ class ExpenseService
 
             $result = $this->repository->update($expense, $data);
             $this->stats->adjust($userId, 'expenses_total', $newAmount - $oldAmount);
-            \App\Http\Controllers\DashboardController::invalidateCache($userId);
+            $this->cache->invalidate($userId);
             return $result->load('wallet');
         });
     }
@@ -77,7 +78,7 @@ class ExpenseService
 
             $this->repository->delete($expense);
             $this->stats->adjust($userId, 'expenses_total', -(float) $expense->amount);
-            \App\Http\Controllers\DashboardController::invalidateCache($userId);
+            $this->cache->invalidate($userId);
             return true;
         });
     }
