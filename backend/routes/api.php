@@ -7,6 +7,7 @@ use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\FileController;
 use App\Http\Controllers\NoteController;
 use App\Http\Controllers\NoteFolderController;
+use App\Http\Controllers\NoteOcrController;
 use App\Http\Controllers\IncomeController;
 use App\Http\Controllers\SalaryDepositController;
 use App\Http\Controllers\WalletController;
@@ -43,6 +44,7 @@ Route::middleware(['auth:sanctum', 'track_activity'])->group(function () {
 
     Route::get('dashboard/stats', [DashboardController::class, 'stats']);
 
+    Route::post('notes/extract-text-from-image', [NoteOcrController::class, 'extractText']);
     Route::apiResource('notes', NoteController::class)->only(['index', 'store', 'update', 'destroy']);
     Route::apiResource('note-folders', NoteFolderController::class)->only(['index', 'store', 'destroy']);
     Route::get('expenses/feed', [ExpenseController::class, 'feed']);

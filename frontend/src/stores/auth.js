@@ -51,6 +51,7 @@ export const useAuthStore = defineStore('auth', () => {
       }
 
       router.push({ name: 'dashboard' })
+      window.dispatchEvent(new CustomEvent('pamilya:auth-ready'))
     } catch (e) {
       error.value = e.response?.data?.message ?? 'Registration failed'
     } finally {
@@ -97,6 +98,7 @@ export const useAuthStore = defineStore('auth', () => {
       }
 
       router.push({ name: 'dashboard' })
+      window.dispatchEvent(new CustomEvent('pamilya:auth-ready'))
     } catch (e) {
       error.value = e.response?.data?.message ?? 'Login failed'
       // Throw the error so the component knows login failed
@@ -165,6 +167,7 @@ export const useAuthStore = defineStore('auth', () => {
       const res = await authService.me()
       user.value = res.data.data
       await cacheSingleSet('user', user.value)
+      window.dispatchEvent(new CustomEvent('pamilya:auth-ready'))
       return res.data.data
     } catch (e) {
       // Don't clear user on network errors — keep the cached value so UI stays intact offline
@@ -205,6 +208,7 @@ export const useAuthStore = defineStore('auth', () => {
       }
 
       router.push({ name: 'dashboard' })
+      window.dispatchEvent(new CustomEvent('pamilya:auth-ready'))
     } catch (e) {
       error.value = e.response?.data?.message ?? 'Google sign-in failed'
       throw e

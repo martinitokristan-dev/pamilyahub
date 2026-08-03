@@ -54,6 +54,14 @@ export async function retryFailedEntries() {
 export async function initSyncEngine() {
   await refreshPendingCount()
   window.addEventListener('online', handleOnline)
+  window.addEventListener('pamilya:auth-ready', handleOnline)
+  // Retry previously failed items after login / app load
+  const db = await getDb()
+  const failed = await db.getAllFromIndex('outbox', 'by_status', 'failed')
+  for (const entry of failed) {
+    await outboxUpdate(entry.id, { status: 'pending', tries: 0 })
+  }
+  await refreshPendingCount()
   if (navigator.onLine) drainOutbox()
 }
 
@@ -101,10 +109,16 @@ async function processEntry(entry) {
       window.dispatchEvent(new CustomEvent('pamilya:sync-auth-error'))
       return true
     }
-    if (err.response && err.response.status >= 400 && err.response.status < 500) {
+    const status = err.response?.status
+    // Unrecoverable — record missing or invalid; drop so banner clears
+    if (status === 404 || status === 422) {
+      await outboxRemove(entry.id)
+      return false
+    }
+    if (err.response && status >= 400 && status < 500) {
       await outboxUpdate(entry.id, {
         status: 'failed',
-        lastError: err.response?.data?.message || `Client error ${err.response.status}`,
+        lastError: err.response?.data?.message || `Client error ${status}`,
       })
       window.dispatchEvent(
         new CustomEvent('pamilya:sync-failed', {

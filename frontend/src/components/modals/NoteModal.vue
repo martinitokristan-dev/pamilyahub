@@ -2,13 +2,17 @@
 import { ref, watch, onBeforeUnmount, nextTick } from 'vue'
 import { useNotesStore } from '@/stores/notes.js'
 import { useDashboardStore } from '@/stores/dashboard.js'
-import { Check, Undo, Redo, Pencil } from 'lucide-vue-next'
+import { Check, Undo, Redo, Pencil, Camera, Loader2, Copy, ClipboardCopy } from 'lucide-vue-next'
 import AppBackButton from '@/components/AppBackButton.vue'
 import { Editor, EditorContent } from '@tiptap/vue-3'
 import { BubbleMenu } from '@tiptap/vue-3/menus'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
+import { Table, TableRow, TableCell, TableHeader } from '@tiptap/extension-table'
 import { shouldFetchFromServer } from '@/lib/syncEngine.js'
+import { useNoteImageOcr } from '@/composables/useNoteImageOcr.js'
+import { copyEditorToClipboard, installRichCopyHandler } from '@/utils/noteClipboard.js'
+import { useToast } from '@/composables/useToast.js'
 
 const props = defineProps({
   show: Boolean,
@@ -20,21 +24,144 @@ const emit = defineEmits(['close'])
 
 const store = useNotesStore()
 const dashboardStore = useDashboardStore()
+const toast = useToast()
+const { isExtracting, extractProgress, extractSource, processImageFile } = useNoteImageOcr()
 
 const form = ref({ title: '', content: '', folder_id: null })
 const editor = ref(null)
+const editorAreaRef = ref(null)
+const imageInputRef = ref(null)
 const expandTools = ref(false)
 const currentEditorHTML = ref('')
 const isMobile = ref(window.innerWidth < 640)
 const autoSaveTimer = ref(null)
 const isSaving = ref(false)
 const editingModeId = ref(null)
+let removeCopyHandler = null
+
+const contextMenu = ref({ show: false, x: 0, y: 0 })
+const longPressTimer = ref(null)
+const longPressTriggered = ref(false)
+const LONG_PRESS_MS = 450
 
 const handleResize = () => isMobile.value = window.innerWidth < 640
+
+function hideContextMenu() {
+  if (menuOpenGuard.value) return
+  contextMenu.value.show = false
+}
+
+const menuOpenGuard = ref(false)
+
+function showContextMenu(clientX, clientY) {
+  const menuWidth = 220
+  const menuHeight = 48
+  const x = Math.min(clientX, window.innerWidth - menuWidth - 12)
+  const y = Math.min(clientY, window.innerHeight - menuHeight - 12)
+  contextMenu.value = { show: true, x, y }
+  menuOpenGuard.value = true
+  setTimeout(() => { menuOpenGuard.value = false }, 350)
+}
+
+function triggerImagePicker() {
+  hideContextMenu()
+  imageInputRef.value?.click()
+}
+
+async function handleImageSelected(event) {
+  const file = event.target.files?.[0]
+  event.target.value = ''
+  if (!file || !editor.value) return
+  await processImageFile(file, editor.value, 'upload')
+}
+
+async function handlePastedImage(file) {
+  if (!file || !editor.value || isExtracting.value) return
+  await processImageFile(file, editor.value, 'paste')
+}
+
+async function copyNoteContent(selectAllFirst = false) {
+  if (!editor.value) return
+  if (selectAllFirst) {
+    editor.value.commands.focus()
+    editor.value.commands.selectAll()
+  }
+  const ok = await copyEditorToClipboard(editor.value)
+  if (ok) toast.success('Copied to clipboard')
+  else toast.error('Could not copy to clipboard')
+}
+
+function selectAllContent() {
+  editor.value?.commands.focus()
+  editor.value?.commands.selectAll()
+}
+
+function getImageFromClipboardEvent(event) {
+  const cd = event.clipboardData
+  if (!cd) return null
+
+  if (cd.files?.length) {
+    for (const file of cd.files) {
+      if (file.type?.startsWith('image/')) return file
+    }
+  }
+
+  for (const item of cd.items || []) {
+    if (item.type?.startsWith('image/')) {
+      return item.getAsFile()
+    }
+  }
+
+  return null
+}
+
+function onDocumentPaste(event) {
+  if (!props.show || isExtracting.value) return
+
+  const file = getImageFromClipboardEvent(event)
+  if (!file) return
+
+  event.preventDefault()
+  event.stopPropagation()
+  handlePastedImage(file)
+}
+
+function onEditorContextMenu(event) {
+  event.preventDefault()
+  showContextMenu(event.clientX, event.clientY)
+}
+
+function onEditorTouchStart(event) {
+  if (event.touches.length !== 1) return
+  longPressTriggered.value = false
+  const touch = event.touches[0]
+
+  longPressTimer.value = setTimeout(() => {
+    longPressTriggered.value = true
+    if (navigator.vibrate) navigator.vibrate(15)
+    showContextMenu(touch.clientX, touch.clientY)
+  }, LONG_PRESS_MS)
+}
+
+function onEditorTouchEnd() {
+  if (longPressTimer.value) {
+    clearTimeout(longPressTimer.value)
+    longPressTimer.value = null
+  }
+}
+
+function onEditorTouchMove() {
+  if (longPressTimer.value) {
+    clearTimeout(longPressTimer.value)
+    longPressTimer.value = null
+  }
+}
 
 watch(() => props.show, (val) => {
   if (val) {
     window.addEventListener('resize', handleResize)
+    document.addEventListener('click', hideContextMenu)
+    document.addEventListener('paste', onDocumentPaste, true)
     editingModeId.value = props.noteId
 
     if (props.noteId) {
@@ -62,14 +189,22 @@ watch(() => props.show, (val) => {
     }
   } else {
     window.removeEventListener('resize', handleResize)
+    document.removeEventListener('click', hideContextMenu)
+    document.removeEventListener('paste', onDocumentPaste, true)
+    hideContextMenu()
     closeEditor(false) // don't emit close again
   }
 })
 
 onBeforeUnmount(() => {
   if (autoSaveTimer.value) clearTimeout(autoSaveTimer.value)
+  if (longPressTimer.value) clearTimeout(longPressTimer.value)
+  removeCopyHandler?.()
+  removeCopyHandler = null
   if (editor.value) editor.value.destroy()
   window.removeEventListener('resize', handleResize)
+  document.removeEventListener('click', hideContextMenu)
+  document.removeEventListener('paste', onDocumentPaste, true)
 })
 
 function scheduleAutoSave() {
@@ -119,8 +254,14 @@ function initEditor(content = '') {
   editor.value = new Editor({
     extensions: [
       StarterKit,
+      Table.configure({ resizable: false }),
+      TableRow,
+      TableHeader,
+      TableCell,
       Placeholder.configure({
-        placeholder: 'Start writing…',
+        placeholder: isMobile.value
+          ? 'Write here… Paste a screenshot or long-press to upload'
+          : 'Write here… Ctrl+V to paste a screenshot, or right-click to upload',
       }),
     ],
     content: content,
@@ -130,6 +271,38 @@ function initEditor(content = '') {
         spellcheck: 'true',
         autocorrect: 'on',
       },
+      handleDOMEvents: {
+        contextmenu: (_view, event) => {
+          onEditorContextMenu(event)
+          return true
+        },
+      },
+      handlePaste: (_view, event) => {
+        const file = getImageFromClipboardEvent(event)
+        if (file) {
+          event.preventDefault()
+          handlePastedImage(file)
+          return true
+        }
+        return false
+      },
+      handleKeyDown: (_view, event) => {
+        const mod = event.ctrlKey || event.metaKey
+        if (mod && event.key.toLowerCase() === 'a') {
+          selectAllContent()
+          return true
+        }
+        if (mod && event.shiftKey && event.key.toLowerCase() === 'c') {
+          event.preventDefault()
+          copyNoteContent(true)
+          return true
+        }
+        return false
+      },
+    },
+    onCreate({ editor: e }) {
+      removeCopyHandler?.()
+      removeCopyHandler = installRichCopyHandler(e)
     },
     onUpdate({ editor: e }) {
       currentEditorHTML.value = e.getHTML()
@@ -154,6 +327,8 @@ function closeEditor(shouldEmit = true) {
     editor.value.destroy()
     editor.value = null
   }
+  removeCopyHandler?.()
+  removeCopyHandler = null
   
   if (shouldEmit) {
     emit('close')
@@ -170,6 +345,16 @@ function closeEditor(shouldEmit = true) {
           <AppBackButton @click="closeEditor(true)" />
 
           <div class="flex items-center gap-2">
+            <!-- Copy all -->
+            <button
+              type="button"
+              title="Copy all (Ctrl+Shift+C)"
+              @click="copyNoteContent(true)"
+              class="hidden sm:flex w-10 h-10 rounded-full border border-border items-center justify-center text-foreground hover:bg-muted transition-all active:scale-90"
+            >
+              <ClipboardCopy class="h-4 w-4" />
+            </button>
+
             <!-- Undo/Redo Pill -->
             <div class="flex items-center border border-border rounded-full overflow-hidden bg-card/50">
               <button
@@ -209,8 +394,47 @@ function closeEditor(shouldEmit = true) {
               class="w-full bg-transparent text-2xl sm:text-3xl font-bold text-foreground placeholder:text-muted-foreground/40 border-none outline-none mb-3 pb-2"
             />
 
-            <!-- Content textarea -->
-            <editor-content :editor="editor" class="flex-1 flex flex-col [&>div]:flex-1" />
+            <!-- OCR / paste loading overlay -->
+            <Teleport to="body">
+              <div
+                v-if="isExtracting"
+                class="fixed inset-0 z-[95] flex items-center justify-center bg-background/70 backdrop-blur-sm px-4"
+              >
+                <div class="w-full max-w-sm rounded-2xl border border-border bg-card shadow-xl px-6 py-5 text-center">
+                  <Loader2 class="h-8 w-8 animate-spin text-primary mx-auto mb-3" />
+                  <p class="text-sm font-semibold text-foreground">
+                    {{ extractSource === 'paste' ? 'Please wait, pasting your screenshot…' : 'Converting image to text…' }}
+                  </p>
+                  <p class="text-xs text-muted-foreground mt-1.5">This may take a few seconds</p>
+                  <div class="mt-4 h-1.5 rounded-full bg-muted overflow-hidden">
+                    <div
+                      class="h-full bg-primary transition-all duration-300"
+                      :style="{ width: `${Math.max(extractProgress, 8)}%` }"
+                    />
+                  </div>
+                </div>
+              </div>
+            </Teleport>
+
+            <!-- Content editor -->
+            <div
+              ref="editorAreaRef"
+              class="flex-1 flex flex-col relative"
+              @touchstart.passive="onEditorTouchStart"
+              @touchend="onEditorTouchEnd"
+              @touchcancel="onEditorTouchEnd"
+              @touchmove="onEditorTouchMove"
+            >
+              <editor-content :editor="editor" class="flex-1 flex flex-col [&>div]:flex-1" />
+            </div>
+
+            <input
+              ref="imageInputRef"
+              type="file"
+              accept="image/*"
+              class="hidden"
+              @change="handleImageSelected"
+            />
 
             <bubble-menu
               v-if="editor"
@@ -219,14 +443,24 @@ function closeEditor(shouldEmit = true) {
               class="flex items-center bg-card border border-border shadow-xl rounded-xl overflow-hidden p-1 gap-1"
             >
               <!-- Desktop Pen Toggle -->
-              <div v-if="!isMobile && !expandTools">
-                <button @click="expandTools = true" class="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors flex items-center justify-center">
+              <div v-if="!isMobile && !expandTools" class="flex items-center gap-1">
+                <button @click="expandTools = true" class="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors flex items-center justify-center" title="Formatting tools">
                   <Pencil class="h-4 w-4" />
+                </button>
+                <button @click="copyNoteContent(false)" class="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors flex items-center justify-center" title="Copy selection">
+                  <Copy class="h-4 w-4" />
                 </button>
               </div>
               
               <!-- Tools -->
               <div v-show="isMobile || expandTools" class="flex items-center gap-1 animate-in fade-in zoom-in-95 duration-200">
+                <button @click="selectAllContent()" class="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors text-xs font-medium whitespace-nowrap" title="Select all (Ctrl+A)">
+                  All
+                </button>
+                <button @click="copyNoteContent(false)" class="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors flex items-center justify-center" title="Copy">
+                  <Copy class="h-4 w-4" />
+                </button>
+                <div class="w-px h-4 bg-border mx-1"></div>
                 <button @click="editor.chain().focus().toggleBold().run()" :class="{ 'bg-muted text-foreground': editor.isActive('bold') }" class="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors font-bold font-serif">
                   B
                 </button>
@@ -251,6 +485,28 @@ function closeEditor(shouldEmit = true) {
             </bubble-menu>
           </div>
         </div>
+
+        <!-- Context menu: upload or paste screenshot -->
+        <Teleport to="body">
+          <div
+            v-if="contextMenu.show"
+            class="fixed z-[100] min-w-[240px] max-w-[280px] rounded-xl border border-border bg-card shadow-xl py-1 animate-in fade-in zoom-in-95 duration-150"
+            :style="{ left: `${contextMenu.x}px`, top: `${contextMenu.y}px` }"
+            @click.stop
+          >
+            <button
+              type="button"
+              class="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors text-left"
+              @click="triggerImagePicker"
+            >
+              <Camera class="h-4 w-4 text-primary shrink-0" />
+              <span>Upload image</span>
+            </button>
+            <p class="px-4 pb-2.5 pt-0 text-[11px] text-muted-foreground leading-snug">
+              Or paste a screenshot with {{ isMobile ? 'long-press → Paste' : 'Ctrl+V' }} anywhere in this note
+            </p>
+          </div>
+        </Teleport>
       </div>
     </transition>
   </Teleport>
@@ -317,5 +573,47 @@ function closeEditor(shouldEmit = true) {
   padding-left: 1em;
   color: hsl(var(--muted-foreground));
   font-style: italic;
+}
+:deep(.tiptap pre) {
+  background: hsl(var(--muted) / 0.5);
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  overflow-x: auto;
+  white-space: pre;
+  margin-bottom: 0.75em;
+}
+:deep(.tiptap code) {
+  background: hsl(var(--muted) / 0.6);
+  border-radius: 0.25rem;
+  padding: 0.1em 0.35em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.875em;
+}
+:deep(.tiptap table) {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.75em 0 1em;
+  font-size: 0.8125rem;
+  table-layout: auto;
+}
+:deep(.tiptap th),
+:deep(.tiptap td) {
+  border: 1px solid hsl(var(--border));
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  vertical-align: top;
+  min-width: 4rem;
+}
+:deep(.tiptap th) {
+  background: hsl(var(--muted) / 0.5);
+  font-weight: 600;
+}
+:deep(.tiptap td p),
+:deep(.tiptap th p) {
+  margin: 0;
 }
 </style>
